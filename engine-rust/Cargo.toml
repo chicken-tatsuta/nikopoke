@@ -13,6 +13,10 @@ name = "battle-cli"
 path = "src/bin/cli.rs"
 
 [[bin]]
+name = "self-play-export"
+path = "src/bin/self_play_export.rs"
+
+[[bin]]
 name = "move-generator"
 path = "src/bin/move_generator.rs"
 
