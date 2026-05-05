@@ -329,7 +329,7 @@ export default function DeckBuilderPage() {
                                                             className="px-2 py-0.5 text-xs text-white rounded-md"
                                                             style={{ backgroundColor: getTypeColor(t) }}
                                                         >
-                                                            {t}
+                                                            {getTypeLabel(t)}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -412,7 +412,7 @@ function SelectedPokemonCard({
                         className="px-2 py-0.5 text-xs text-white rounded-md"
                         style={{ backgroundColor: getTypeColor(t) }}
                     >
-                        {t}
+                        {getTypeLabel(t)}
                     </span>
                 ))}
             </div>
