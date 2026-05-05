@@ -592,14 +592,12 @@ export default function BattlePage() {
         
             saveBattleRecord(record);
         
-            if (localPlayerIdRef.current === 'host') {
-                void uploadGlobalBattleRecord({
-                    id: record.id,
-                    winner,
-                    hostDeck: localDeckRef.current,
-                    guestDeck: opponentDeckRef.current,
-                });
-            }
+            void uploadGlobalBattleRecord({
+                id: record.id,
+                winner,
+                hostDeck: localDeckRef.current,
+                guestDeck: opponentDeckRef.current,
+            });
         }
     
         sessionStorage.setItem(

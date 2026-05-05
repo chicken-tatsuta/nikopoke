@@ -3,8 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
 import { getTypeColor, loadAllData } from '../lib/data';
 import type { MoveData, Species, SpeciesData } from '../types/pokemon';
-import { aggregatePokemonUsage, loadBattleRecords } from '../lib/battleStats';
-import type { BattleRecord } from '../lib/battleStats';
+import { aggregatePokemonUsage, type BattleRecord } from '../lib/battleStats';
 import { loadGlobalBattleRecords, globalRecordsToBattleRecords } from '../lib/globalBattleStats';
 
 type UsageItem = {
@@ -42,9 +41,7 @@ export default function PokemonDetailPage() {
     const rank = species ? speciesList.findIndex((mon) => mon.id === species.id) + 1 : 0;
 
     const usageStats = useMemo(() => {
-        const localRecords = loadBattleRecords();
-        const records = globalRecords.length > 0 ? globalRecords : localRecords;
-        return aggregatePokemonUsage(records);
+        return aggregatePokemonUsage(globalRecords);
     }, [globalRecords]);
     
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
@@ -53,7 +50,7 @@ export default function PokemonDetailPage() {
             return null;
         }
     
-        return currentUsage.moves.map((move) => ({
+        return currentUsage.moves.map((move: { name: string; rate: number }) => ({
             ...move,
             name: movesData[move.name]?.name ?? move.name,
         }));
@@ -303,10 +300,8 @@ const ABILITY_LABELS: Record<string, string> = {
     power_of_alchemy: 'かがくのちから',
     prankster: 'いたずらごころ',
     pure_power: 'ヨガパワー',
-    quick_feet: 'すばやさ',
     receiver: 'レシーバー',
     shadow_tag: 'かげふみ',
-    sharpness: 'きれあじ',
     simple: 'たんじゅん',
     slow_start: 'スロースタート',
     stamina: 'じきゅうりょく',
