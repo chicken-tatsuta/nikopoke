@@ -42,6 +42,42 @@ function pickRandomTeam(deck: DeckPokemon[], count: number): DeckPokemon[] {
         .slice(0, count);
 }
 
+type AiTeamEntry = {
+    species_id: string;
+    moves: string[];
+};
+
+async function loadAiTeam(): Promise<AiTeamEntry[] | null> {
+    try {
+        const response = await fetch('/ai_team.json');
+        if (!response.ok) {
+            return null;
+        }
+        return (await response.json()) as AiTeamEntry[];
+    } catch (error) {
+        console.warn('[team-preview] Failed to load ai_team.json:', error);
+        return null;
+    }
+}
+
+function normalizeAiTeam(
+    team: AiTeamEntry[],
+    loadedSpecies: SpeciesData,
+): DeckPokemon[] {
+    return team
+        .map((entry) => {
+            const mon = loadedSpecies[entry.species_id];
+            if (!mon) return null;
+
+            return {
+                speciesId: mon.id,
+                moves: entry.moves.slice(0, 4),
+                ability: mon.abilities[0] || 'none',
+            };
+        })
+        .filter((pokemon): pokemon is DeckPokemon => pokemon !== null);
+}
+
 export default function TeamPreviewPage() {
     const navigate = useNavigate();
     const [species, setSpecies] = useState<SpeciesData>({});
@@ -97,24 +133,33 @@ export default function TeamPreviewPage() {
     
             const usedIds = new Set(loadedPlayerDeck.map((pokemon) => pokemon.speciesId));
             const speciesList = Object.values(loadedSpecies).filter((mon) => !usedIds.has(mon.id));
-    
-            const aiDeck: DeckPokemon[] = speciesList
-                .sort(() => Math.random() - 0.5)
-                .slice(0, 6)
-                .map((mon) => {
-                    const fallbackMoves = Object.values(loadedMoves)
-                        .filter((move) => mon.type.includes(move.type))
-                        .slice(0, 4)
-                        .map((move) => move.id);
-    
-                    const playerFallbackMoves = loadedPlayerDeck[0]?.moves ?? [];
-    
-                    return {
-                        speciesId: mon.id,
-                        moves: fallbackMoves.length > 0 ? fallbackMoves : playerFallbackMoves.slice(0, 4),
-                        ability: mon.abilities[0] || 'none',
-                    };
-                });
+            const buildFallbackAiDeck = () =>
+                speciesList
+                    .sort(() => Math.random() - 0.5)
+                    .slice(0, 6)
+                    .map((mon) => {
+                        const fallbackMoves = Object.values(loadedMoves)
+                            .filter((move) => mon.type.includes(move.type))
+                            .slice(0, 4)
+                            .map((move) => move.id);
+
+                        const playerFallbackMoves = loadedPlayerDeck[0]?.moves ?? [];
+
+                        return {
+                            speciesId: mon.id,
+                            moves: fallbackMoves.length > 0 ? fallbackMoves : playerFallbackMoves.slice(0, 4),
+                            ability: mon.abilities[0] || 'none',
+                        };
+                    });
+
+            let aiDeck: DeckPokemon[] = buildFallbackAiDeck();
+            if (currentBattleMode === 'ai' && storedAiLevel === 'lv2') {
+                const aiTeamJson = await loadAiTeam();
+                const normalizedAiTeam = aiTeamJson ? normalizeAiTeam(aiTeamJson, loadedSpecies) : [];
+                if (normalizedAiTeam.length === 3) {
+                    aiDeck = normalizedAiTeam;
+                }
+            }
     
             setSpecies(loadedSpecies);
             setMoves(loadedMoves);
@@ -218,7 +263,10 @@ export default function TeamPreviewPage() {
             return;
         }
     
-        const selectedOpponentDeck = pickRandomTeam(opponentDeck, SELECT_TEAM_SIZE);
+        const selectedOpponentDeck =
+            battleMode === 'ai' && aiLevel === 'lv2'
+                ? opponentDeck.slice(0, SELECT_TEAM_SIZE)
+                : pickRandomTeam(opponentDeck, SELECT_TEAM_SIZE);
     
         sessionStorage.setItem('selectedPlayerDeck', JSON.stringify(selectedTeam));
         sessionStorage.setItem('selectedOpponentDeck', JSON.stringify(selectedOpponentDeck));
@@ -322,14 +370,18 @@ export default function TeamPreviewPage() {
                 </div>
 
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
-                    <h2 className="mb-1 text-base font-bold text-[var(--text-primary)]">相手の6匹</h2>
+                    <h2 className="mb-1 text-base font-bold text-[var(--text-primary)]">
+                        {battleMode === 'ai' && aiLevel === 'lv2' ? '相手の固定チーム' : '相手の6匹'}
+                    </h2>
                     <p className="mb-4 text-sm text-[var(--text-muted)]">
-    {battleMode === 'player'
-        ? onlineSnapshot.remoteSelectedDeck
-            ? '相手の選出が完了しました'
-            : '相手もこの中から3匹を選出します'
-        : 'AIはこの中から3匹を選出します'}
-</p>
+                        {battleMode === 'player'
+                            ? onlineSnapshot.remoteSelectedDeck
+                                ? '相手の選出が完了しました'
+                                : '相手もこの中から3匹を選出します'
+                            : aiLevel === 'lv2'
+                                ? '学習済みのAIチームを使います'
+                                : 'AIはこの中から3匹を選出します'}
+                    </p>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {opponentDeck.map((pokemon, index) => (
