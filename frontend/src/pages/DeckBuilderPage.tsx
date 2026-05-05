@@ -9,6 +9,60 @@ import { getAbilityLabel } from './PokemonDetailPage';
 
 const DECK_SIZE = 6;
 
+const TYPE_LABELS: Record<string, string> = {
+  normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+  ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+  psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+  dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
+
+function getTypeLabel(type: string): string {
+  return TYPE_LABELS[type] ?? type;
+}
+
+const TYPE_EFFECTIVENESS_DATA: Record<string, Record<string, number>> = {
+  normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+  fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+  water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+  electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+  grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
+  ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+  fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+  poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+  ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+  flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+  psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+  bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
+  rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+  ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+  dragon: { dragon: 2, steel: 0.5, fairy: 0 },
+  dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
+  steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
+  fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 },
+};
+
+function getTypeEffectiveness(moveType: string, targetTypes: string[]): number {
+  return targetTypes.reduce((mult, t) => mult * (TYPE_EFFECTIVENESS_DATA[moveType]?.[t] ?? 1), 1);
+}
+
+function getEffectivenessLabel(mult: number): string | null {
+  if (mult === 0) return '無効';
+  if (mult >= 4) return 'ちょうばつぐん';
+  if (mult >= 2) return 'ばつぐん';
+  if (mult <= 0.25) return 'かなりいまひとつ';
+  if (mult < 1) return 'いまひとつ';
+  return null;
+}
+
+function getEffectivenessClass(mult: number): string {
+  if (mult === 0) return 'bg-slate-800 text-white border border-slate-700';
+  if (mult >= 4) return 'bg-pink-100 text-pink-700 border border-pink-200';
+  if (mult >= 2) return 'bg-red-100 text-red-700 border border-red-200';
+  if (mult <= 0.25) return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
+  if (mult < 1) return 'bg-blue-100 text-blue-700 border border-blue-200';
+  return 'bg-slate-100 text-slate-500 border border-slate-200';
+}
+
 export default function DeckBuilderPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -459,34 +513,86 @@ function MoveSelector({
                 {availableMoves.map((moveId) => {
                     const move = moves[moveId];
                     const isSelected = selectedMoves.includes(moveId);
+                    const categoryLabel =
+                        move.category === 'physical' ? '物理'
+                        : move.category === 'special' ? '特殊'
+                        : move.category === 'status' ? '変化'
+                        : move.category ?? '-';
+                    const accuracyLabel = typeof move.accuracy === 'number' ? Math.round(move.accuracy * 100) : '-';
+                    const moveDescription = move.description || '説明なし';
+                    const isDamageMove = move.category !== 'status' && typeof move.power === 'number' && move.power > 0;
+                    const effectiveness = isDamageMove ? getTypeEffectiveness(move.type, species.type ?? []) : null;
+                    const effLabel = effectiveness !== null && effectiveness !== 1 ? getEffectivenessLabel(effectiveness) : null;
+                    const effClass = effectiveness !== null ? getEffectivenessClass(effectiveness) : '';
+
                     return (
-                        <button
-                            key={moveId}
-                            onClick={() => onToggleMove(moveId)}
-                            disabled={!isSelected && selectedMoves.length >= 4}
-                            className={`p-4 rounded-xl border text-left transition-all ${isSelected
-                                ? 'bg-[var(--accent-muted)] border-[var(--accent)]/50'
-                                : selectedMoves.length >= 4
-                                    ? 'bg-[var(--surface-2)] border-[var(--border)] opacity-50 cursor-not-allowed'
-                                    : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
-                                }`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <span
-                                    className="px-2 py-0.5 text-xs text-white rounded-md"
-                                    style={{ backgroundColor: getTypeColor(move.type) }}
-                                >
-                                    {move.type}
-                                </span>
-                                <span className="font-medium text-[var(--text-primary)]">{move.name}</span>
-                                {isSelected && <Check className="size-4 text-[var(--accent)] ml-auto" />}
+                        <div key={moveId} className="group relative">
+                            <button
+                                onClick={() => onToggleMove(moveId)}
+                                disabled={!isSelected && selectedMoves.length >= 4}
+                                className={`w-full p-4 rounded-xl border text-left transition-all ${isSelected
+                                    ? 'bg-[var(--accent-muted)] border-[var(--accent)]/50'
+                                    : selectedMoves.length >= 4
+                                        ? 'bg-[var(--surface-2)] border-[var(--border)] opacity-50 cursor-not-allowed'
+                                        : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        className="px-2 py-0.5 text-xs text-white rounded-md"
+                                        style={{ backgroundColor: getTypeColor(move.type) }}
+                                    >
+                                        {getTypeLabel(move.type)}
+                                    </span>
+                                    <span className="font-medium text-[var(--text-primary)]">{move.name}</span>
+                                    {isSelected && <Check className="size-4 text-[var(--accent)] ml-auto" />}
+                                </div>
+                                <div className="mt-2 text-xs text-[var(--text-muted)] flex gap-3 tabular-nums">
+                                    <span>威力: {move.power ?? '-'}</span>
+                                    <span>PP: {move.pp}</span>
+                                    <span>{categoryLabel}</span>
+                                </div>
+                            </button>
+
+                            <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-80 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-2xl group-hover:block">
+                                <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-bold text-[var(--text-primary)]">{move.name}</div>
+                                        <div className="mt-1 text-xs text-[var(--text-muted)]">{categoryLabel}</div>
+                                    </div>
+                                    <div className="flex shrink-0 flex-col items-end gap-1">
+                                        <span className="rounded-full px-2 py-1 text-xs text-white" style={{ backgroundColor: getTypeColor(move.type) }}>
+                                            {getTypeLabel(move.type)}
+                                        </span>
+                                        {effLabel && (
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${effClass}`}>
+                                                {effLabel}
+                                                {effectiveness !== null && effectiveness !== 1 ? ` ×${effectiveness}` : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
+                                    <div className="rounded-lg bg-[var(--surface-3)] px-3 py-2">
+                                        <div className="text-[10px] text-[var(--text-muted)]">威力</div>
+                                        <div className="font-semibold text-[var(--text-primary)]">{move.power ?? '-'}</div>
+                                    </div>
+                                    <div className="rounded-lg bg-[var(--surface-3)] px-3 py-2">
+                                        <div className="text-[10px] text-[var(--text-muted)]">命中</div>
+                                        <div className="font-semibold text-[var(--text-primary)]">{accuracyLabel}</div>
+                                    </div>
+                                    <div className="rounded-lg bg-[var(--surface-3)] px-3 py-2">
+                                        <div className="text-[10px] text-[var(--text-muted)]">PP</div>
+                                        <div className="font-semibold text-[var(--text-primary)]">{move.pp}</div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg bg-[var(--surface-3)] px-3 py-3 text-xs leading-relaxed text-[var(--text-primary)]">
+                                    {moveDescription}
+                                </div>
                             </div>
-                            <div className="mt-2 text-xs text-[var(--text-muted)] flex gap-3 tabular-nums">
-                                <span>威力: {move.power || '-'}</span>
-                                <span>PP: {move.pp}</span>
-                                <span>{move.category}</span>
-                            </div>
-                        </button>
+                        </div>
                     );
                 })}
             </div>
