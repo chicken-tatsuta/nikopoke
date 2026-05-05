@@ -3,8 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
 import { getTypeColor, loadAllData } from '../lib/data';
 import type { MoveData, Species, SpeciesData } from '../types/pokemon';
-import { aggregatePokemonUsage, type BattleRecord } from '../lib/battleStats';
-import { loadGlobalBattleRecords, globalRecordsToBattleRecords } from '../lib/globalBattleStats';
+import type { PokemonUsageStats } from '../lib/battleStats';
+import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
 
 type UsageItem = {
     name: string;
@@ -15,7 +15,7 @@ export default function PokemonDetailPage() {
     const { speciesId } = useParams<{ speciesId: string }>();
     const [speciesData, setSpeciesData] = useState<SpeciesData>({});
     const [movesData, setMovesData] = useState<MoveData>({});
-    const [globalRecords, setGlobalRecords] = useState<BattleRecord[]>([]);
+    const [usageStats, setUsageStats] = useState<Record<string, PokemonUsageStats>>({});
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -27,19 +27,12 @@ export default function PokemonDetailPage() {
     }, []);
 
     useEffect(() => {
-        loadGlobalBattleRecords()
-            .then((records) => {
-                setGlobalRecords(globalRecordsToBattleRecords(records));
-                // Clear localStorage cache after successfully loading from Supabase
-                try {
-                    localStorage.removeItem('battleRecords');
-                    console.log('[PokemonDetailPage] Cleared localStorage battle records cache');
-                } catch (e) {
-                    console.warn('[PokemonDetailPage] Failed to clear localStorage:', e);
-                }
+        loadGlobalPokemonUsageStats()
+            .then((stats) => {
+                setUsageStats(stats);
             })
             .catch((error) => {
-                console.error('Failed to load global battle records:', error);
+                console.error('Failed to load global usage stats:', error);
             });
     }, []);
 
@@ -47,10 +40,6 @@ export default function PokemonDetailPage() {
     const species = speciesId ? speciesData[speciesId] : undefined;
     const rank = species ? speciesList.findIndex((mon) => mon.id === species.id) + 1 : 0;
 
-    const usageStats = useMemo(() => {
-        return aggregatePokemonUsage(globalRecords);
-    }, [globalRecords]);
-    
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
     const currentUsageMoves = useMemo(() => {
         if (!currentUsage?.moves.length) {
