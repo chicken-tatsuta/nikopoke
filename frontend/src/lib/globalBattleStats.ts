@@ -57,7 +57,7 @@ export async function uploadGlobalBattleRecord(args: {
 
     const { error } = await supabase
         .from('battle_records')
-        .insert(record);
+        .upsert(record, { onConflict: 'id' });
 
     if (error) {
         // 同じidが既に入っている場合など。最初はログだけでOK。

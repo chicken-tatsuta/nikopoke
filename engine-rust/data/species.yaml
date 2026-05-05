@@ -137,7 +137,7 @@ machida:
 makocchan:
   abilities:
     - power_of_alchemy
-    - sharpness
+    - magic_guard
   baseStats:
     atk: 55
     def: 50
@@ -306,7 +306,7 @@ tomoki:
   weight_kg: 48
 touma:
   abilities:
-    - quick_feet
+    - opportunist
     - lightning_rod
   baseStats:
     atk: 120

@@ -3,8 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
 import { getTypeColor, loadAllData } from '../lib/data';
 import type { MoveData, Species, SpeciesData } from '../types/pokemon';
-import { aggregatePokemonUsage, loadBattleRecords } from '../lib/battleStats';
-import type { BattleRecord } from '../lib/battleStats';
+import { aggregatePokemonUsage, type BattleRecord } from '../lib/battleStats';
 import { loadGlobalBattleRecords, globalRecordsToBattleRecords } from '../lib/globalBattleStats';
 
 type UsageItem = {
@@ -31,6 +30,13 @@ export default function PokemonDetailPage() {
         loadGlobalBattleRecords()
             .then((records) => {
                 setGlobalRecords(globalRecordsToBattleRecords(records));
+                // Clear localStorage cache after successfully loading from Supabase
+                try {
+                    localStorage.removeItem('battleRecords');
+                    console.log('[PokemonDetailPage] Cleared localStorage battle records cache');
+                } catch (e) {
+                    console.warn('[PokemonDetailPage] Failed to clear localStorage:', e);
+                }
             })
             .catch((error) => {
                 console.error('Failed to load global battle records:', error);
@@ -42,9 +48,7 @@ export default function PokemonDetailPage() {
     const rank = species ? speciesList.findIndex((mon) => mon.id === species.id) + 1 : 0;
 
     const usageStats = useMemo(() => {
-        const localRecords = loadBattleRecords();
-        const records = globalRecords.length > 0 ? globalRecords : localRecords;
-        return aggregatePokemonUsage(records);
+        return aggregatePokemonUsage(globalRecords);
     }, [globalRecords]);
     
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
@@ -53,7 +57,7 @@ export default function PokemonDetailPage() {
             return null;
         }
     
-        return currentUsage.moves.map((move) => ({
+        return currentUsage.moves.map((move: { name: string; rate: number }) => ({
             ...move,
             name: movesData[move.name]?.name ?? move.name,
         }));
@@ -276,26 +280,59 @@ function mockMovesFor(species: Species): UsageItem[] {
 const ABILITY_LABELS: Record<string, string> = {
     none: 'なし',
 
+    // 40 abilities from species.yaml (corrected keys)
     berserk: 'ぎゃくじょう',
+    chlorophyll: 'ようりょくそ',
     competitive: 'かちき',
+    compound_eyes: 'ふくがん',
+    contrary: 'あまのじゃく',
+    cotton_down: 'わたげ',
+    download: 'ダウンロード',
+    drought: 'ひでり',
+    fur_coat: 'ファーコート',
+    guts: 'こんじょう',
+    hustle: 'はりきり',
+    immunity: 'めんえき',
+    insomnia: 'ふみん',
+    intimidate: 'いかく',
+    klutz: 'ぶきよう',
+    libero: 'リベロ',
+    lightning_rod: 'せいでんき',
+    magic_bounce: 'マジックミラー',
+    merciless: 'ひとでなし',
+    moody: 'ムラっけ',
+    opportunist: 'かるわざ',
+    own_tempo: 'マイペース',
+    parental_bond: 'おやこあい',
+    power_of_alchemy: 'かがくのちから',
+    prankster: 'いたずらごころ',
+    pure_power: 'ヨガパワー',
+    receiver: 'レシーバー',
+    shadow_tag: 'かげふみ',
+    simple: 'たんじゅん',
+    slow_start: 'スロースタート',
+    stamina: 'じきゅうりょく',
+    steelworker: 'はがねつかい',
+    super_luck: 'きょううん',
+    swift_swim: 'すいすい',
+    technician: 'テクニシャン',
+    thick_fat: 'あついしぼう',
+    unaware: 'てんねん',
+    clear_body: 'びんじょう',
+    unnerve: 'きんちょうかん',
+
+    // Other abilities
     torrent: 'げきりゅう',
     blaze: 'もうか',
     overgrow: 'しんりょく',
     swarm: 'むしのしらせ',
-    intimidate: 'いかく',
     levitate: 'ふゆう',
     pressure: 'プレッシャー',
     sturdy: 'がんじょう',
-    swift_swim: 'すいすい',
-    chlorophyll: 'ようりょくそ',
     huge_power: 'ちからもち',
-    guts: 'こんじょう',
     moxie: 'じしんかじょう',
-    prankster: 'いたずらごころ',
     magic_guard: 'マジックガード',
-    technician: 'テクニシャン',
     adaptability: 'てきおうりょく',
-    unaware: 'てんねん',
 };
 
 function mockAbilitiesFor(species: Species): UsageItem[] {
