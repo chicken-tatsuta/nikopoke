@@ -1231,7 +1231,7 @@ const aiLastMove = lastMoves.ai ? moves[lastMoves.ai] : undefined;
                             <div className="mb-3 grid grid-cols-2 gap-2">
                                 {playerPokemon.moves.map((moveId) => {
                                     const move = moves[moveId];
-                                    const pp = playerPokemon.movePp[moveId] ?? 10;
+                                    const pp = playerPokemon.movePp[moveId] ?? move.pp ?? 10;
 
                                     if (!move) return null;
 
