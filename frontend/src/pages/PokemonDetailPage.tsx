@@ -295,6 +295,7 @@ const ABILITY_LABELS: Record<string, string> = {
     magic_guard: 'マジックガード',
     technician: 'テクニシャン',
     adaptability: 'てきおうりょく',
+    parental_bond: 'おやこあい',
     unaware: 'てんねん',
 };
 

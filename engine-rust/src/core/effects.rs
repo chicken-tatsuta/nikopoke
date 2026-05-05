@@ -399,7 +399,7 @@ fn apply_damage(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_
     }
 
     if attacker.ability.as_deref() == Some("parental_bond") {
-        let second_power = (power as f32 * 0.25).floor() as i32;
+        let second_power = (power as f32 * 0.5).floor() as i32;
         // Pass true for is_secondary_hit, parental bond 2nd hit doesn't crit
         let (second_amount, _) = calc_damage(second_power, state, &attacker_id, &target_id, ctx, true, use_defensive_stat, offensive_stat);
         

@@ -5,6 +5,7 @@ import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
 import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
 import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
+import { getAbilityLabel } from './PokemonDetailPage';
 
 const DECK_SIZE = 6;
 
@@ -120,6 +121,12 @@ export default function DeckBuilderPage() {
         setEditingEVIndex(null);
     };
 
+    const handleAbilityChange = (index: number, ability: string) => {
+        const updated = [...selectedPokemon];
+        updated[index] = { ...updated[index], ability };
+        setSelectedPokemon(updated);
+    };
+
     const handleStartBattle = () => {
         if (selectedPokemon.length < DECK_SIZE) return;
         const sanitizedDeck = selectedPokemon
@@ -196,6 +203,7 @@ export default function DeckBuilderPage() {
                                                 onRemove={() => handleRemovePokemon(idx)}
                                                 onEditMoves={() => handleEditMoves(idx)}
                                                 onEditEVs={() => handleEditEVs(idx)}
+                                                onAbilityChange={(ability) => handleAbilityChange(idx, ability)}
                                             />
                                         ) : (
                                             <div className="text-center text-[var(--text-muted)] py-3">
@@ -323,6 +331,7 @@ function SelectedPokemonCard({
     onRemove,
     onEditMoves,
     onEditEVs,
+    onAbilityChange,
 }: {
     pokemon: DeckPokemon;
     species: Species;
@@ -330,6 +339,7 @@ function SelectedPokemonCard({
     onRemove: () => void;
     onEditMoves: () => void;
     onEditEVs: () => void;
+    onAbilityChange: (ability: string) => void;
 }) {
     const totalEvs = pokemon.evs ? pokemon.evs.hp + pokemon.evs.atk + pokemon.evs.def + pokemon.evs.spa + pokemon.evs.spd + pokemon.evs.spe : 0;
 
@@ -351,6 +361,20 @@ function SelectedPokemonCard({
                         {t}
                     </span>
                 ))}
+            </div>
+            <div className="mb-2">
+                <label className="text-xs text-[var(--text-muted)]">特性</label>
+                <select
+                    value={pokemon.ability}
+                    onChange={(e) => onAbilityChange(e.target.value)}
+                    className="ml-2 text-xs bg-[var(--surface-3)] text-[var(--text-primary)] rounded p-1"
+                >
+                    {species.abilities.map((abilityId) => (
+                        <option key={abilityId} value={abilityId}>
+                            {getAbilityLabel(abilityId)}
+                        </option>
+                    ))}
+                </select>
             </div>
             <div className="space-y-1">
                 {pokemon.moves.map((moveId) => {
