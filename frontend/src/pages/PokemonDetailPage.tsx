@@ -6,6 +6,13 @@ import type { MoveData, Species, SpeciesData } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
 import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
 
+const TYPE_LABELS: Record<string, string> = {
+    normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+    ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+    psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+    dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
+
 type UsageItem = {
     name: string;
     rate: number;
@@ -36,9 +43,9 @@ export default function PokemonDetailPage() {
             });
     }, []);
 
-    const speciesList = useMemo(() => Object.values(speciesData), [speciesData]);
+    const speciesKeys = useMemo(() => Object.keys(speciesData), [speciesData]);
     const species = speciesId ? speciesData[speciesId] : undefined;
-    const rank = species ? speciesList.findIndex((mon) => mon.id === species.id) + 1 : 0;
+    const pokedexNumber = species && speciesId ? speciesKeys.indexOf(speciesId) + 1 : 0;
 
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
     const currentUsageMoves = useMemo(() => {
@@ -83,7 +90,7 @@ export default function PokemonDetailPage() {
 
             <main className="max-w-7xl mx-auto px-6 py-10 space-y-12">
                 <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6">
-                    <PokemonHero species={species} rank={rank} />
+                    <PokemonHero species={species} pokedexNumber={pokedexNumber} />
                     <BaseStatsPanel species={species} />
                 </section>
 
@@ -138,7 +145,7 @@ function BackLink() {
     );
 }
 
-function PokemonHero({ species, rank }: { species: Species; rank: number }) {
+function PokemonHero({ species, pokedexNumber }: { species: Species; pokedexNumber: number }) {
     return (
         <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
             <div className="flex items-start gap-5">
@@ -150,10 +157,10 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                     <div>
                         <div className="flex flex-wrap items-center gap-3">
                             <h1 className="text-2xl font-bold">{species.name}</h1>
-                            {rank > 0 && (
+                            {pokedexNumber > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-muted)] px-2.5 py-1 text-sm font-semibold text-[var(--accent)]">
                                     <BarChart3 className="size-4" />
-                                    {rank}位
+                                    #{pokedexNumber}
                                 </span>
                             )}
                         </div>
@@ -165,7 +172,7 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                                     className="px-3 py-1 text-sm font-medium text-white rounded-md"
                                     style={{ backgroundColor: getTypeColor(type) }}
                                 >
-                                    {type}
+                                    {TYPE_LABELS[type] ?? type}
                                 </span>
                             ))}
                         </div>
