@@ -1,27 +1,27 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Trophy, Home, RotateCcw } from 'lucide-react';
 import { clearOnlineSession } from '../lib/p2p';
 
 interface BattleResult {
-    winner: string;
+    winner: string | null;
     logs: string[];
     localPlayerId?: string;
 }
 
+interface ResultLocationState {
+    battleMode?: 'ai' | 'player';
+    result?: BattleResult;
+}
+
 export default function ResultPage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [result] = useState<BattleResult | null>(() => {
-        const resultJson = sessionStorage.getItem('battleResult');
-        if (!resultJson) {
-            return null;
-        }
-        try {
-            return JSON.parse(resultJson) as BattleResult;
-        } catch {
-            return null;
-        }
+        const state = location.state as ResultLocationState | null;
+        return state?.result ?? null;
     });
+    const battleMode = ((location.state as ResultLocationState | null)?.battleMode ?? 'ai') as 'ai' | 'player';
 
     useEffect(() => {
         if (!result) {
@@ -37,7 +37,6 @@ export default function ResultPage() {
         );
     }
 
-    const battleMode = sessionStorage.getItem('battleMode') === 'player' ? 'player' : 'ai';
     const localPlayerId = result.localPlayerId ?? 'player';
     const isVictory = result.winner === localPlayerId;
 
@@ -76,7 +75,6 @@ export default function ResultPage() {
                 <div className="space-y-3">
                     <button
                         onClick={() => {
-                            sessionStorage.removeItem('battleResult');
                             if (battleMode === 'player') {
                                 clearOnlineSession();
                                 navigate('/online-lobby');
@@ -93,7 +91,6 @@ export default function ResultPage() {
                     </button>
                     <button
                         onClick={() => {
-                            sessionStorage.removeItem('battleResult');
                             sessionStorage.removeItem('playerDeck');
                             if (battleMode === 'player') {
                                 clearOnlineSession();

@@ -4,9 +4,8 @@ import { ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { loadAllData, getTypeColor } from '../lib/data';
 import { BattleLog, ActionSummary } from '../components/BattleLog';
-import { createBattleRecord, saveBattleRecord } from '../lib/battleStats';
 import { getAbilityLabel } from './PokemonDetailPage';
-import { uploadGlobalBattleRecord } from '../lib/globalBattleStats';
+import { createBattleStatsId, uploadGlobalBattleRecord } from '../lib/globalBattleStats';
 import {
     initEngine,
     createBattleState,
@@ -538,6 +537,7 @@ export default function BattlePage() {
     const localDeckRef = useRef<DeckPokemon[] | null>(null);
     const opponentDeckRef = useRef<DeckPokemon[] | null>(null);
     const battleRecordSavedRef = useRef(false);
+    const battleStatsIdRef = useRef<string>(createBattleStatsId());
     const onlineRoleRef = useRef<OnlineRole | null>(onlineSnapshot.role);
     const pendingLocalActionRef = useRef<ActionWire | null>(null);
     const pendingRemoteActionRef = useRef<ActionWire | null>(null);
@@ -577,44 +577,54 @@ export default function BattlePage() {
         }
     
         const winner = getWinner(nextState);
-    
-        if (battleMode === 'player' && !battleRecordSavedRef.current) {
+
+        const winnerSide =
+            winner === localPlayerIdRef.current
+                ? 'player'
+                : winner === opponentPlayerIdRef.current
+                  ? 'opponent'
+                  : null;
+        const shouldUploadStats =
+            !battleRecordSavedRef.current &&
+            winnerSide &&
+            localDeckRef.current &&
+            opponentDeckRef.current &&
+            (battleMode === 'ai' || localPlayerIdRef.current === 'host');
+
+        if (shouldUploadStats) {
             battleRecordSavedRef.current = true;
-        
-            const record = createBattleRecord({
-                winner,
-                localPlayerId: localPlayerIdRef.current,
-                opponentPlayerId: opponentPlayerIdRef.current,
-                mode: battleMode,
+
+            await uploadGlobalBattleRecord({
+                id: battleStatsIdRef.current,
+                winner: winnerSide,
                 playerDeck: localDeckRef.current,
                 opponentDeck: opponentDeckRef.current,
-            });
-        
-            saveBattleRecord(record);
-        
-            void uploadGlobalBattleRecord({
-                id: record.id,
-                winner,
-                hostDeck: localDeckRef.current,
-                guestDeck: opponentDeckRef.current,
+                mode: battleMode,
             });
         }
-    
-        sessionStorage.setItem(
-            'battleResult',
-            JSON.stringify({
-                winner,
-                localPlayerId: localPlayerIdRef.current,
-                logs: nextState.log,
-            }),
-        );
-    
+
+        const resultPayload = {
+            winner,
+            localPlayerId: localPlayerIdRef.current,
+            logs: nextState.log,
+        };
+
         window.setTimeout(() => {
-            navigate('/result');
+            navigate('/result', {
+                state: {
+                    battleMode,
+                    result: resultPayload,
+                },
+            });
         }, 1500);
-    
+
         return true;
     }, [battleMode, navigate]);
+
+    const resetBattlePersistenceState = useCallback(() => {
+        battleRecordSavedRef.current = false;
+        battleStatsIdRef.current = createBattleStatsId();
+    }, []);
 
     const resolveHostTurn = useCallback(async (localAction: ActionWire, remoteAction: ActionWire) => {
         const currentState = battleStateRef.current;
@@ -789,7 +799,7 @@ export default function BattlePage() {
         
             localDeckRef.current = playerDeck;
             opponentDeckRef.current = aiDeck;
-            battleRecordSavedRef.current = false;
+            resetBattlePersistenceState();
 
             createBattleState({
                 player: { team: playerDeck },
@@ -812,32 +822,32 @@ export default function BattlePage() {
             return;
         }
         const selectedPlayerDeckJson = sessionStorage.getItem('selectedPlayerDeck');
-const selectedOpponentDeckJson = sessionStorage.getItem('selectedOpponentDeck');
+        const selectedOpponentDeckJson = sessionStorage.getItem('selectedOpponentDeck');
 
-if (!selectedPlayerDeckJson || !selectedOpponentDeckJson) {
-    navigate('/team-preview');
-    return;
-}
+        if (!selectedPlayerDeckJson || !selectedOpponentDeckJson) {
+            navigate('/team-preview');
+            return;
+        }
 
-const selectedPlayerDeck: DeckPokemon[] = JSON.parse(selectedPlayerDeckJson);
-const selectedOpponentDeck: DeckPokemon[] = JSON.parse(selectedOpponentDeckJson);
+        const selectedPlayerDeck: DeckPokemon[] = JSON.parse(selectedPlayerDeckJson);
+        const selectedOpponentDeck: DeckPokemon[] = JSON.parse(selectedOpponentDeckJson);
 
-if (selectedPlayerDeck.length !== 3 || selectedOpponentDeck.length !== 3) {
-    navigate('/team-preview');
-    return;
-}
+        if (selectedPlayerDeck.length !== 3 || selectedOpponentDeck.length !== 3) {
+            navigate('/team-preview');
+            return;
+        }
 
-if (onlineSnapshot.role === 'host' && onlineSnapshot.remoteDeck) {
-    initializedRef.current = true;
-    setLocalPlayerId('host');
-    setOpponentPlayerId('guest');
-    localDeckRef.current = selectedPlayerDeck;
-    opponentDeckRef.current = selectedOpponentDeck;
-    battleRecordSavedRef.current = false;
-    createBattleState({
-        host: { team: selectedPlayerDeck },
-        guest: { team: selectedOpponentDeck },
-    })
+        if (onlineSnapshot.role === 'host' && onlineSnapshot.remoteDeck) {
+            initializedRef.current = true;
+            setLocalPlayerId('host');
+            setOpponentPlayerId('guest');
+            localDeckRef.current = selectedPlayerDeck;
+            opponentDeckRef.current = selectedOpponentDeck;
+            resetBattlePersistenceState();
+            createBattleState({
+                host: { team: selectedPlayerDeck },
+                guest: { team: selectedOpponentDeck },
+            })
                 .then((state) => {
                     setBattleState(state);
                     sendBattleInit(state);
@@ -854,7 +864,7 @@ if (onlineSnapshot.role === 'host' && onlineSnapshot.remoteDeck) {
             initializedRef.current = true;
             localDeckRef.current = selectedPlayerDeck;
             opponentDeckRef.current = selectedOpponentDeck;
-            battleRecordSavedRef.current = false;
+            resetBattlePersistenceState();
             setLocalPlayerId('guest');
             setOpponentPlayerId('host');
             if (onlineSnapshot.latestState) {
@@ -863,7 +873,7 @@ if (onlineSnapshot.role === 'host' && onlineSnapshot.remoteDeck) {
                 setStatusText('ホストが対戦を開始するのを待っています...');
             }
         }
-    }, [battleMode, loading, navigate, onlineSnapshot.localDeck, onlineSnapshot.latestState, onlineSnapshot.remoteDeck, onlineSnapshot.role, species]);
+    }, [battleMode, loading, navigate, onlineSnapshot.localDeck, onlineSnapshot.latestState, onlineSnapshot.remoteDeck, onlineSnapshot.role, resetBattlePersistenceState, species]);
 
     useEffect(() => {
         if (battleMode !== 'ai' || waiting || !battleState) {
