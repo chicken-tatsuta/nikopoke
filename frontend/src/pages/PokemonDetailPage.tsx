@@ -30,6 +30,13 @@ export default function PokemonDetailPage() {
         loadGlobalBattleRecords()
             .then((records) => {
                 setGlobalRecords(globalRecordsToBattleRecords(records));
+                // Clear localStorage cache after successfully loading from Supabase
+                try {
+                    localStorage.removeItem('battleRecords');
+                    console.log('[PokemonDetailPage] Cleared localStorage battle records cache');
+                } catch (e) {
+                    console.warn('[PokemonDetailPage] Failed to clear localStorage:', e);
+                }
             })
             .catch((error) => {
                 console.error('Failed to load global battle records:', error);
