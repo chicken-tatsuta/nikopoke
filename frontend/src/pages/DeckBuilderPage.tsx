@@ -5,15 +5,67 @@ import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
 import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
 import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
-<<<<<<< feature/auth-login
 import { useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-=======
 import { getAbilityLabel } from './PokemonDetailPage';
->>>>>>> main
+
 
 const DECK_SIZE = 6;
 const LOCAL_PRESETS_KEY = 'savedDeckPresets';
+
+const TYPE_LABELS: Record<string, string> = {
+  normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+  ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+  psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+  dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
+
+function getTypeLabel(type: string): string {
+  return TYPE_LABELS[type] ?? type;
+}
+
+const TYPE_EFFECTIVENESS_DATA: Record<string, Record<string, number>> = {
+  normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+  fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+  water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+  electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+  grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
+  ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+  fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+  poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+  ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+  flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+  psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+  bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
+  rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+  ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+  dragon: { dragon: 2, steel: 0.5, fairy: 0 },
+  dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
+  steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
+  fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 },
+};
+
+function getTypeEffectiveness(moveType: string, targetTypes: string[]): number {
+  return targetTypes.reduce((mult, t) => mult * (TYPE_EFFECTIVENESS_DATA[moveType]?.[t] ?? 1), 1);
+}
+
+function getEffectivenessLabel(mult: number): string | null {
+  if (mult === 0) return '無効';
+  if (mult >= 4) return 'ちょうばつぐん';
+  if (mult >= 2) return 'ばつぐん';
+  if (mult <= 0.25) return 'かなりいまひとつ';
+  if (mult < 1) return 'いまひとつ';
+  return null;
+}
+
+function getEffectivenessClass(mult: number): string {
+  if (mult === 0) return 'bg-slate-800 text-white border border-slate-700';
+  if (mult >= 4) return 'bg-pink-100 text-pink-700 border border-pink-200';
+  if (mult >= 2) return 'bg-red-100 text-red-700 border border-red-200';
+  if (mult <= 0.25) return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
+  if (mult < 1) return 'bg-blue-100 text-blue-700 border border-blue-200';
+  return 'bg-slate-100 text-slate-500 border border-slate-200';
+}
 
 export default function DeckBuilderPage() {
     const navigate = useNavigate();
@@ -102,6 +154,9 @@ export default function DeckBuilderPage() {
         if (editingIndex === index) {
             setEditingIndex(null);
         }
+        if (editingEVIndex === index) {
+            setEditingEVIndex(null);
+        }
     };
 
     const handleEditMoves = (index: number) => {
@@ -109,12 +164,15 @@ export default function DeckBuilderPage() {
         setEditingMoves([...selectedPokemon[index].moves]);
     };
 
-    const handleToggleMove = (moveId: string) => {
-        if (editingMoves.includes(moveId)) {
-            setEditingMoves(editingMoves.filter(m => m !== moveId));
-        } else if (editingMoves.length < 4) {
-            setEditingMoves([...editingMoves, moveId]);
-        }
+    const handleEditEVs = (index: number) => {
+        setEditingEVIndex(index);
+        setEditingEVs(selectedPokemon[index].evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
+    };
+
+    const handleAbilityChange = (index: number, ability: string) => {
+        const updated = [...selectedPokemon];
+        updated[index] = { ...updated[index], ability };
+        setSelectedPokemon(updated);
     };
 
     const handleSaveMoves = () => {
@@ -125,9 +183,12 @@ export default function DeckBuilderPage() {
         setEditingIndex(null);
     };
 
-    const handleEditEVs = (index: number) => {
-        setEditingEVIndex(index);
-        setEditingEVs(selectedPokemon[index].evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
+    const handleToggleMove = (moveId: string) => {
+        if (editingMoves.includes(moveId)) {
+            setEditingMoves(editingMoves.filter(m => m !== moveId));
+        } else if (editingMoves.length < 4) {
+            setEditingMoves([...editingMoves, moveId]);
+        }
     };
 
     const handleSaveEVs = () => {
@@ -136,12 +197,6 @@ export default function DeckBuilderPage() {
         updated[editingEVIndex] = { ...updated[editingEVIndex], evs: editingEVs };
         setSelectedPokemon(updated);
         setEditingEVIndex(null);
-    };
-
-    const handleAbilityChange = (index: number, ability: string) => {
-        const updated = [...selectedPokemon];
-        updated[index] = { ...updated[index], ability };
-        setSelectedPokemon(updated);
     };
 
     const handleStartBattle = () => {
@@ -215,7 +270,7 @@ export default function DeckBuilderPage() {
         <div className="min-h-dvh bg-[var(--surface-1)]">
             {/* Header */}
             <header className="bg-[var(--surface-2)] border-b border-[var(--border)] sticky top-0 z-20">
-                <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
+                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
                     <button
                         onClick={() => navigate('/home')}
                         className="p-2 hover:bg-[var(--surface-3)] rounded-lg transition-colors"
@@ -230,10 +285,10 @@ export default function DeckBuilderPage() {
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto px-6 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <main className="max-w-7xl mx-auto px-6 py-8">
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)]">
                     {/* Selected Pokemon */}
-                    <div className="lg:col-span-1">
+                    <div>
                         <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5 sticky top-24">
                             <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
@@ -257,12 +312,13 @@ export default function DeckBuilderPage() {
                             )}
 
                             <div className="space-y-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             {Array.from({ length: DECK_SIZE }, (_, idx) => idx).map((idx) => (
                                     <div
                                         key={idx}
-                                        className={`p-4 rounded-xl border transition-all ${selectedPokemon[idx]
-                                            ? 'bg-[var(--accent-muted)] border-[var(--accent)]/30'
-                                            : 'bg-[var(--surface-3)] border-[var(--border)] border-dashed'
+                                        className={`min-h-[210px] rounded-xl border transition-all ${selectedPokemon[idx]
+                                            ? 'bg-[var(--accent-muted)] border-[var(--accent)]/30 p-4'
+                                            : 'bg-[var(--surface-3)] border-[var(--border)] border-dashed p-4'
                                             }`}
                                     >
                                         {selectedPokemon[idx] ? (
@@ -276,7 +332,7 @@ export default function DeckBuilderPage() {
                                                 onAbilityChange={(ability) => handleAbilityChange(idx, ability)}
                                             />
                                         ) : (
-                                            <div className="text-center text-[var(--text-muted)] py-3">
+                                            <div className="flex items-center justify-center h-full min-h-[80px] text-[var(--text-muted)] text-xs">
                                                 スロット {idx + 1}
                                             </div>
                                         )}
@@ -308,7 +364,7 @@ export default function DeckBuilderPage() {
                     </div>
 
                     {/* Pokemon / Move Selection */}
-                    <div className="lg:col-span-2">
+                    <div className="min-w-0">
                         {editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}
@@ -353,7 +409,7 @@ export default function DeckBuilderPage() {
                                                             className="px-2 py-0.5 text-xs text-white rounded-md"
                                                             style={{ backgroundColor: getTypeColor(t) }}
                                                         >
-                                                            {t}
+                                                            {getTypeLabel(t)}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -460,30 +516,30 @@ function SelectedPokemonCard({
     const totalEvs = pokemon.evs ? pokemon.evs.hp + pokemon.evs.atk + pokemon.evs.def + pokemon.evs.spa + pokemon.evs.spd + pokemon.evs.spe : 0;
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-[var(--text-primary)]">{species.name}</h3>
+        <div className="flex h-full min-w-0 flex-col">
+            <div className="mb-2 flex items-start justify-between gap-2">
+                <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
                 <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
                     <X className="size-4 text-red-400" />
                 </button>
             </div>
-            <div className="flex gap-1 mb-3">
+            <div className="mb-3 flex flex-wrap gap-1">
                 {species.type.map((t) => (
                     <span
                         key={t}
-                        className="px-2 py-0.5 text-xs text-white rounded-md"
+                        className="whitespace-nowrap px-2 py-0.5 text-xs text-white rounded-md"
                         style={{ backgroundColor: getTypeColor(t) }}
                     >
-                        {t}
+                        {getTypeLabel(t)}
                     </span>
                 ))}
             </div>
-            <div className="mb-2">
-                <label className="text-xs text-[var(--text-muted)]">特性</label>
+            <div className="mb-3">
+                <label className="mb-1 block text-xs text-[var(--text-muted)]">特性</label>
                 <select
                     value={pokemon.ability}
                     onChange={(e) => onAbilityChange(e.target.value)}
-                    className="ml-2 text-xs bg-[var(--surface-3)] text-[var(--text-primary)] rounded p-1"
+                    className="w-full rounded-lg bg-[var(--surface-3)] px-2.5 py-2 text-xs text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--surface-4)] focus:ring-2 focus:ring-[var(--accent)]/40"
                 >
                     {species.abilities.map((abilityId) => (
                         <option key={abilityId} value={abilityId}>
@@ -492,16 +548,16 @@ function SelectedPokemonCard({
                     ))}
                 </select>
             </div>
-            <div className="space-y-1">
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {pokemon.moves.map((moveId) => {
                     const move = moves[moveId];
                     return (
-                        <div key={moveId} className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
+                        <div key={moveId} className="flex min-w-0 items-center gap-1.5 rounded-md bg-[var(--surface-2)]/50 px-2 py-1 text-xs text-[var(--text-secondary)]">
                             <span
-                                className="size-2 rounded-full"
+                                className="size-2 shrink-0 rounded-full"
                                 style={{ backgroundColor: getTypeColor(move?.type || 'normal') }}
                             />
-                            {move?.name || moveId}
+                            <span className="truncate">{move?.name || moveId}</span>
                         </div>
                     );
                 })}
@@ -511,16 +567,16 @@ function SelectedPokemonCard({
                     EV: {totalEvs}/510
                 </div>
             )}
-            <div className="flex gap-2 mt-3">
+            <div className="mt-auto flex gap-2 pt-3">
                 <button
                     onClick={onEditMoves}
-                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+                    className="flex-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
                 >
                     技を編集
                 </button>
                 <button
                     onClick={onEditEVs}
-                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors flex items-center gap-1"
+                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
                 >
                     <Sliders className="size-3" />
                     EVを編集
@@ -528,6 +584,33 @@ function SelectedPokemonCard({
             </div>
         </div>
     );
+}
+
+function sanitizeDeckPokemon(
+    pokemon: DeckPokemon,
+    species: SpeciesData,
+    moves: MoveData,
+    learnsets: Learnset,
+): DeckPokemon | null {
+    const mon = species[pokemon.speciesId];
+    if (!mon) {
+        return null;
+    }
+
+    const sanitizedMoves = pokemon.moves
+        .filter((moveId, index, self) => self.indexOf(moveId) === index)
+        .filter((moveId) => moves[moveId])
+        .slice(0, 4);
+
+    const fallbackMoves = (learnsets[pokemon.speciesId] || [])
+        .filter((moveId) => moves[moveId])
+        .slice(0, 4);
+
+    return {
+        ...pokemon,
+        ability: mon.abilities.includes(pokemon.ability) ? pokemon.ability : (mon.abilities[0] || 'none'),
+        moves: sanitizedMoves.length > 0 ? sanitizedMoves : fallbackMoves,
+    };
 }
 
 function MoveSelector({
@@ -575,34 +658,86 @@ function MoveSelector({
                 {availableMoves.map((moveId) => {
                     const move = moves[moveId];
                     const isSelected = selectedMoves.includes(moveId);
+                    const categoryLabel =
+                        move.category === 'physical' ? '物理'
+                        : move.category === 'special' ? '特殊'
+                        : move.category === 'status' ? '変化'
+                        : move.category ?? '-';
+                    const accuracyLabel = typeof move.accuracy === 'number' ? Math.round(move.accuracy * 100) : '-';
+                    const moveDescription = move.description || '説明なし';
+                    const isDamageMove = move.category !== 'status' && typeof move.power === 'number' && move.power > 0;
+                    const effectiveness = isDamageMove ? getTypeEffectiveness(move.type, species.type ?? []) : null;
+                    const effLabel = effectiveness !== null && effectiveness !== 1 ? getEffectivenessLabel(effectiveness) : null;
+                    const effClass = effectiveness !== null ? getEffectivenessClass(effectiveness) : '';
+
                     return (
-                        <button
-                            key={moveId}
-                            onClick={() => onToggleMove(moveId)}
-                            disabled={!isSelected && selectedMoves.length >= 4}
-                            className={`p-4 rounded-xl border text-left transition-all ${isSelected
-                                ? 'bg-[var(--accent-muted)] border-[var(--accent)]/50'
-                                : selectedMoves.length >= 4
-                                    ? 'bg-[var(--surface-2)] border-[var(--border)] opacity-50 cursor-not-allowed'
-                                    : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
-                                }`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <span
-                                    className="px-2 py-0.5 text-xs text-white rounded-md"
-                                    style={{ backgroundColor: getTypeColor(move.type) }}
-                                >
-                                    {move.type}
-                                </span>
-                                <span className="font-medium text-[var(--text-primary)]">{move.name}</span>
-                                {isSelected && <Check className="size-4 text-[var(--accent)] ml-auto" />}
+                        <div key={moveId} className="group relative">
+                            <button
+                                onClick={() => onToggleMove(moveId)}
+                                disabled={!isSelected && selectedMoves.length >= 4}
+                                className={`w-full p-4 rounded-xl border text-left transition-all ${isSelected
+                                    ? 'bg-[var(--accent-muted)] border-[var(--accent)]/50'
+                                    : selectedMoves.length >= 4
+                                        ? 'bg-[var(--surface-2)] border-[var(--border)] opacity-50 cursor-not-allowed'
+                                        : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        className="px-2 py-0.5 text-xs text-white rounded-md"
+                                        style={{ backgroundColor: getTypeColor(move.type) }}
+                                    >
+                                        {getTypeLabel(move.type)}
+                                    </span>
+                                    <span className="font-medium text-[var(--text-primary)]">{move.name}</span>
+                                    {isSelected && <Check className="size-4 text-[var(--accent)] ml-auto" />}
+                                </div>
+                                <div className="mt-2 text-xs text-[var(--text-muted)] flex gap-3 tabular-nums">
+                                    <span>威力: {move.power ?? '-'}</span>
+                                    <span>PP: {move.pp}</span>
+                                    <span>{categoryLabel}</span>
+                                </div>
+                            </button>
+
+                            <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-80 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-2xl group-hover:block">
+                                <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-bold text-[var(--text-primary)]">{move.name}</div>
+                                        <div className="mt-1 text-xs text-[var(--text-muted)]">{categoryLabel}</div>
+                                    </div>
+                                    <div className="flex shrink-0 flex-col items-end gap-1">
+                                        <span className="rounded-full px-2 py-1 text-xs text-white" style={{ backgroundColor: getTypeColor(move.type) }}>
+                                            {getTypeLabel(move.type)}
+                                        </span>
+                                        {effLabel && (
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${effClass}`}>
+                                                {effLabel}
+                                                {effectiveness !== null && effectiveness !== 1 ? ` ×${effectiveness}` : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
+                                    <div className="rounded-lg bg-[var(--surface-3)] px-3 py-2">
+                                        <div className="text-[10px] text-[var(--text-muted)]">威力</div>
+                                        <div className="font-semibold text-[var(--text-primary)]">{move.power ?? '-'}</div>
+                                    </div>
+                                    <div className="rounded-lg bg-[var(--surface-3)] px-3 py-2">
+                                        <div className="text-[10px] text-[var(--text-muted)]">命中</div>
+                                        <div className="font-semibold text-[var(--text-primary)]">{accuracyLabel}</div>
+                                    </div>
+                                    <div className="rounded-lg bg-[var(--surface-3)] px-3 py-2">
+                                        <div className="text-[10px] text-[var(--text-muted)]">PP</div>
+                                        <div className="font-semibold text-[var(--text-primary)]">{move.pp}</div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg bg-[var(--surface-3)] px-3 py-3 text-xs leading-relaxed text-[var(--text-primary)]">
+                                    {moveDescription}
+                                </div>
                             </div>
-                            <div className="mt-2 text-xs text-[var(--text-muted)] flex gap-3 tabular-nums">
-                                <span>威力: {move.power || '-'}</span>
-                                <span>PP: {move.pp}</span>
-                                <span>{move.category}</span>
-                            </div>
-                        </button>
+                        </div>
                     );
                 })}
             </div>

@@ -259,6 +259,7 @@ function handleIncomingMessage(raw: unknown): void {
             emitSnapshot();
             emit({ type: 'start_battle' });
             return;
+
             case 'team_selected':
     session.remoteSelectedDeck = cloneDeck(message.deck);
     emitSnapshot();
@@ -267,6 +268,7 @@ function handleIncomingMessage(raw: unknown): void {
         deck: cloneDeck(message.deck),
     });
     return;
+
         case 'battle_init':
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);

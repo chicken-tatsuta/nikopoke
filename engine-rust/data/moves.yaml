@@ -7994,7 +7994,8 @@ roar:
   priority: -6
   steps:
     - type: force_switch
-  tags: []
+  tags:
+    - sound
   type: normal
 roar_of_time:
   accuracy: 0.9
@@ -9280,6 +9281,7 @@ stealth_rock:
   priority: 0
   steps:
     - statusId: stealth_rock
+      side: false
       type: apply_field_status
   tags: []
   type: rock

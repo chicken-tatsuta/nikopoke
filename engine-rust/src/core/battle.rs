@@ -312,7 +312,7 @@ impl BattleEngine {
                 for event in switch_result.events {
                     next = apply_event(&next, &event);
                 }
-                next = apply_switch_in_field_effects(next, &action.player_id);
+                next = apply_switch_in_field_effects(next, &action.player_id, &self.type_chart);
                 continue;
             }
 
@@ -430,6 +430,11 @@ impl BattleEngine {
                 next = apply_event(&next, &event);
             }
             if status_before.prevent_action {
+                if let Some(player) = next.players.iter_mut().find(|p| p.id == action.player_id) {
+                    if let Some(active) = player.team.get_mut(player.active_slot) {
+                        active.statuses.retain(|s| s.id != "flinch");
+                    }
+                }
                 continue;
             }
             if let Some(override_action) = status_before.override_action {
@@ -550,6 +555,11 @@ impl BattleEngine {
             );
 
             next = apply_events(&next, &events);
+            for event in &events {
+                if let BattleEvent::Switch { player_id, .. } = event {
+                    next = apply_switch_in_effects(next, player_id, &mut rng_recorder, &self.type_chart);
+                }
+            }
             let failed = move_failed(&events);
             if let Some(active) = get_active_creature_mut(&mut next, &player_id) {
                 active
@@ -831,9 +841,32 @@ impl BattleEngine {
         for event in switch_result.events {
             next = apply_event(&next, &event);
         }
-        next = apply_switch_in_field_effects(next, player_id);
+        next = apply_switch_in_field_effects(next, player_id, &self.type_chart);
         next
     }
+}
+
+fn apply_switch_in_effects(
+    mut state: BattleState,
+    player_id: &str,
+    rng: &mut dyn FnMut() -> f64,
+    type_chart: &TypeChart,
+) -> BattleState {
+    let switch_result = run_ability_hooks(
+        &state,
+        player_id,
+        "onSwitchIn",
+        AbilityHookContext {
+            rng,
+            action: None,
+            move_data: None,
+        },
+    );
+    state = switch_result.state.unwrap_or(state);
+    for event in switch_result.events {
+        state = apply_event(&state, &event);
+    }
+    apply_switch_in_field_effects(state, player_id, type_chart)
 }
 
 fn move_failed(events: &[BattleEvent]) -> bool {
@@ -865,7 +898,7 @@ fn move_failed(events: &[BattleEvent]) -> bool {
     !has_progress
 }
 
-fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str) -> BattleState {
+fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_chart: &TypeChart) -> BattleState {
     let effects = state
         .field
         .sides
@@ -893,9 +926,11 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str) -> Bat
                 });
             }
             "stealth_rock" => {
+                let effectiveness = type_chart.effectiveness("rock", &effective_types_for_field(&active));
+                let amount = ((active.max_hp as f32 / 8.0) * effectiveness).floor() as i32;
                 events.push(BattleEvent::Damage {
                     target_id: player_id.to_string(),
-                    amount: (active.max_hp / 8).max(1),
+                    amount: amount.max(1),
                     meta: Map::new(),
                 });
             }

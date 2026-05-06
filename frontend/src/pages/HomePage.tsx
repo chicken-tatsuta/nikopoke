@@ -2,15 +2,21 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Swords, Users, BookOpen, ChevronRight, Trophy } from 'lucide-react';
 import { loadSpecies, getTypeColor } from '../lib/data';
-import { aggregatePokemonUsage, loadBattleRecords } from '../lib/battleStats';
 import type { SpeciesData, Species } from '../types/pokemon';
-import { loadGlobalBattleRecords, globalRecordsToBattleRecords } from '../lib/globalBattleStats';
-import type { BattleRecord } from '../lib/battleStats';
+import type { PokemonUsageStats } from '../lib/battleStats';
+import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
+
+const TYPE_LABELS: Record<string, string> = {
+    normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+    ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+    psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+    dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
 
 export default function HomePage() {
     const [species, setSpecies] = useState<SpeciesData>({});
     const [loading, setLoading] = useState(true);
-    const [globalRecords, setGlobalRecords] = useState<BattleRecord[]>([]);
+    const [usageStats, setUsageStats] = useState<Record<string, PokemonUsageStats>>({});
 
     useEffect(() => {
         loadSpecies().then((data) => {
@@ -20,20 +26,14 @@ export default function HomePage() {
     }, []);
 
     useEffect(() => {
-        loadGlobalBattleRecords()
-            .then((records) => {
-                setGlobalRecords(globalRecordsToBattleRecords(records));
+        loadGlobalPokemonUsageStats()
+            .then((stats) => {
+                setUsageStats(stats);
             })
             .catch((error) => {
-                console.error('Failed to load global battle records:', error);
+                console.error('Failed to load global usage stats:', error);
             });
     }, []);
-
-    const usageStats = useMemo(() => {
-        const localRecords = loadBattleRecords();
-        const records = globalRecords.length > 0 ? globalRecords : localRecords;
-        return aggregatePokemonUsage(records);
-    }, [globalRecords]);
 
     const totalUsed = useMemo(() => {
         return Object.values(usageStats).reduce((sum, stats) => sum + stats.used, 0);
@@ -201,7 +201,7 @@ function PokemonCard({
                         className="px-2.5 py-1 text-xs font-medium text-white rounded-md"
                         style={{ backgroundColor: getTypeColor(t) }}
                     >
-                        {t}
+                        {TYPE_LABELS[t] ?? t}
                     </span>
                 ))}
             </div>

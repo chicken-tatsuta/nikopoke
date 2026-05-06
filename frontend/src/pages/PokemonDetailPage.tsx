@@ -3,8 +3,15 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
 import { getTypeColor, loadAllData } from '../lib/data';
 import type { MoveData, Species, SpeciesData } from '../types/pokemon';
-import { aggregatePokemonUsage, type BattleRecord } from '../lib/battleStats';
-import { loadGlobalBattleRecords, globalRecordsToBattleRecords } from '../lib/globalBattleStats';
+import type { PokemonUsageStats } from '../lib/battleStats';
+import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
+
+const TYPE_LABELS: Record<string, string> = {
+    normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+    ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+    psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+    dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
 
 type UsageItem = {
     name: string;
@@ -15,7 +22,7 @@ export default function PokemonDetailPage() {
     const { speciesId } = useParams<{ speciesId: string }>();
     const [speciesData, setSpeciesData] = useState<SpeciesData>({});
     const [movesData, setMovesData] = useState<MoveData>({});
-    const [globalRecords, setGlobalRecords] = useState<BattleRecord[]>([]);
+    const [usageStats, setUsageStats] = useState<Record<string, PokemonUsageStats>>({});
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -27,30 +34,27 @@ export default function PokemonDetailPage() {
     }, []);
 
     useEffect(() => {
-        loadGlobalBattleRecords()
-            .then((records) => {
-                setGlobalRecords(globalRecordsToBattleRecords(records));
-                // Clear localStorage cache after successfully loading from Supabase
-                try {
-                    localStorage.removeItem('battleRecords');
-                    console.log('[PokemonDetailPage] Cleared localStorage battle records cache');
-                } catch (e) {
-                    console.warn('[PokemonDetailPage] Failed to clear localStorage:', e);
-                }
+        loadGlobalPokemonUsageStats()
+            .then((stats) => {
+                setUsageStats(stats);
             })
             .catch((error) => {
-                console.error('Failed to load global battle records:', error);
+                console.error('Failed to load global usage stats:', error);
             });
     }, []);
 
-    const speciesList = useMemo(() => Object.values(speciesData), [speciesData]);
-    const species = speciesId ? speciesData[speciesId] : undefined;
-    const rank = species ? speciesList.findIndex((mon) => mon.id === species.id) + 1 : 0;
+    const sortedSpecies = useMemo(() => {
+        return Object.values(speciesData).sort((a, b) => {
+            const aUsed = usageStats[a.id]?.used ?? 0;
+            const bUsed = usageStats[b.id]?.used ?? 0;
+            if (aUsed !== bUsed) return bUsed - aUsed;
+            return a.name.localeCompare(b.name, 'ja');
+        });
+    }, [speciesData, usageStats]);
 
-    const usageStats = useMemo(() => {
-        return aggregatePokemonUsage(globalRecords);
-    }, [globalRecords]);
-    
+    const species = speciesId ? speciesData[speciesId] : undefined;
+    const rank = species ? sortedSpecies.findIndex((mon) => mon.id === speciesId) + 1 : 0;
+
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
     const currentUsageMoves = useMemo(() => {
         if (!currentUsage?.moves.length) {
@@ -176,7 +180,7 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                                     className="px-3 py-1 text-sm font-medium text-white rounded-md"
                                     style={{ backgroundColor: getTypeColor(type) }}
                                 >
-                                    {type}
+                                    {TYPE_LABELS[type] ?? type}
                                 </span>
                             ))}
                         </div>
@@ -344,6 +348,7 @@ function mockAbilitiesFor(species: Species): UsageItem[] {
     }));
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getAbilityLabel(abilityId: string): string {
     return ABILITY_LABELS[abilityId] ?? abilityId;
 }
