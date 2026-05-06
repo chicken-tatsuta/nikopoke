@@ -2020,13 +2020,20 @@ fn apply_triple_axel_effect(state: &BattleState, effect: &Effect, ctx: &mut Effe
 }
 
 fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<BattleEvent> {
-    if ctx.last_damage.unwrap_or(0) <= 0 {
+    if ctx.move_data.map(move_has_damage_step).unwrap_or(false) && ctx.last_damage.unwrap_or(0) <= 0 {
         return Vec::new();
     }
 
     let Some(player) = state.players.iter().find(|p| p.id == ctx.attacker_player_id) else {
         return Vec::new();
     };
+    if player
+        .team
+        .get(player.active_slot)
+        .map_or(true, |creature| creature.hp <= 0)
+    {
+        return Vec::new();
+    }
 
     let Some(slot) = player
         .team
@@ -2042,6 +2049,45 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
         player_id: ctx.attacker_player_id.clone(),
         slot,
     }]
+}
+
+fn move_has_damage_step(move_data: &MoveData) -> bool {
+    move_data.steps.iter().any(effect_has_damage_step)
+}
+
+fn effect_has_damage_step(effect: &Effect) -> bool {
+    if matches!(
+        effect.effect_type.as_str(),
+        "damage"
+            | "modify_damage"
+            | "damage_ratio"
+            | "hp_based_damage"
+            | "hp_ratio_damage"
+            | "speed_based_damage"
+            | "inverse_speed_based_damage"
+            | "weight_based_damage"
+            | "relative_weight_damage"
+            | "ohko"
+            | "triple_axel_effect"
+            | "charge_attack"
+    ) {
+        return true;
+    }
+
+    ["then", "else", "steps"]
+        .iter()
+        .filter_map(|key| effect.data.get(*key))
+        .any(value_has_damage_step)
+}
+
+fn value_has_damage_step(value: &Value) -> bool {
+    match value {
+        Value::Array(items) => items.iter().any(value_has_damage_step),
+        Value::Object(_) => serde_json::from_value::<Effect>(value.clone())
+            .map(|effect| effect_has_damage_step(&effect))
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 fn apply_force_switch(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
@@ -2576,6 +2622,8 @@ fn compute_speed(state: &BattleState, player_id: &str, turn: u32) -> f32 {
             weather: weather.as_ref().map(|w| match w {
                 WeatherKind::Sun => "sun",
                 WeatherKind::Rain => "rain",
+                WeatherKind::Sandstorm => "sandstorm",
+                WeatherKind::Snow => "snow",
             }),
             turn,
             stages: None,
@@ -2734,7 +2782,21 @@ fn calc_damage(power: i32, state: &BattleState, attacker_id: &str, target_id: &s
     }
 
     let attack = offense_key as f32 * stage_multiplier(atk_stage);
-    let defense = (defense_key as f32 * stage_multiplier(def_stage)).max(1.0);
+    let mut defense = (defense_key as f32 * stage_multiplier(def_stage)).max(1.0);
+
+    match crate::core::abilities::get_weather(state) {
+        Some(WeatherKind::Sandstorm)
+            if category == "special" && target.types.iter().any(|t| t == "rock") =>
+        {
+            defense *= 1.5;
+        }
+        Some(WeatherKind::Snow)
+            if category == "physical" && target.types.iter().any(|t| t == "ice") =>
+        {
+            defense *= 1.5;
+        }
+        _ => {}
+    }
 
     let attack = run_ability_value_hook(
         state,

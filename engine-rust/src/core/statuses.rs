@@ -125,6 +125,32 @@ fn match_field_effect(
     owner_side: Option<&str>,
     ctx: &mut StatusHookContext<'_>,
 ) -> StatusHookResult {
+    if status_id == "sandstorm" && hook == "onWeatherEnd" {
+        let mut events = Vec::new();
+        for player in &state.players {
+            let Some(active) = get_active_creature(state, &player.id) else {
+                continue;
+            };
+            if active.hp <= 0 || active.types.iter().any(|t| matches!(t.as_str(), "rock" | "steel" | "ground")) {
+                continue;
+            }
+            let damage = (active.max_hp / 16).max(1);
+            events.push(BattleEvent::Damage {
+                target_id: player.id.clone(),
+                amount: damage,
+                meta: Map::new(),
+            });
+            events.push(BattleEvent::Log {
+                message: format!("{}は すなあらしの ダメージを 受けている！", active.name),
+                meta: Map::new(),
+            });
+        }
+        return StatusHookResult {
+            events,
+            ..Default::default()
+        };
+    }
+
     // グラスフィールド回復は特別処理
     if status_id == "grassy_terrain" && hook == "onGrassyTerrainHeal" {
         let mut events = Vec::new();

@@ -1129,6 +1129,8 @@ fn creature_speed(state: &BattleState, player_id: &str) -> i32 {
             weather: weather.as_ref().map(|w| match w {
                 crate::core::abilities::WeatherKind::Sun => "sun",
                 crate::core::abilities::WeatherKind::Rain => "rain",
+                crate::core::abilities::WeatherKind::Sandstorm => "sandstorm",
+                crate::core::abilities::WeatherKind::Snow => "snow",
             }),
             turn: state.turn,
             stages: None,

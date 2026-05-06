@@ -1,4 +1,7 @@
-use crate::core::abilities::{modify_stages_with_ability, run_ability_check_hook, AbilityCheckContext};
+use crate::core::abilities::{
+    get_weather, is_weather_id, modify_stages_with_ability, run_ability_check_hook,
+    AbilityCheckContext, WeatherKind,
+};
 use crate::core::state::{BattleState, Status, StatStages};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -478,6 +481,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                 }
             } else {
                 if !*stack {
+                    if is_weather_id(status_id) {
+                        next.field.global.retain(|e| !is_weather_id(&e.id));
+                    }
                     next.field.global.retain(|e| e.id != *status_id);
                 }
                 next.field.global.push(crate::core::state::FieldEffect {
@@ -777,6 +783,9 @@ fn status_blocked_by_type_or_field(
         )
         && state.field.global.iter().any(|effect| effect.id == "misty_terrain")
     {
+        return true;
+    }
+    if status_id == "freeze" && matches!(get_weather(state), Some(WeatherKind::Sun)) {
         return true;
     }
     match status_id {

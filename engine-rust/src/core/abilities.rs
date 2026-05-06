@@ -9,6 +9,8 @@ use std::collections::HashMap;
 pub enum WeatherKind {
     Sun,
     Rain,
+    Sandstorm,
+    Snow,
 }
 
 pub struct AbilityValueContext<'a> {
@@ -484,16 +486,20 @@ pub fn get_weather(state: &BattleState) -> Option<WeatherKind> {
         .find_map(|e| match e.id.as_str() {
             "sun" => Some(WeatherKind::Sun),
             "rain" => Some(WeatherKind::Rain),
+            "sandstorm" => Some(WeatherKind::Sandstorm),
+            "snow" => Some(WeatherKind::Snow),
             _ => None,
         })
 }
 
 fn set_weather(state: &BattleState, weather: WeatherKind, turns: Option<i32>) -> BattleState {
     let mut next = state.clone();
-    next.field.global.retain(|e| e.id != "sun" && e.id != "rain");
+    next.field.global.retain(|e| !is_weather_id(&e.id));
     let id = match weather {
         WeatherKind::Sun => "sun",
         WeatherKind::Rain => "rain",
+        WeatherKind::Sandstorm => "sandstorm",
+        WeatherKind::Snow => "snow",
     };
     next.field.global.push(crate::core::state::FieldEffect {
         id: id.to_string(),
@@ -501,6 +507,10 @@ fn set_weather(state: &BattleState, weather: WeatherKind, turns: Option<i32>) ->
         data: HashMap::new(),
     });
     next
+}
+
+pub fn is_weather_id(id: &str) -> bool {
+    matches!(id, "sun" | "rain" | "sandstorm" | "snow")
 }
 
 fn mark_ability_used(state: &BattleState, player_id: &str, key: &str) -> BattleState {
