@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, X, ArrowLeft, Swords, Sliders } from 'lucide-react';
+import { Check, X, ArrowLeft, Swords } from 'lucide-react';
 import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
 import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
@@ -141,9 +141,12 @@ export default function DeckBuilderPage() {
         }
     };
 
-    const handleEditMoves = (index: number) => {
-        setEditingIndex(index);
-        setEditingMoves([...selectedPokemon[index].moves]);
+    const handleSaveMoves = () => {
+        if (editingIndex === null) return;
+        const updated = [...selectedPokemon];
+        updated[editingIndex] = { ...updated[editingIndex], moves: editingMoves };
+        setSelectedPokemon(updated);
+        setEditingIndex(null);
     };
 
     const handleToggleMove = (moveId: string) => {
@@ -154,31 +157,12 @@ export default function DeckBuilderPage() {
         }
     };
 
-    const handleSaveMoves = () => {
-        if (editingIndex === null) return;
-        const updated = [...selectedPokemon];
-        updated[editingIndex] = { ...updated[editingIndex], moves: editingMoves };
-        setSelectedPokemon(updated);
-        setEditingIndex(null);
-    };
-
-    const handleEditEVs = (index: number) => {
-        setEditingEVIndex(index);
-        setEditingEVs(selectedPokemon[index].evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
-    };
-
     const handleSaveEVs = () => {
         if (editingEVIndex === null) return;
         const updated = [...selectedPokemon];
         updated[editingEVIndex] = { ...updated[editingEVIndex], evs: editingEVs };
         setSelectedPokemon(updated);
         setEditingEVIndex(null);
-    };
-
-    const handleAbilityChange = (index: number, ability: string) => {
-        const updated = [...selectedPokemon];
-        updated[index] = { ...updated[index], ability };
-        setSelectedPokemon(updated);
     };
 
     const handleStartBattle = () => {
@@ -240,27 +224,40 @@ export default function DeckBuilderPage() {
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
                             </h2>
 
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-2">
                             {Array.from({ length: DECK_SIZE }, (_, idx) => idx).map((idx) => (
                                     <div
                                         key={idx}
-                                        className={`p-4 rounded-xl border transition-all ${selectedPokemon[idx]
-                                            ? 'bg-[var(--accent-muted)] border-[var(--accent)]/30'
-                                            : 'bg-[var(--surface-3)] border-[var(--border)] border-dashed'
+                                        className={`rounded-xl border transition-all ${selectedPokemon[idx]
+                                            ? 'bg-[var(--accent-muted)] border-[var(--accent)]/30 p-3'
+                                            : 'bg-[var(--surface-3)] border-[var(--border)] border-dashed p-3'
                                             }`}
                                     >
                                         {selectedPokemon[idx] ? (
-                                            <SelectedPokemonCard
-                                                pokemon={selectedPokemon[idx]}
-                                                species={species[selectedPokemon[idx].speciesId]}
-                                                moves={moves}
-                                                onRemove={() => handleRemovePokemon(idx)}
-                                                onEditMoves={() => handleEditMoves(idx)}
-                                                onEditEVs={() => handleEditEVs(idx)}
-                                                onAbilityChange={(ability) => handleAbilityChange(idx, ability)}
-                                            />
+                                            <div>
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <h3 className="font-semibold text-[var(--text-primary)] text-sm">{species[selectedPokemon[idx].speciesId].name}</h3>
+                                                    <button onClick={() => handleRemovePokemon(idx)} className="p-1 hover:bg-red-500/20 rounded transition-colors" aria-label="削除">
+                                                        <X className="size-3.5 text-red-400" />
+                                                    </button>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1 mb-2">
+                                                    {species[selectedPokemon[idx].speciesId].type.map((t) => (
+                                                        <span
+                                                            key={t}
+                                                            className="px-1.5 py-0.5 text-[10px] text-white rounded"
+                                                            style={{ backgroundColor: getTypeColor(t) }}
+                                                        >
+                                                            {getTypeLabel(t)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                <div className="text-[10px] text-[var(--text-muted)]">
+                                                    特性: {getAbilityLabel(selectedPokemon[idx].ability)}
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <div className="text-center text-[var(--text-muted)] py-3">
+                                            <div className="flex items-center justify-center h-full min-h-[80px] text-[var(--text-muted)] text-xs">
                                                 スロット {idx + 1}
                                             </div>
                                         )}
@@ -376,96 +373,6 @@ function sanitizeDeckPokemon(
         ability: mon.abilities.includes(pokemon.ability) ? pokemon.ability : (mon.abilities[0] || 'none'),
         moves: sanitizedMoves.length > 0 ? sanitizedMoves : fallbackMoves,
     };
-}
-
-function SelectedPokemonCard({
-    pokemon,
-    species,
-    moves,
-    onRemove,
-    onEditMoves,
-    onEditEVs,
-    onAbilityChange,
-}: {
-    pokemon: DeckPokemon;
-    species: Species;
-    moves: MoveData;
-    onRemove: () => void;
-    onEditMoves: () => void;
-    onEditEVs: () => void;
-    onAbilityChange: (ability: string) => void;
-}) {
-    const totalEvs = pokemon.evs ? pokemon.evs.hp + pokemon.evs.atk + pokemon.evs.def + pokemon.evs.spa + pokemon.evs.spd + pokemon.evs.spe : 0;
-
-    return (
-        <div>
-            <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-[var(--text-primary)]">{species.name}</h3>
-                <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
-                    <X className="size-4 text-red-400" />
-                </button>
-            </div>
-            <div className="flex gap-1 mb-3">
-                {species.type.map((t) => (
-                    <span
-                        key={t}
-                        className="px-2 py-0.5 text-xs text-white rounded-md"
-                        style={{ backgroundColor: getTypeColor(t) }}
-                    >
-                        {getTypeLabel(t)}
-                    </span>
-                ))}
-            </div>
-            <div className="mb-2">
-                <label className="text-xs text-[var(--text-muted)]">特性</label>
-                <select
-                    value={pokemon.ability}
-                    onChange={(e) => onAbilityChange(e.target.value)}
-                    className="ml-2 text-xs bg-[var(--surface-3)] text-[var(--text-primary)] rounded p-1"
-                >
-                    {species.abilities.map((abilityId) => (
-                        <option key={abilityId} value={abilityId}>
-                            {getAbilityLabel(abilityId)}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div className="space-y-1">
-                {pokemon.moves.map((moveId) => {
-                    const move = moves[moveId];
-                    return (
-                        <div key={moveId} className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
-                            <span
-                                className="size-2 rounded-full"
-                                style={{ backgroundColor: getTypeColor(move?.type || 'normal') }}
-                            />
-                            {move?.name || moveId}
-                        </div>
-                    );
-                })}
-            </div>
-            {totalEvs > 0 && (
-                <div className="mt-2 text-xs text-[var(--text-muted)]">
-                    EV: {totalEvs}/510
-                </div>
-            )}
-            <div className="flex gap-2 mt-3">
-                <button
-                    onClick={onEditMoves}
-                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
-                >
-                    技を編集
-                </button>
-                <button
-                    onClick={onEditEVs}
-                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors flex items-center gap-1"
-                >
-                    <Sliders className="size-3" />
-                    EVを編集
-                </button>
-            </div>
-        </div>
-    );
 }
 
 function MoveSelector({

@@ -1,9 +1,10 @@
 import { cn } from '../lib/cn';
-import { Zap, Shield, Heart, AlertTriangle, Sparkles, ArrowRightLeft } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Zap, Shield, Heart, AlertTriangle, Sparkles, ArrowRightLeft, Badge } from 'lucide-react';
 
 interface LogEntry {
     text: string;
-    type: 'player-move' | 'ai-move' | 'damage' | 'effect' | 'status' | 'switch' | 'info';
+    type: 'player-move' | 'ai-move' | 'damage' | 'effect' | 'status' | 'switch' | 'ability' | 'info';
 }
 
 interface BattleLogProps {
@@ -19,6 +20,10 @@ function parseLogEntry(log: string): LogEntry {
     // Detect switch actions
     if (log.includes('交代') || log.includes('を繰り出した') || log.includes('を引っ込めた')) {
         return { text: log, type: 'switch' };
+    }
+
+    if (log.includes('特性')) {
+        return { text: log, type: 'ability' };
     }
 
     // Detect player moves - look for patterns like 'playerの' or player pokemon names
@@ -68,6 +73,8 @@ function getLogIcon(type: LogEntry['type']) {
             return <AlertTriangle className="size-3.5 shrink-0" />;
         case 'switch':
             return <ArrowRightLeft className="size-3.5 shrink-0" />;
+        case 'ability':
+            return <Badge className="size-3.5 shrink-0" />;
         default:
             return <Shield className="size-3.5 shrink-0" />;
     }
@@ -88,18 +95,27 @@ function getLogStyle(type: LogEntry['type']) {
             return 'bg-purple-500/10 border-l-purple-400 text-purple-100';
         case 'switch':
             return 'bg-emerald-500/10 border-l-emerald-400 text-emerald-100';
+        case 'ability':
+            return 'bg-cyan-500/10 border-l-cyan-300 text-cyan-100';
         default:
             return 'bg-slate-500/10 border-l-slate-400 text-slate-200';
     }
 }
 
 export function BattleLog({ logs, currentTurn, className }: BattleLogProps) {
+    const entriesRef = useRef<HTMLDivElement>(null);
     // Parse all logs
     const parsedEntries = logs.map(parseLogEntry);
 
+    useEffect(() => {
+        if (entriesRef.current) {
+            entriesRef.current.scrollTop = entriesRef.current.scrollHeight;
+        }
+    }, [logs]);
+
     return (
         <div className={cn(
-            'rounded-xl border border-slate-700/50 bg-slate-800/30 overflow-hidden',
+            'flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/30',
             className
         )}>
             {/* Header */}
@@ -111,7 +127,7 @@ export function BattleLog({ logs, currentTurn, className }: BattleLogProps) {
             </div>
 
             {/* Log entries */}
-            <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+            <div ref={entriesRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
                 {parsedEntries.length === 0 ? (
                     <p className="px-2 py-4 text-center text-sm text-slate-500">
                         バトル開始！

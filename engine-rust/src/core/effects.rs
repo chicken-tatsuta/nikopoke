@@ -33,7 +33,11 @@ pub fn apply_effects(state: &BattleState, steps: &[Effect], ctx: &mut EffectCont
     let mut events = Vec::new();
     let base_state = state.clone();
     let mut working_state = base_state.clone();
+    let mut block_follow_up_effects = false;
     for effect in steps {
+        if block_follow_up_effects && is_blocked_after_missed_damage(effect) {
+            continue;
+        }
         match effect.effect_type.as_str() {
             "modify_damage" => {
                 apply_modify_damage(&mut events, effect, &working_state, ctx);
@@ -48,6 +52,10 @@ pub fn apply_effects(state: &BattleState, steps: &[Effect], ctx: &mut EffectCont
             _ => {
                 let effect_events = apply_effect(&working_state, effect, ctx);
                 update_last_damage_from_events(ctx, &effect_events);
+                if effect.effect_type == "damage" && !damage_step_connected(&effect_events) {
+                    ctx.last_damage = Some(0);
+                    block_follow_up_effects = true;
+                }
                 working_state = apply_events(&working_state, &effect_events);
                 events.extend(effect_events);
             }
@@ -63,6 +71,23 @@ pub fn apply_events(state: &BattleState, events: &[BattleEvent]) -> BattleState 
         next = apply_event(&next, event);
     }
     next
+}
+
+fn damage_step_connected(events: &[BattleEvent]) -> bool {
+    events.iter().any(|event| matches!(event, BattleEvent::Damage { amount, .. } if *amount > 0))
+}
+
+fn is_blocked_after_missed_damage(effect: &Effect) -> bool {
+    matches!(
+        effect.effect_type.as_str(),
+        "chance"
+            | "apply_status"
+            | "modify_stage"
+            | "force_switch"
+            | "self_switch"
+            | "heal_last_damage"
+            | "recoil_last_damage"
+    )
 }
 
 fn apply_effect(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
@@ -128,7 +153,7 @@ fn apply_effect(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_
         "consume_item" => apply_consume_item(state, effect, ctx),
         "ohko" => apply_ohko(state, effect, ctx),
         "cure_all_status" => apply_cure_all_status(effect, ctx),
-        "self_switch" => apply_self_switch(ctx),
+        "self_switch" => apply_self_switch(state, ctx),
         "force_switch" => apply_force_switch(state, effect, ctx),
         "replace_pokemon" => apply_replace_pokemon(ctx),
         "lock_move" => apply_lock_move(state, effect, ctx),
@@ -1994,8 +2019,29 @@ fn apply_triple_axel_effect(state: &BattleState, effect: &Effect, ctx: &mut Effe
     events
 }
 
-fn apply_self_switch(ctx: &EffectContext<'_>) -> Vec<BattleEvent> {
-    apply_pending_switch(&ctx.attacker_player_id, ctx)
+fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<BattleEvent> {
+    if ctx.last_damage.unwrap_or(0) <= 0 {
+        return Vec::new();
+    }
+
+    let Some(player) = state.players.iter().find(|p| p.id == ctx.attacker_player_id) else {
+        return Vec::new();
+    };
+
+    let Some(slot) = player
+        .team
+        .iter()
+        .enumerate()
+        .find(|(slot, creature)| *slot != player.active_slot && creature.hp > 0)
+        .map(|(slot, _)| slot)
+    else {
+        return Vec::new();
+    };
+
+    vec![BattleEvent::Switch {
+        player_id: ctx.attacker_player_id.clone(),
+        slot,
+    }]
 }
 
 fn apply_force_switch(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
@@ -2836,5 +2882,145 @@ fn stage_value(stages: &crate::core::state::StatStages, stat: &str) -> i32 {
         "evasion" | "eva" => stages.evasion,
         "crit" => stages.crit,
         _ => 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::state::{create_battle_state, CreatureState, PlayerState, StatStages};
+    use serde_json::json;
+
+    fn test_creature(id: &str) -> CreatureState {
+        CreatureState {
+            id: id.to_string(),
+            species_id: id.to_string(),
+            name: id.to_string(),
+            level: 50,
+            types: vec!["normal".to_string()],
+            moves: Vec::new(),
+            ability: None,
+            item: None,
+            hp: 100,
+            max_hp: 100,
+            stages: StatStages::default(),
+            statuses: Vec::new(),
+            move_pp: HashMap::new(),
+            ability_data: HashMap::new(),
+            volatile_data: HashMap::new(),
+            attack: 100,
+            defense: 100,
+            sp_attack: 100,
+            sp_defense: 100,
+            speed: 100,
+            weight_kg: 50.0,
+        }
+    }
+
+    fn test_state() -> BattleState {
+        create_battle_state(vec![
+            PlayerState {
+                id: "player".to_string(),
+                name: "player".to_string(),
+                team: vec![test_creature("attacker")],
+                active_slot: 0,
+                last_fainted_ability: None,
+            },
+            PlayerState {
+                id: "opponent".to_string(),
+                name: "opponent".to_string(),
+                team: vec![test_creature("target")],
+                active_slot: 0,
+                last_fainted_ability: None,
+            },
+        ])
+    }
+
+    fn test_move() -> MoveData {
+        MoveData {
+            id: "secondary_test".to_string(),
+            name: Some("Secondary Test".to_string()),
+            move_type: Some("normal".to_string()),
+            category: Some("physical".to_string()),
+            pp: Some(10),
+            power: Some(40),
+            accuracy: Some(1.0),
+            priority: Some(0),
+            description: None,
+            steps: Vec::new(),
+            tags: Vec::new(),
+            crit_rate: None,
+        }
+    }
+
+    fn effect(value: Value) -> Effect {
+        serde_json::from_value(value).expect("valid effect")
+    }
+
+    fn effect_context<'a>(
+        rng: &'a mut dyn FnMut() -> f64,
+        type_chart: &'a TypeChart,
+        move_data: &'a MoveData,
+    ) -> EffectContext<'a> {
+        EffectContext {
+            attacker_player_id: "player".to_string(),
+            target_player_id: "opponent".to_string(),
+            move_data: Some(move_data),
+            rng,
+            turn: 1,
+            type_chart,
+            bypass_protect: false,
+            ignore_immunity: false,
+            bypass_substitute: false,
+            ignore_substitute: false,
+            ignore_ability: false,
+            is_sound: false,
+            last_damage: None,
+        }
+    }
+
+    #[test]
+    fn missed_damage_does_not_roll_secondary_chance() {
+        let state = test_state();
+        let type_chart = TypeChart::new();
+        let move_data = test_move();
+        let mut rng = || 0.5;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+        let steps = vec![
+            effect(json!({ "type": "damage", "power": 40, "accuracy": 0.0 })),
+            effect(json!({
+                "type": "chance",
+                "p": 1.0,
+                "then": [{ "type": "apply_status", "statusId": "burn" }]
+            })),
+        ];
+
+        let events = apply_effects(&state, &steps, &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(event, BattleEvent::Log { message, .. } if message == "しかし はずれた！")));
+        assert!(!events.iter().any(|event| matches!(event, BattleEvent::ApplyStatus { .. })));
+        assert_eq!(ctx.last_damage, Some(0));
+    }
+
+    #[test]
+    fn hit_damage_allows_secondary_chance() {
+        let state = test_state();
+        let type_chart = TypeChart::new();
+        let move_data = test_move();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+        let steps = vec![
+            effect(json!({ "type": "damage", "power": 40, "accuracy": 1.0 })),
+            effect(json!({
+                "type": "chance",
+                "p": 1.0,
+                "then": [{ "type": "apply_status", "statusId": "burn" }]
+            })),
+        ];
+
+        let events = apply_effects(&state, &steps, &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(event, BattleEvent::Damage { amount, .. } if *amount > 0)));
+        assert!(events.iter().any(|event| matches!(event, BattleEvent::ApplyStatus { status_id, .. } if status_id == "burn")));
     }
 }

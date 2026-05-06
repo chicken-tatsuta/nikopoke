@@ -303,69 +303,117 @@ export default function TeamPreviewPage() {
             </header>
 
             <main className="mx-auto max-w-6xl px-6 py-8">
-                <div className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <h2 className="text-base font-bold text-[var(--text-primary)]">あなたの選出</h2>
-                            <p className="text-sm text-[var(--text-muted)]">
-                                {selectedIndexes.length}/{SELECT_TEAM_SIZE} 匹選択中
-                            </p>
+                <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h2 className="text-base font-bold text-[var(--text-primary)]">あなたの6匹</h2>
+                                <p className="text-sm text-[var(--text-muted)]">
+                                    {selectedIndexes.length}/{SELECT_TEAM_SIZE} 匹選択中
+                                </p>
+                            </div>
+
+                            {battleMode === 'ai' && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-[var(--text-primary)]">AIの強さ:</span>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiLevel('lv1')}
+                                            className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                                aiLevel === 'lv1'
+                                                    ? 'bg-[var(--accent)] text-white'
+                                                    : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
+                                            }`}
+                                        >
+                                            LV1: Minimax
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiLevel('lv2')}
+                                            className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                                aiLevel === 'lv2'
+                                                    ? 'bg-[var(--accent)] text-white'
+                                                    : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
+                                            }`}
+                                        >
+                                            LV2: MLP (進化戦略)
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <button
+                                    onClick={startBattle}
+                                    disabled={selectedIndexes.length !== SELECT_TEAM_SIZE || submitted}
+                                className={`rounded-xl px-5 py-3 font-semibold transition-all ${
+                                    selectedIndexes.length === SELECT_TEAM_SIZE && !submitted
+                                        ? 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
+                                        : 'cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]'
+                                }`}
+                            >
+                                {submitted ? '相手の選出を待っています...' : battleMode === 'player' ? 'この3匹を送信' : 'この3匹で対戦'}
+                            </button>
                         </div>
 
-                        {battleMode === 'ai' && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-[var(--text-primary)]">AIの強さ:</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setAiLevel('lv1')}
-                                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                                            aiLevel === 'lv1'
-                                                ? 'bg-[var(--accent)] text-white'
-                                                : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
-                                        }`}
-                                    >
-                                        LV1: Minimax
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setAiLevel('lv2')}
-                                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                                            aiLevel === 'lv2'
-                                                ? 'bg-[var(--accent)] text-white'
-                                                : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
-                                        }`}
-                                    >
-                                        LV2: MLP (進化戦略)
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        <button
-                                onClick={startBattle}
-                                disabled={selectedIndexes.length !== SELECT_TEAM_SIZE || submitted}
-                            className={`rounded-xl px-5 py-3 font-semibold transition-all ${
-                                selectedIndexes.length === SELECT_TEAM_SIZE && !submitted
-                                    ? 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
-                                    : 'cursor-not-allowed bg-[var(--surface-3)] text-[var(--text-muted)]'
-                            }`}
-                        >
-                            {submitted ? '相手の選出を待っています...' : battleMode === 'player' ? 'この3匹を送信' : 'この3匹で対戦'}
-                        </button>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {playerDeck.map((pokemon, index) => (
+                                <TeamCard
+                                    key={`${pokemon.speciesId}-${index}`}
+                                    pokemon={pokemon}
+                                    species={species}
+                                    moves={moves}
+                                    selectedOrder={selectedIndexes.indexOf(index) + 1}
+                                    onClick={() => toggleSelected(index)}
+                                />
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {playerDeck.map((pokemon, index) => (
-                            <TeamCard
-                                key={`${pokemon.speciesId}-${index}`}
-                                pokemon={pokemon}
-                                species={species}
-                                moves={moves}
-                                selectedOrder={selectedIndexes.indexOf(index) + 1}
-                                onClick={() => toggleSelected(index)}
-                            />
-                        ))}
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                        <h2 className="mb-3 text-sm font-bold text-[var(--text-primary)]">選択中</h2>
+                        <div className="grid grid-cols-2 gap-2">
+                            {Array.from({ length: SELECT_TEAM_SIZE }).map((_, slot) => {
+                                const deckIndex = selectedIndexes[slot];
+                                const pokemon = deckIndex !== undefined ? playerDeck[deckIndex] : null;
+                                const mon = pokemon ? species[pokemon.speciesId] : null;
+
+                                return (
+                                    <div
+                                        key={slot}
+                                        className={`rounded-xl border p-3 text-center transition-all ${
+                                            pokemon
+                                                ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
+                                                : 'border-dashed border-[var(--border)] bg-[var(--surface-3)]'
+                                        }`}
+                                    >
+                                        <div className="mb-1 text-xs font-semibold text-[var(--accent)]">
+                                            {slot + 1}
+                                        </div>
+                                        {pokemon && mon ? (
+                                            <>
+                                                <div className="text-sm font-bold text-[var(--text-primary)]">
+                                                    {mon.name}
+                                                </div>
+                                                <div className="mt-1 flex justify-center gap-1">
+                                                    {mon.type.map((type) => (
+                                                        <span
+                                                            key={type}
+                                                            className="rounded-full px-1.5 py-0.5 text-[10px] text-white"
+                                                            style={{ backgroundColor: getTypeColor(type) }}
+                                                        >
+                                                            {getTypeLabel(type)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-xs text-[var(--text-muted)]">未選択</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -431,23 +479,23 @@ function TeamCard({
             }`}
         >
             {selectedOrder ? (
-                <div className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-white">
+                <div className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-white">
                     {selectedOrder}
                 </div>
             ) : onClick ? (
-                <div className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-muted)]">
-                    <Check className="size-4" />
+                <div className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-muted)]">
+                    <Check className="size-3.5" />
                 </div>
             ) : null}
 
-            <div className="pr-8">
-                <div className="text-lg font-bold text-[var(--text-primary)]">{mon?.name ?? pokemon.speciesId}</div>
+            <div className="pr-7">
+                <div className="text-sm font-bold text-[var(--text-primary)]">{mon?.name ?? pokemon.speciesId}</div>
 
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="mt-1.5 flex flex-wrap gap-1">
                     {(mon?.type ?? []).map((type) => (
                         <span
                             key={type}
-                            className="rounded-full px-2 py-0.5 text-xs text-white"
+                            className="rounded-full px-1.5 py-0.5 text-[10px] text-white"
                             style={{ backgroundColor: getTypeColor(type) }}
                         >
                             {getTypeLabel(type)}
@@ -456,18 +504,18 @@ function TeamCard({
                 </div>
 
                 {hideMoves ? (
-    <div className="mt-3 rounded-lg bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-muted)]">
-        技構成は非公開
-    </div>
-) : (
-    <div className="mt-3 grid grid-cols-2 gap-1 text-xs text-[var(--text-muted)]">
-        {pokemon.moves.slice(0, 4).map((moveId) => (
-            <div key={moveId} className="truncate rounded-lg bg-[var(--surface-2)] px-2 py-1">
-                {moves[moveId]?.name ?? moveId}
-            </div>
-        ))}
-    </div>
-)}
+                    <div className="mt-2 rounded-lg bg-[var(--surface-2)] px-2 py-1.5 text-[10px] text-[var(--text-muted)]">
+                        技構成は非公開
+                    </div>
+                ) : (
+                    <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-[var(--text-muted)]">
+                        {pokemon.moves.slice(0, 4).map((moveId) => (
+                            <div key={moveId} className="truncate rounded bg-[var(--surface-2)] px-1.5 py-0.5">
+                                {moves[moveId]?.name ?? moveId}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </button>
     );
