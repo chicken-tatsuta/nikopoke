@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { loadAllData, getTypeColor } from '../lib/data';
-import { BattleLog } from '../components/BattleLog';
+import { BattleLog, ActionSummary } from '../components/BattleLog';
 import { getAbilityLabel } from './PokemonDetailPage';
 import { createBattleStatsId, uploadGlobalBattleRecord } from '../lib/globalBattleStats';
 import {
