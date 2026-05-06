@@ -6,11 +6,9 @@ import { loadAllData, getTypeColor } from '../lib/data';
 import { BattleLog } from '../components/BattleLog';
 import { getAbilityLabel } from './PokemonDetailPage';
 
-import { uploadGlobalBattleRecord } from '../lib/globalBattleStats';
+import { uploadGlobalBattleRecord, createBattleStatsId } from '../lib/globalBattleStats';
 import { mlpAI } from '../lib/mlpAI';
 import { useAuth } from '../contexts/AuthContext';
-
-import { createBattleStatsId, uploadGlobalBattleRecord } from '../lib/globalBattleStats';
 
 import {
     initEngine,
@@ -1051,13 +1049,6 @@ export default function BattlePage() {
         }
     }, [aiLevel]);
 
-    const updateLastMovesFromActions = useCallback((actions: ActionWire[]) => {
-        const localId = localPlayerIdRef.current;
-        const opponentId = opponentPlayerIdRef.current;
-        setLastMoves({
-            player: actions.find((action) => action.playerId === localId)?.moveId,
-            ai: actions.find((action) => action.playerId === opponentId)?.moveId,
-        });
     const showBattlePopup = useCallback(async (popup: Omit<BattlePopup, 'id'>) => {
         const id = popupIdRef.current + 1;
         popupIdRef.current = id;
@@ -1352,21 +1343,15 @@ export default function BattlePage() {
 
         if (shouldUploadStats) {
             battleRecordSavedRef.current = true;
-        
-            saveBattleRecord(record);
-        
-if (localPlayerIdRef.current === 'host') {
-  void uploadGlobalBattleRecord({
-    id: record.id,
-    winner,
-    hostDeck: localDeckRef.current,
-    guestDeck: opponentDeckRef.current,
-    host_user_id: user?.id ?? null,
-    guest_user_id: onlineSnapshot.remoteUserId,
-    mode: battleMode,
-  });
-}
-
+            void uploadGlobalBattleRecord({
+                id: battleStatsIdRef.current,
+                winner: winnerSide,
+                hostDeck: localDeckRef.current,
+                guestDeck: opponentDeckRef.current,
+                host_user_id: user?.id ?? null,
+                guest_user_id: onlineSnapshot.remoteUserId,
+                mode: battleMode,
+            });
         }
 
         const resultPayload = {
@@ -2508,16 +2493,16 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     </div>
                                 </div>
                             )}
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    </div>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      </div>
   )}
-        </main>
-        </div>
-    );
+      </main>
+    </div>
+  );
 }
 
 // Team indicator showing remaining pokemon HP

@@ -1,6 +1,3 @@
-
-import type { BattleRecord } from './battleStats';
-import { createClient } from '@supabase/supabase-js';
 import type { PokemonUsageStats } from './battleStats';
 import type { DeckPokemon } from '../types/pokemon';
 import { supabase } from './supabase';
@@ -20,6 +17,8 @@ export type GlobalBattleRecord = {
     guest_user_id?: string | null;
     host_team: GlobalBattleTeamPokemon[];
     guest_team: GlobalBattleTeamPokemon[];
+
+};
 
     type PokemonUsageStatsRow = {
     species_id: string;

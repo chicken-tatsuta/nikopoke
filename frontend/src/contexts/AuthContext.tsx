@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -60,7 +61,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => Boolean(supabase));
 
     const loadProfile = useCallback(async (nextSession: Session | null) => {
         if (!nextSession?.user || !supabase) {
@@ -73,7 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!supabase) {
-            setLoading(false);
             return;
         }
 
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (error) throw error;
         setProfile(normalizeProfile(data as Profile));
-    }, [session?.user]);
+    }, [session]);
 
     const value = useMemo<AuthContextValue>(() => ({
         session,

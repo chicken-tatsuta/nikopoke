@@ -20,12 +20,11 @@ export default function RankingPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [profiles, setProfiles] = useState<RankingProfile[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => Boolean(supabase));
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!supabase) {
-            setLoading(false);
             return;
         }
 

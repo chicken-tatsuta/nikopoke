@@ -104,6 +104,7 @@ export default function DeckBuilderPage() {
         const validPokemon = sanitizeDeck(sourceDeck, species, moves, learnsets);
 
         if (validPokemon.length > 0) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSelectedPokemon(validPokemon);
             localStorage.setItem('savedDeck', JSON.stringify(validPokemon));
         }
@@ -338,6 +339,7 @@ export default function DeckBuilderPage() {
                                         )}
                                     </div>
                                 ))}
+                            </div>
                             </div>
 
                             <button
@@ -584,33 +586,6 @@ function SelectedPokemonCard({
             </div>
         </div>
     );
-}
-
-function sanitizeDeckPokemon(
-    pokemon: DeckPokemon,
-    species: SpeciesData,
-    moves: MoveData,
-    learnsets: Learnset,
-): DeckPokemon | null {
-    const mon = species[pokemon.speciesId];
-    if (!mon) {
-        return null;
-    }
-
-    const sanitizedMoves = pokemon.moves
-        .filter((moveId, index, self) => self.indexOf(moveId) === index)
-        .filter((moveId) => moves[moveId])
-        .slice(0, 4);
-
-    const fallbackMoves = (learnsets[pokemon.speciesId] || [])
-        .filter((moveId) => moves[moveId])
-        .slice(0, 4);
-
-    return {
-        ...pokemon,
-        ability: mon.abilities.includes(pokemon.ability) ? pokemon.ability : (mon.abilities[0] || 'none'),
-        moves: sanitizedMoves.length > 0 ? sanitizedMoves : fallbackMoves,
-    };
 }
 
 function MoveSelector({
