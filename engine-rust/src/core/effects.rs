@@ -1867,10 +1867,16 @@ fn apply_strength_sap_effect(state: &BattleState, ctx: &mut EffectContext<'_>) -
     let Some(target) = get_active_creature(state, &ctx.target_player_id) else {
         return Vec::new();
     };
+    let stage = target.stages.atk.max(-6).min(6);
+    let effective_atk = if stage >= 0 {
+        (target.attack * (2 + stage) / 2).max(1)
+    } else {
+        (target.attack * 2 / (2 + stage.abs())).max(1)
+    };
     vec![
         BattleEvent::Damage {
             target_id: ctx.attacker_player_id.clone(),
-            amount: -target.attack.max(1),
+            amount: -effective_atk,
             meta: meta_with_move_source(ctx.move_data.map(|m| m.id.as_str()), Some(&ctx.attacker_player_id)),
         },
         BattleEvent::ModifyStage {
