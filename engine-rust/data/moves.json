@@ -11158,7 +11158,9 @@
         "type": "force_switch"
       }
     ],
-    "tags": [],
+    "tags": [
+      "sound"
+    ],
     "type": "normal"
   },
   "roar_of_time": {
@@ -12915,6 +12917,7 @@
     "priority": 0,
     "steps": [
       {
+        "side": false,
         "statusId": "stealth_rock",
         "type": "apply_field_status"
       }

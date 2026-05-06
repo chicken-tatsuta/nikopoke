@@ -219,7 +219,7 @@ export default function DeckBuilderPage() {
         <div className="min-h-dvh bg-[var(--surface-1)]">
             {/* Header */}
             <header className="bg-[var(--surface-2)] border-b border-[var(--border)] sticky top-0 z-20">
-                <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
+                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
                     <button
                         onClick={() => navigate('/home')}
                         className="p-2 hover:bg-[var(--surface-3)] rounded-lg transition-colors"
@@ -234,22 +234,22 @@ export default function DeckBuilderPage() {
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto px-6 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <main className="max-w-7xl mx-auto px-6 py-8">
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)]">
                     {/* Selected Pokemon */}
-                    <div className="lg:col-span-1">
+                    <div>
                         <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5 sticky top-24">
                             <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
                             </h2>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             {Array.from({ length: DECK_SIZE }, (_, idx) => idx).map((idx) => (
                                     <div
                                         key={idx}
-                                        className={`rounded-xl border transition-all ${selectedPokemon[idx]
-                                            ? 'bg-[var(--accent-muted)] border-[var(--accent)]/30 p-3'
-                                            : 'bg-[var(--surface-3)] border-[var(--border)] border-dashed p-3'
+                                        className={`min-h-[210px] rounded-xl border transition-all ${selectedPokemon[idx]
+                                            ? 'bg-[var(--accent-muted)] border-[var(--accent)]/30 p-4'
+                                            : 'bg-[var(--surface-3)] border-[var(--border)] border-dashed p-4'
                                             }`}
                                     >
                                         {selectedPokemon[idx] ? (
@@ -287,7 +287,7 @@ export default function DeckBuilderPage() {
                     </div>
 
                     {/* Pokemon / Move Selection */}
-                    <div className="lg:col-span-2">
+                    <div className="min-w-0">
                         {editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}
@@ -374,30 +374,30 @@ function SelectedPokemonCard({
     const totalEvs = pokemon.evs ? pokemon.evs.hp + pokemon.evs.atk + pokemon.evs.def + pokemon.evs.spa + pokemon.evs.spd + pokemon.evs.spe : 0;
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-[var(--text-primary)]">{species.name}</h3>
+        <div className="flex h-full min-w-0 flex-col">
+            <div className="mb-2 flex items-start justify-between gap-2">
+                <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
                 <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
                     <X className="size-4 text-red-400" />
                 </button>
             </div>
-            <div className="flex gap-1 mb-3">
+            <div className="mb-3 flex flex-wrap gap-1">
                 {species.type.map((t) => (
                     <span
                         key={t}
-                        className="px-2 py-0.5 text-xs text-white rounded-md"
+                        className="whitespace-nowrap px-2 py-0.5 text-xs text-white rounded-md"
                         style={{ backgroundColor: getTypeColor(t) }}
                     >
                         {getTypeLabel(t)}
                     </span>
                 ))}
             </div>
-            <div className="mb-2">
-                <label className="text-xs text-[var(--text-muted)]">特性</label>
+            <div className="mb-3">
+                <label className="mb-1 block text-xs text-[var(--text-muted)]">特性</label>
                 <select
                     value={pokemon.ability}
                     onChange={(e) => onAbilityChange(e.target.value)}
-                    className="ml-2 text-xs bg-[var(--surface-3)] text-[var(--text-primary)] rounded p-1"
+                    className="w-full rounded-lg bg-[var(--surface-3)] px-2.5 py-2 text-xs text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--surface-4)] focus:ring-2 focus:ring-[var(--accent)]/40"
                 >
                     {species.abilities.map((abilityId) => (
                         <option key={abilityId} value={abilityId}>
@@ -406,16 +406,16 @@ function SelectedPokemonCard({
                     ))}
                 </select>
             </div>
-            <div className="space-y-1">
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {pokemon.moves.map((moveId) => {
                     const move = moves[moveId];
                     return (
-                        <div key={moveId} className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
+                        <div key={moveId} className="flex min-w-0 items-center gap-1.5 rounded-md bg-[var(--surface-2)]/50 px-2 py-1 text-xs text-[var(--text-secondary)]">
                             <span
-                                className="size-2 rounded-full"
+                                className="size-2 shrink-0 rounded-full"
                                 style={{ backgroundColor: getTypeColor(move?.type || 'normal') }}
                             />
-                            {move?.name || moveId}
+                            <span className="truncate">{move?.name || moveId}</span>
                         </div>
                     );
                 })}
@@ -425,16 +425,16 @@ function SelectedPokemonCard({
                     EV: {totalEvs}/510
                 </div>
             )}
-            <div className="flex gap-2 mt-3">
+            <div className="mt-auto flex gap-2 pt-3">
                 <button
                     onClick={onEditMoves}
-                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+                    className="flex-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
                 >
                     技を編集
                 </button>
                 <button
                     onClick={onEditEVs}
-                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors flex items-center gap-1"
+                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
                 >
                     <Sliders className="size-3" />
                     EVを編集

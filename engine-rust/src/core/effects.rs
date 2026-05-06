@@ -2046,6 +2046,27 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
 
 fn apply_force_switch(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
     let target_id = resolve_target(effect.data.get("target"), ctx);
+    let Some(target) = get_active_creature(state, &target_id) else {
+        return Vec::new();
+    };
+    if !ctx.bypass_protect && target.statuses.iter().any(|status| status.id == "protect") {
+        return vec![BattleEvent::Log {
+            message: format!("{}は 攻撃から 身を 守った！", target.name),
+            meta: Map::new(),
+        }];
+    }
+    if ctx.is_sound && target.ability.as_deref() == Some("soundproof") {
+        return vec![
+            BattleEvent::Log {
+                message: format!("{}の 特性『ぼうおん』！", target.name),
+                meta: Map::new(),
+            },
+            BattleEvent::Log {
+                message: format!("{}は 音の技を 受けない！", target.name),
+                meta: Map::new(),
+            },
+        ];
+    }
     
     // Find the player being forced to switch
     let Some(player) = state.players.iter().find(|p| p.id == target_id) else {

@@ -49,8 +49,10 @@ type FieldEffectValue =
     };
 
 type BattleFieldLike = {
-    global?: Record<string, FieldEffectValue>;
-    sides?: Array<Record<string, FieldEffectValue>> | Record<string, Record<string, FieldEffectValue>>;
+    global?: Record<string, FieldEffectValue> | Array<{ id: string; remainingTurns?: number | null; remaining?: number | null; turns?: number | null; layers?: number }>;
+    sides?:
+        | Array<Record<string, FieldEffectValue> | Array<{ id: string; remainingTurns?: number | null; remaining?: number | null; turns?: number | null; layers?: number }>>
+        | Record<string, Record<string, FieldEffectValue> | Array<{ id: string; remainingTurns?: number | null; remaining?: number | null; turns?: number | null; layers?: number }>>;
 };
 
 type BattleStateWithField = BattleStateWire & {
@@ -341,8 +343,28 @@ function isActiveEffect(value: FieldEffectValue): boolean {
     return true;
 }
 
-function normalizeEffects(effects?: Record<string, FieldEffectValue>): FieldEffectItem[] {
+function normalizeEffects(
+    effects?: Record<string, FieldEffectValue> | Array<{ id: string; remainingTurns?: number | null; remaining?: number | null; turns?: number | null; layers?: number }>,
+): FieldEffectItem[] {
     if (!effects) return [];
+
+    if (Array.isArray(effects)) {
+        return effects
+            .filter((effect) => effect.id && (effect.remainingTurns == null || effect.remainingTurns > 0))
+            .map((effect) => ({
+                key: effect.id,
+                label: getEffectLabel(effect.id),
+                turns:
+                    typeof effect.remainingTurns === 'number'
+                        ? effect.remainingTurns
+                        : typeof effect.remaining === 'number'
+                            ? effect.remaining
+                            : typeof effect.turns === 'number'
+                                ? effect.turns
+                                : undefined,
+                layers: typeof effect.layers === 'number' ? effect.layers : undefined,
+            }));
+    }
 
     return Object.entries(effects)
         .filter(([, value]) => isActiveEffect(value))
@@ -385,7 +407,7 @@ function getSideField(
     sides: BattleFieldLike['sides'],
     playerId: string,
     fallbackIndex: number,
-): Record<string, FieldEffectValue> | undefined {
+): Record<string, FieldEffectValue> | Array<{ id: string; remainingTurns?: number | null; remaining?: number | null; turns?: number | null; layers?: number }> | undefined {
     if (!sides) return undefined;
 
     if (Array.isArray(sides)) {
@@ -502,6 +524,7 @@ const PLAYBACK_STEP_MS = 800;
 const PLAYBACK_HIT_MS = 1300;
 const PLAYBACK_FAINT_MS = 2000;
 const BATTLE_POPUP_MS = 1400;
+const HIDDEN_BATTLE_STATUS_IDS = new Set(['pending_switch']);
 const POKEMON_IMAGE_MODULES = import.meta.glob('../../image/*.{png,jpg,jpeg,webp,avif}', {
     eager: true,
     query: '?url',
@@ -545,6 +568,31 @@ function copyFinalActiveCreature(
 
     draftPlayer.activeSlot = finalPlayer.activeSlot;
     draftPlayer.team[finalPlayer.activeSlot] = structuredClone(finalPlayer.team[finalPlayer.activeSlot]) as CreatureStateWire;
+}
+
+function copyFinalActiveCreatureBeforeLoggedHpDelta(
+    draft: BattleStateWire,
+    finalState: BattleStateWire,
+    playerId: string,
+    logs: string[],
+): number | null {
+    copyFinalActiveCreature(draft, finalState, playerId);
+
+    const pair = activeCreaturePair(draft, finalState, playerId);
+    if (!pair) {
+        return null;
+    }
+
+    const loggedDelta = getLoggedHpDelta(logs, pair.draftCreature.name);
+    if (loggedDelta === null) {
+        return null;
+    }
+
+    pair.draftCreature.hp = Math.max(
+        0,
+        Math.min(pair.draftCreature.maxHp, pair.finalCreature.hp - loggedDelta),
+    );
+    return loggedDelta;
 }
 
 function activeCreaturePair(
@@ -625,6 +673,34 @@ function copyTargetAfterAction(
     after.draftCreature.hp = after.finalCreature.hp < previousHp ? after.finalCreature.hp : previousHp;
 }
 
+function copyCurrentSlotAfterAction(
+    draft: BattleStateWire,
+    finalState: BattleStateWire,
+    playerId: string,
+    actionLogs: string[],
+) {
+    const draftPlayer = findPlayerInState(draft, playerId);
+    const finalPlayer = findPlayerInState(finalState, playerId);
+    if (!draftPlayer || !finalPlayer) {
+        return;
+    }
+
+    const slot = draftPlayer.activeSlot;
+    const draftCreature = draftPlayer.team[slot];
+    const finalCreature = finalPlayer.team[slot];
+    if (!draftCreature || !finalCreature) {
+        return;
+    }
+
+    const previousHp = draftCreature.hp;
+    const loggedDelta = getLoggedHpDelta(actionLogs, draftCreature.name);
+    draftPlayer.team[slot] = structuredClone(finalCreature) as CreatureStateWire;
+
+    if (loggedDelta !== null) {
+        draftPlayer.team[slot].hp = Math.max(0, Math.min(draftCreature.maxHp, previousHp + loggedDelta));
+    }
+}
+
 function copyActorAfterOwnAction(
     draft: BattleStateWire,
     finalState: BattleStateWire,
@@ -668,6 +744,15 @@ function activeSlotChanged(
     return Boolean(draftPlayer && finalPlayer && draftPlayer.activeSlot !== finalPlayer.activeSlot);
 }
 
+function moveHasEffect(move: MoveData[string] | undefined, effectType: string): boolean {
+    const steps = (move as { steps?: Array<{ type?: string }> } | undefined)?.steps ?? [];
+    return steps.some((step) => step.type === effectType);
+}
+
+function visibleStatuses(statuses: CreatureStateWire['statuses']): CreatureStateWire['statuses'] {
+    return statuses.filter((status) => !HIDDEN_BATTLE_STATUS_IDS.has(status.id));
+}
+
 function logsMentionNegativeEffect(logs: string[], creatureName: string): boolean {
     return logs.some((log) => (
         log.includes(creatureName) &&
@@ -697,6 +782,13 @@ function getVisualImpactPlayerId(
     const target = findActiveCreature(state, targetId);
     const actor = findActiveCreature(state, action.playerId);
     const move = action.moveId ? moves[action.moveId] : undefined;
+
+    if (moveHasEffect(move, 'force_switch')) {
+        if (!moveHasEffect(move, 'damage')) {
+            return action.playerId;
+        }
+        return targetId;
+    }
 
     if (target && logsMentionNegativeEffect(actionLogs, target.name)) {
         return targetId;
@@ -739,6 +831,53 @@ function getActionLabel(
 
     const moveName = action.moveId ? moves[action.moveId]?.name : undefined;
     return moveName && actor ? `${side}: ${actor.name}の${moveName}` : `${side}の行動中`;
+}
+
+function getActionLogStartIndex(
+    action: ActionWire,
+    state: BattleStateWire,
+    logs: string[],
+    moves: MoveData,
+): number {
+    const player = findPlayerInState(state, action.playerId);
+    if (!player) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    if (action.type === 'switch') {
+        const index = logs.findIndex((log) => log.startsWith(`${player.name}は `) && log.includes('を 繰り出した！'));
+        return index >= 0 ? index : Number.POSITIVE_INFINITY;
+    }
+
+    const moveName = action.moveId ? moves[action.moveId]?.name ?? action.moveId : undefined;
+    if (!moveName) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const index = logs.findIndex((log) => log === `${player.name}の ${moveName}！`);
+    return index >= 0 ? index : Number.POSITIVE_INFINITY;
+}
+
+function orderActionsByBattleLogs(
+    actions: ActionWire[],
+    state: BattleStateWire,
+    logs: string[],
+    moves: MoveData,
+): ActionWire[] {
+    return actions
+        .map((action, index) => ({
+            action,
+            index,
+            logIndex: getActionLogStartIndex(action, state, logs, moves),
+        }))
+        .filter(({ logIndex }) => Number.isFinite(logIndex))
+        .sort((left, right) => {
+            if (left.logIndex !== right.logIndex) {
+                return left.logIndex - right.logIndex;
+            }
+            return left.index - right.index;
+        })
+        .map(({ action }) => action);
 }
 
 function parseAbilityPopup(log: string): Omit<BattlePopup, 'id'> | null {
@@ -792,6 +931,7 @@ export default function BattlePage() {
     const [statusText, setStatusText] = useState('');
     const [playback, setPlayback] = useState<BattlePlaybackState>(IDLE_PLAYBACK_STATE);
     const [battlePopup, setBattlePopup] = useState<BattlePopup | null>(null);
+    const [revealedOpponentSlots, setRevealedOpponentSlots] = useState<Set<number>>(() => new Set());
     const logsRef = useRef<HTMLDivElement>(null);
     const battleStateRef = useRef<BattleStateWire | null>(null);
     const localPlayerIdRef = useRef(localPlayerId);
@@ -810,6 +950,26 @@ export default function BattlePage() {
 
     useEffect(() => {
         battleStateRef.current = battleState;
+    }, [battleState]);
+
+    useEffect(() => {
+        if (!battleState) {
+            return;
+        }
+
+        const opponent = battleState.players.find((player) => player.id === opponentPlayerIdRef.current);
+        if (!opponent) {
+            return;
+        }
+
+        setRevealedOpponentSlots((current) => {
+            if (current.has(opponent.activeSlot)) {
+                return current;
+            }
+            const next = new Set(current);
+            next.add(opponent.activeSlot);
+            return next;
+        });
     }, [battleState]);
 
     useEffect(() => {
@@ -861,8 +1021,15 @@ export default function BattlePage() {
         setBattleState(stagedState);
 
         const newLogs = finalState.log.slice(startState.log.length);
-        const actionQueue = actions.length > 0 ? actions : [{ type: 'move', playerId: opponentPlayerIdRef.current } as ActionWire];
+        const actionQueue = orderActionsByBattleLogs(
+            actions.length > 0 ? actions : [{ type: 'move', playerId: opponentPlayerIdRef.current } as ActionWire],
+            startState,
+            newLogs,
+            moves,
+        );
+        const actionLogStarts = actionQueue.map((action) => getActionLogStartIndex(action, startState, newLogs, moves));
         let consumedLogs = 0;
+        const animatedFaintIds = new Set<string>();
 
         await wait(PLAYBACK_STEP_MS);
 
@@ -877,6 +1044,9 @@ export default function BattlePage() {
                 .slice(actionIndex + 1)
                 .some((queuedAction) => queuedAction.playerId === targetId);
             const moveType = getMoveType(action.moveId, moves);
+            const move = action.moveId ? moves[action.moveId] : undefined;
+            const isForceSwitchMove = moveHasEffect(move, 'force_switch');
+            const isDamagingForceSwitchMove = isForceSwitchMove && moveHasEffect(move, 'damage');
 
             setPlayback({
                 isPlaying: true,
@@ -886,15 +1056,22 @@ export default function BattlePage() {
                 faintedCreatureIds: [],
             });
 
-            const logsToReveal = Math.max(1, Math.ceil(newLogs.length / actionQueue.length));
-            const nextLogCount = Math.min(newLogs.length, consumedLogs + logsToReveal);
+            const nextActionLogStart = actionLogStarts
+                .slice(actionIndex + 1)
+                .find((index) => Number.isFinite(index));
+            const nextLogCount = Math.min(newLogs.length, nextActionLogStart ?? newLogs.length);
+            const actionLogStart = consumedLogs;
             const actionLogs = newLogs.slice(consumedLogs, nextLogCount);
-            if (nextLogCount > consumedLogs) {
-                stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
-                consumedLogs = nextLogCount;
+            let displayedLogCount = consumedLogs;
+            const initialLogCount = isForceSwitchMove
+                ? Math.min(nextLogCount, consumedLogs + 1)
+                : nextLogCount;
+            if (initialLogCount > consumedLogs) {
+                stagedState.log = [...startState.log, ...newLogs.slice(0, initialLogCount)];
+                displayedLogCount = initialLogCount;
                 setBattleState(cloneBattleState(stagedState));
             }
-            await showPopupsFromLogs(actionLogs);
+            await showPopupsFromLogs(newLogs.slice(consumedLogs, displayedLogCount));
 
             await wait(PLAYBACK_STEP_MS);
 
@@ -921,18 +1098,69 @@ export default function BattlePage() {
 
             await wait(PLAYBACK_HIT_MS);
 
-            copyTargetAfterAction(stagedState, finalState, targetId, actionLogs, hasLaterTargetAction);
-            copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
+            if (isDamagingForceSwitchMove) {
+                copyCurrentSlotAfterAction(stagedState, finalState, targetId, actionLogs);
+            } else if (!isForceSwitchMove) {
+                copyTargetAfterAction(stagedState, finalState, targetId, actionLogs, hasLaterTargetAction);
+            } else {
+                copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
+            }
+            if (!isForceSwitchMove || isDamagingForceSwitchMove) {
+                copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
+            }
             setBattleState(cloneBattleState(stagedState));
 
             const faintedIds = finalFaintedCreatureIds(stagedState);
+            const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
+            newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
             setPlayback((current) => ({
                 ...current,
-                label: faintedIds.length > 0 ? 'ひんし処理中' : 'ダメージ・状態を反映中',
-                faintedCreatureIds: faintedIds,
+                label: newlyFaintedIds.length > 0 ? 'ひんし処理中' : 'ダメージ・状態を反映中',
+                faintedCreatureIds: newlyFaintedIds,
             }));
 
-            await wait(faintedIds.length > 0 ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
+            await wait(newlyFaintedIds.length > 0 ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
+
+            if (isForceSwitchMove && activeSlotChanged(stagedState, finalState, targetId)) {
+                const switchLogIndex = actionLogs.findIndex((log) => log.includes('を 繰り出した！'));
+                const switchLogCount = switchLogIndex >= 0
+                    ? Math.min(nextLogCount, actionLogStart + switchLogIndex + 1)
+                    : nextLogCount;
+                setPlayback({
+                    isPlaying: true,
+                    label: targetId === localPlayerIdRef.current ? 'あなたが引きずり出されています' : '相手を引きずり出しています',
+                    faintedCreatureIds: [],
+                });
+                await wait(PLAYBACK_STEP_MS);
+                if (switchLogCount > displayedLogCount) {
+                    stagedState.log = [...startState.log, ...newLogs.slice(0, switchLogCount)];
+                    setBattleState(cloneBattleState(stagedState));
+                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, switchLogCount));
+                    displayedLogCount = switchLogCount;
+                }
+                const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(stagedState, finalState, targetId, actionLogs);
+                setBattleState(cloneBattleState(stagedState));
+                await wait(PLAYBACK_STEP_MS);
+
+                if (switchInHpDelta !== null && switchInHpDelta < 0) {
+                    if (nextLogCount > displayedLogCount) {
+                        stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
+                        setBattleState(cloneBattleState(stagedState));
+                        await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount));
+                        displayedLogCount = nextLogCount;
+                    }
+                    setPlayback({
+                        isPlaying: true,
+                        label: '場の効果を反映中',
+                        damagedPlayerId: targetId,
+                        effectType: 'rock',
+                        faintedCreatureIds: [],
+                    });
+                    copyFinalActiveCreature(stagedState, finalState, targetId);
+                    setBattleState(cloneBattleState(stagedState));
+                    await wait(PLAYBACK_HIT_MS);
+                }
+            }
 
             if (activeSlotChanged(stagedState, finalState, action.playerId)) {
                 setPlayback({
@@ -944,6 +1172,13 @@ export default function BattlePage() {
                 setBattleState(cloneBattleState(stagedState));
                 await wait(PLAYBACK_STEP_MS);
             }
+
+            if (nextLogCount > displayedLogCount) {
+                stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
+                setBattleState(cloneBattleState(stagedState));
+                await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount));
+            }
+            consumedLogs = nextLogCount;
         }
 
         if (consumedLogs < newLogs.length) {
@@ -958,7 +1193,7 @@ export default function BattlePage() {
         setPlayback({
             isPlaying: true,
             label: 'ターン処理完了',
-            faintedCreatureIds: finalFaintedCreatureIds(finalState),
+            faintedCreatureIds: [],
         });
         setBattleState(finalState);
         await wait(PLAYBACK_STEP_MS);
@@ -1120,6 +1355,7 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'battle_init') {
+                setRevealedOpponentSlots(new Set());
                 setBattleState(event.state);
                 setWaiting(false);
                 setStatusText('');
@@ -1213,6 +1449,7 @@ export default function BattlePage() {
                 .then((state) => {
                     setLocalPlayerId('player');
                     setOpponentPlayerId('ai');
+                    setRevealedOpponentSlots(new Set());
                     setBattleState(state);
                 })
                 .catch((error) => {
@@ -1254,6 +1491,7 @@ export default function BattlePage() {
                 guest: { team: selectedOpponentDeck },
             })
                 .then((state) => {
+                    setRevealedOpponentSlots(new Set());
                     setBattleState(state);
                     sendBattleInit(state);
                 })
@@ -1273,6 +1511,7 @@ export default function BattlePage() {
             setLocalPlayerId('guest');
             setOpponentPlayerId('host');
             if (onlineSnapshot.latestState) {
+                setRevealedOpponentSlots(new Set());
                 setBattleState(onlineSnapshot.latestState);
             } else {
                 setStatusText('ホストが対戦を開始するのを待っています...');
@@ -1875,8 +2114,9 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     const monSpecies = species[mon.speciesId];
                     const isActive = focusedTeamSlot === player.activeSlot;
                     const isFainted = mon.hp <= 0;
-                    const statusLabel = mon.statuses.length > 0
-                        ? mon.statuses.map((status) => getStatusLabel(status.id)).join(' / ')
+                    const shownStatuses = visibleStatuses(mon.statuses);
+                    const statusLabel = shownStatuses.length > 0
+                        ? shownStatuses.map((status) => getStatusLabel(status.id)).join(' / ')
                         : 'なし';
 
                     if (!monSpecies) return null;
@@ -2032,29 +2272,88 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
 
             {/* Right column: opponent team list */}
             <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-4">
-                <div className="mb-2 text-sm font-bold text-[var(--text-primary)]">
-                    相手チーム
+                <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-sm font-bold text-[var(--text-primary)]">
+                        相手チーム
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)]">
+                        登場済みのみ表示
+                    </div>
                 </div>
 
                 {ai.team.map((mon, idx) => {
                     const monSpecies = species[mon.speciesId];
                     const isActive = idx === ai.activeSlot;
                     const isFainted = mon.hp <= 0;
+                    const isRevealed = isActive || revealedOpponentSlots.has(idx);
+                    const hpPercentage = mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
+                    const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
+                    const portraitSrc = getPokemonPortraitSrc(mon.speciesId, monSpecies?.name || mon.name);
 
                     return (
                         <div
                             key={idx}
                             className={cn(
                                 'rounded-lg border p-2 text-left transition-all',
-                                isActive
-                                    ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
-                                    : 'border-[var(--border)] bg-[var(--surface-3)]',
-                                isFainted && 'opacity-50'
+                                isRevealed
+                                    ? isActive
+                                        ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
+                                        : 'border-[var(--border)] bg-[var(--surface-3)]'
+                                    : 'border-[var(--border)] bg-black/30 opacity-45',
+                                isFainted && isRevealed && 'opacity-60'
                             )}
                         >
-                            <div className="truncate text-sm font-medium text-[var(--text-primary)]">
-                                {monSpecies?.name ?? '???'}
-                            </div>
+                            {isRevealed ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
+                                        <img
+                                            src={portraitSrc}
+                                            alt={monSpecies?.name || mon.name}
+                                            className={cn('size-full object-cover', isFainted && 'grayscale')}
+                                        />
+                                        {isActive && (
+                                            <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full border border-[var(--surface-2)] bg-[var(--accent)]" />
+                                        )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                                            {monSpecies?.name ?? mon.name}
+                                        </div>
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                            {(monSpecies?.type ?? mon.types).map((type) => (
+                                                <span
+                                                    key={type}
+                                                    className="rounded-full px-1.5 py-0.5 text-[10px] text-white"
+                                                    style={{ backgroundColor: getTypeColor(type) }}
+                                                >
+                                                    {getTypeLabel(type)}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                                                <div
+                                                    className={cn('h-full transition-all duration-700 ease-out', hpColor)}
+                                                    style={{ width: `${hpPercentage}%` }}
+                                                />
+                                            </div>
+                                            <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
+                                                {mon.hp}/{mon.maxHp}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex min-h-12 items-center gap-2">
+                                    <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-black/30 text-lg font-bold text-[var(--text-muted)]">
+                                        ?
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-semibold text-[var(--text-muted)]">未確認</div>
+                                        <div className="mt-1 text-xs text-[var(--text-muted)]">情報なし</div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -2253,7 +2552,7 @@ function PokemonStatus({
                 {/* Status */}
                 {creature.statuses && creature.statuses.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
-                        {creature.statuses.map((status, i) => (
+                        {visibleStatuses(creature.statuses).map((status, i) => (
                             <span key={i} className="rounded bg-purple-600 px-2 py-0.5 text-xs text-white">
                                 {getStatusLabel(status.id)}
                             </span>

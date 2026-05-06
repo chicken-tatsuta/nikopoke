@@ -10,4 +10,5 @@ description: 相手の　周りに　無数の　岩を 浮かべて　交代で
 steps:
 - type: apply_field_status
   statusId: stealth_rock
+  side: false
 tags: []

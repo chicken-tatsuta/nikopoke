@@ -372,7 +372,7 @@ export default function TeamPreviewPage() {
 
                     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
                         <h2 className="mb-3 text-sm font-bold text-[var(--text-primary)]">選択中</h2>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2">
                             {Array.from({ length: SELECT_TEAM_SIZE }).map((_, slot) => {
                                 const deckIndex = selectedIndexes[slot];
                                 const pokemon = deckIndex !== undefined ? playerDeck[deckIndex] : null;
@@ -381,21 +381,22 @@ export default function TeamPreviewPage() {
                                 return (
                                     <div
                                         key={slot}
-                                        className={`rounded-xl border p-3 text-center transition-all ${
+                                        className={`rounded-xl border p-3 transition-all ${
                                             pokemon
                                                 ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
                                                 : 'border-dashed border-[var(--border)] bg-[var(--surface-3)]'
                                         }`}
                                     >
-                                        <div className="mb-1 text-xs font-semibold text-[var(--accent)]">
-                                            {slot + 1}
-                                        </div>
                                         {pokemon && mon ? (
-                                            <>
-                                                <div className="text-sm font-bold text-[var(--text-primary)]">
+                                            <div className="flex min-h-14 items-center gap-3">
+                                                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-white">
+                                                    {slot + 1}
+                                                </div>
+                                                <div className="min-w-0 text-left">
+                                                <div className="truncate text-sm font-bold text-[var(--text-primary)]">
                                                     {mon.name}
                                                 </div>
-                                                <div className="mt-1 flex justify-center gap-1">
+                                                <div className="mt-1 flex flex-wrap gap-1">
                                                     {mon.type.map((type) => (
                                                         <span
                                                             key={type}
@@ -406,9 +407,15 @@ export default function TeamPreviewPage() {
                                                         </span>
                                                     ))}
                                                 </div>
-                                            </>
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <div className="text-xs text-[var(--text-muted)]">未選択</div>
+                                            <div className="flex min-h-14 items-center gap-3 text-xs text-[var(--text-muted)]">
+                                                <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--border)]">
+                                                    {slot + 1}
+                                                </div>
+                                                未選択
+                                            </div>
                                         )}
                                     </div>
                                 );
