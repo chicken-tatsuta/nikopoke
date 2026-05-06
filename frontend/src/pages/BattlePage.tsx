@@ -99,6 +99,8 @@ const FIELD_EFFECT_LABELS: Record<string, string> = {
     tailwind: 'おいかぜ',
 };
 
+const WEATHER_FIELD_IDS = new Set(['sun', 'rain', 'sandstorm', 'snow']);
+
 const TYPE_LABELS: Record<string, string> = {
     normal: 'ノーマル',
     fire: 'ほのお',
@@ -409,6 +411,25 @@ function normalizeEffects(
         });
 }
 
+function getBattleWeatherId(field?: BattleFieldLike): string | null {
+    return normalizeEffects(field?.global).find((effect) => WEATHER_FIELD_IDS.has(effect.key))?.key ?? null;
+}
+
+function getBattleWeatherClass(weatherId: string | null): string {
+    switch (weatherId) {
+        case 'sun':
+            return 'battle-weather-sun';
+        case 'rain':
+            return 'battle-weather-rain';
+        case 'sandstorm':
+            return 'battle-weather-sandstorm';
+        case 'snow':
+            return 'battle-weather-snow';
+        default:
+            return 'battle-weather-none';
+    }
+}
+
 function getSideField(
     sides: BattleFieldLike['sides'],
     playerId: string,
@@ -516,6 +537,7 @@ type BattlePlaybackState = {
 type BattlePopup = {
     id: number;
     tone: 'ability' | 'info';
+    side: 'player' | 'opponent' | 'center';
     title: string;
     text: string;
 };
@@ -886,7 +908,35 @@ function orderActionsByBattleLogs(
         .map(({ action }) => action);
 }
 
-function parseAbilityPopup(log: string): Omit<BattlePopup, 'id'> | null {
+function getPopupSideFromName(
+    state: BattleStateWire | null,
+    name: string,
+    localPlayerId: string,
+    opponentPlayerId: string,
+): BattlePopup['side'] {
+    if (!state) {
+        return 'center';
+    }
+
+    const localPlayer = findPlayerInState(state, localPlayerId);
+    const opponentPlayer = findPlayerInState(state, opponentPlayerId);
+
+    if (opponentPlayer?.team.some((creature) => creature.name === name)) {
+        return 'opponent';
+    }
+    if (localPlayer?.team.some((creature) => creature.name === name)) {
+        return 'player';
+    }
+
+    return 'center';
+}
+
+function parseAbilityPopup(
+    log: string,
+    state: BattleStateWire | null,
+    localPlayerId: string,
+    opponentPlayerId: string,
+): Omit<BattlePopup, 'id'> | null {
     const match = log.match(/^(.+)の 特性『(.+)』！$/);
     if (!match) {
         return null;
@@ -894,6 +944,7 @@ function parseAbilityPopup(log: string): Omit<BattlePopup, 'id'> | null {
 
     return {
         tone: 'ability',
+        side: getPopupSideFromName(state, match[1], localPlayerId, opponentPlayerId),
         title: `特性『${match[2]}』`,
         text: match[1],
     };
@@ -1015,9 +1066,14 @@ export default function BattlePage() {
         setBattlePopup((current) => (current?.id === id ? null : current));
     }, []);
 
-    const showPopupsFromLogs = useCallback(async (logs: string[]) => {
+    const showPopupsFromLogs = useCallback(async (logs: string[], state: BattleStateWire | null) => {
         for (const log of logs) {
-            const popup = parseAbilityPopup(log);
+            const popup = parseAbilityPopup(
+                log,
+                state,
+                localPlayerIdRef.current,
+                opponentPlayerIdRef.current,
+            );
             if (!popup) {
                 continue;
             }
@@ -1086,7 +1142,15 @@ export default function BattlePage() {
             const actionLogStart = consumedLogs;
             const actionLogs = newLogs.slice(consumedLogs, nextLogCount);
             let displayedLogCount = consumedLogs;
-            const initialLogCount = isForceSwitchMove
+            const switchLogIndex = action.type === 'switch'
+                ? actionLogs.findIndex((log) => log.includes('を 繰り出した！'))
+                : -1;
+            const switchLogCount = switchLogIndex >= 0
+                ? Math.min(nextLogCount, actionLogStart + switchLogIndex + 1)
+                : nextLogCount;
+            const initialLogCount = action.type === 'switch'
+                ? switchLogCount
+                : isForceSwitchMove
                 ? Math.min(nextLogCount, consumedLogs + 1)
                 : nextLogCount;
             if (initialLogCount > consumedLogs) {
@@ -1094,14 +1158,53 @@ export default function BattlePage() {
                 displayedLogCount = initialLogCount;
                 setBattleState(cloneBattleState(stagedState));
             }
-            await showPopupsFromLogs(newLogs.slice(consumedLogs, displayedLogCount));
+            await showPopupsFromLogs(newLogs.slice(consumedLogs, displayedLogCount), stagedState);
 
             await wait(PLAYBACK_STEP_MS);
 
             if (action.type === 'switch') {
-                copyFinalActiveCreature(stagedState, finalState, action.playerId);
+                const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(
+                    stagedState,
+                    finalState,
+                    action.playerId,
+                    actionLogs,
+                );
                 setBattleState(cloneBattleState(stagedState));
                 await wait(PLAYBACK_STEP_MS);
+
+                if (nextLogCount > displayedLogCount) {
+                    stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
+                    setBattleState(cloneBattleState(stagedState));
+                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
+                    displayedLogCount = nextLogCount;
+                }
+
+                if (switchInHpDelta !== null) {
+                    setPlayback({
+                        isPlaying: true,
+                        label: switchInHpDelta < 0 ? '場の効果を反映中' : '回復を反映中',
+                        damagedPlayerId: switchInHpDelta < 0 ? action.playerId : undefined,
+                        effectType: switchInHpDelta < 0 ? 'rock' : undefined,
+                        faintedCreatureIds: [],
+                    });
+                    copyFinalActiveCreature(stagedState, finalState, action.playerId);
+                    setBattleState(cloneBattleState(stagedState));
+                    await wait(PLAYBACK_HIT_MS);
+
+                    const faintedIds = finalFaintedCreatureIds(stagedState);
+                    const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
+                    if (switchInHpDelta < 0 && newlyFaintedIds.length > 0) {
+                        newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
+                        setPlayback((current) => ({
+                            ...current,
+                            label: 'ひんし処理中',
+                            faintedCreatureIds: newlyFaintedIds,
+                        }));
+                        await wait(PLAYBACK_FAINT_MS);
+                    }
+                }
+
+                consumedLogs = nextLogCount;
                 continue;
             }
 
@@ -1145,9 +1248,9 @@ export default function BattlePage() {
             await wait(newlyFaintedIds.length > 0 ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
 
             if (isForceSwitchMove && activeSlotChanged(stagedState, finalState, targetId)) {
-                const switchLogIndex = actionLogs.findIndex((log) => log.includes('を 繰り出した！'));
-                const switchLogCount = switchLogIndex >= 0
-                    ? Math.min(nextLogCount, actionLogStart + switchLogIndex + 1)
+                const forcedSwitchLogIndex = actionLogs.findIndex((log) => log.includes('を 繰り出した！'));
+                const forcedSwitchLogCount = forcedSwitchLogIndex >= 0
+                    ? Math.min(nextLogCount, actionLogStart + forcedSwitchLogIndex + 1)
                     : nextLogCount;
                 setPlayback({
                     isPlaying: true,
@@ -1155,11 +1258,11 @@ export default function BattlePage() {
                     faintedCreatureIds: [],
                 });
                 await wait(PLAYBACK_STEP_MS);
-                if (switchLogCount > displayedLogCount) {
-                    stagedState.log = [...startState.log, ...newLogs.slice(0, switchLogCount)];
+                if (forcedSwitchLogCount > displayedLogCount) {
+                    stagedState.log = [...startState.log, ...newLogs.slice(0, forcedSwitchLogCount)];
                     setBattleState(cloneBattleState(stagedState));
-                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, switchLogCount));
-                    displayedLogCount = switchLogCount;
+                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, forcedSwitchLogCount), stagedState);
+                    displayedLogCount = forcedSwitchLogCount;
                 }
                 const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(stagedState, finalState, targetId, actionLogs);
                 setBattleState(cloneBattleState(stagedState));
@@ -1169,7 +1272,7 @@ export default function BattlePage() {
                     if (nextLogCount > displayedLogCount) {
                         stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
                         setBattleState(cloneBattleState(stagedState));
-                        await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount));
+                        await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
                         displayedLogCount = nextLogCount;
                     }
                     setPlayback({
@@ -1199,7 +1302,7 @@ export default function BattlePage() {
             if (nextLogCount > displayedLogCount) {
                 stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
                 setBattleState(cloneBattleState(stagedState));
-                await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount));
+                await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
             }
             consumedLogs = nextLogCount;
         }
@@ -1209,7 +1312,7 @@ export default function BattlePage() {
             setPlayback((current) => ({ ...current, label: '状態変化を反映中' }));
             stagedState.log = finalState.log;
             setBattleState(cloneBattleState(stagedState));
-            await showPopupsFromLogs(remainingLogs);
+            await showPopupsFromLogs(remainingLogs, stagedState);
             await wait(PLAYBACK_STEP_MS);
         }
 
@@ -1844,6 +1947,7 @@ const battleStatusLabel = playback.isPlaying
         : mustSwitch
             ? '交代先を選択中'
             : '行動選択中';
+const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField).field);
 
     return (
         <div className="flex min-h-dvh flex-col bg-[var(--surface-1)]">
@@ -1891,7 +1995,10 @@ const battleStatusLabel = playback.isPlaying
             </header>
 
             <main className="mx-auto grid h-[calc(100dvh-65px)] min-h-0 w-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-4 py-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-            <section className="relative flex min-h-0 flex-col gap-2 overflow-hidden">
+            <section className={cn(
+                'battle-weather-base relative flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl',
+                getBattleWeatherClass(battleWeatherId),
+            )}>
                 <BattlePopupToast popup={battlePopup} />
                 <div className="flex items-start gap-4">
                     <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
@@ -2407,7 +2514,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
         </div>
     </div>
-)}
+  )}
         </main>
         </div>
     );
@@ -2470,8 +2577,14 @@ function BattlePopupToast({ popup }: { popup: BattlePopup | null }) {
         return null;
     }
 
+    const positionClass = popup.side === 'opponent'
+        ? 'left-14 top-3 battle-popup-slide-opponent'
+        : popup.side === 'player'
+            ? 'right-4 bottom-48 battle-popup-slide-player'
+            : 'right-4 top-1/2 -translate-y-1/2 battle-popup-slide';
+
     return (
-        <div className="pointer-events-none absolute right-4 top-1/2 z-30 w-[min(380px,calc(100%-2rem))] -translate-y-1/2 battle-popup-slide">
+        <div className={cn('pointer-events-none absolute z-30 w-[min(360px,calc(100%-2rem))]', positionClass)}>
             <div className={cn(
                 'rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-md',
                 popup.tone === 'ability'
