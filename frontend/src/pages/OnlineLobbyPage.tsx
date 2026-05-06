@@ -10,6 +10,7 @@ import {
     startOnlineBattle,
     subscribeOnlineSession,
 } from '../lib/p2p';
+import { useAuth } from '../contexts/AuthContext';
 import type { DeckPokemon, SpeciesData } from '../types/pokemon';
 
 function readPlayerDeck(): DeckPokemon[] | null {
@@ -54,6 +55,7 @@ function describeStatus(role: string | null, status: string, hasRemoteDeck: bool
 
 export default function OnlineLobbyPage() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [species, setSpecies] = useState<SpeciesData>({});
     const [loadingSpecies, setLoadingSpecies] = useState(true);
     const [session, setSession] = useState(getOnlineSessionSnapshot());
@@ -112,7 +114,7 @@ export default function OnlineLobbyPage() {
         setBusy(true);
         setError(null);
         try {
-            await createHostSession(playerDeck);
+            await createHostSession(playerDeck, user?.id ?? null);
         } catch (createError) {
             const message = createError instanceof Error ? createError.message : 'ルーム作成に失敗しました。';
             setError(message);
@@ -132,7 +134,7 @@ export default function OnlineLobbyPage() {
         setBusy(true);
         setError(null);
         try {
-            await joinHostSession(joinCode.trim(), playerDeck);
+            await joinHostSession(joinCode.trim(), playerDeck, user?.id ?? null);
         } catch (joinError) {
             const message = joinError instanceof Error ? joinError.message : 'ルーム参加に失敗しました。';
             setError(message);

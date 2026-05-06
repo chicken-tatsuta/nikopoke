@@ -19,6 +19,7 @@ export interface OnlineSessionSnapshot {
     localPeerId: string | null;
     hostPeerId: string | null;
     remotePeerId: string | null;
+    remoteUserId: string | null;
     localDeck: DeckPokemon[] | null;
     remoteDeck: DeckPokemon[] | null;
     localSelectedDeck: DeckPokemon[] | null;
@@ -33,6 +34,7 @@ type OnlineMessage =
         type: 'hello';
         role: OnlineRole;
         peerId: string;
+        userId?: string | null;
         deck: DeckPokemon[];
     }
     | {
@@ -99,6 +101,8 @@ interface OnlineSessionState {
     localPeerId: string | null;
     hostPeerId: string | null;
     remotePeerId: string | null;
+    localUserId: string | null;
+    remoteUserId: string | null;
     localDeck: DeckPokemon[] | null;
     remoteDeck: DeckPokemon[] | null;
     localSelectedDeck: DeckPokemon[] | null;
@@ -129,6 +133,8 @@ function createInitialState(): OnlineSessionState {
         localPeerId: null,
         hostPeerId: null,
         remotePeerId: null,
+        localUserId: null,
+        remoteUserId: null,
         localDeck: null,
         remoteDeck: null,
         localSelectedDeck: null,
@@ -180,6 +186,7 @@ function getSnapshot(): OnlineSessionSnapshot {
         localPeerId: session.localPeerId,
         hostPeerId: session.hostPeerId,
         remotePeerId: session.remotePeerId,
+        remoteUserId: session.remoteUserId,
         localDeck: session.localDeck ? cloneDeck(session.localDeck) : null,
         remoteDeck: session.remoteDeck ? cloneDeck(session.remoteDeck) : null,
         localSelectedDeck: session.localSelectedDeck ? cloneDeck(session.localSelectedDeck) : null,
@@ -226,6 +233,7 @@ function sendHello(): void {
         type: 'hello',
         role: session.role,
         peerId: session.localPeerId,
+        userId: session.localUserId,
         deck: cloneDeck(session.localDeck),
     });
 }
@@ -239,6 +247,7 @@ function handleIncomingMessage(raw: unknown): void {
     switch (message.type) {
         case 'hello':
             session.remotePeerId = message.peerId;
+            session.remoteUserId = message.userId ?? null;
             session.remoteDeck = cloneDeck(message.deck);
             if (session.status !== 'in_battle') {
                 session.status = 'ready';
@@ -250,14 +259,16 @@ function handleIncomingMessage(raw: unknown): void {
             emitSnapshot();
             emit({ type: 'start_battle' });
             return;
-        case 'team_selected':
-            session.remoteSelectedDeck = cloneDeck(message.deck);
-            emitSnapshot();
-            emit({
-                type: 'team_selected',
-                deck: cloneDeck(message.deck),
-            });
-            return;
+
+            case 'team_selected':
+    session.remoteSelectedDeck = cloneDeck(message.deck);
+    emitSnapshot();
+    emit({
+        type: 'team_selected',
+        deck: cloneDeck(message.deck),
+    });
+    return;
+
         case 'battle_init':
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);
@@ -385,11 +396,12 @@ export function clearOnlineSession(): void {
     emitSnapshot();
 }
 
-export async function createHostSession(deck: DeckPokemon[]): Promise<string> {
+export async function createHostSession(deck: DeckPokemon[], userId?: string | null): Promise<string> {
     clearOnlineSession();
     session.role = 'host';
     session.status = 'hosting';
     session.localDeck = cloneDeck(deck);
+    session.localUserId = userId ?? null;
     emitSnapshot();
 
     return await new Promise<string>((resolve, reject) => {
@@ -425,12 +437,14 @@ export async function createHostSession(deck: DeckPokemon[]): Promise<string> {
 export async function joinHostSession(
     hostPeerId: string,
     deck: DeckPokemon[],
+    userId?: string | null,
 ): Promise<void> {
     clearOnlineSession();
     session.role = 'guest';
     session.status = 'joining';
     session.hostPeerId = hostPeerId.trim();
     session.localDeck = cloneDeck(deck);
+    session.localUserId = userId ?? null;
     emitSnapshot();
 
     return await new Promise<void>((resolve, reject) => {

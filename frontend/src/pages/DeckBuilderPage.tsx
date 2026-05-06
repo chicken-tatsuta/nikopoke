@@ -5,9 +5,13 @@ import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
 import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
 import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
+import { useAuth, type SavedDeck } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { getAbilityLabel } from './PokemonDetailPage';
 
+
 const DECK_SIZE = 6;
+const LOCAL_PRESETS_KEY = 'savedDeckPresets';
 
 const TYPE_LABELS: Record<string, string> = {
   normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
@@ -67,11 +71,14 @@ export default function DeckBuilderPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const mode = searchParams.get('mode') || 'ai';
+    const { user, profile, loading: authLoading, updateProfile } = useAuth();
 
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
     const [learnsets, setLearnsets] = useState<Learnset>({});
     const [loading, setLoading] = useState(true);
+    const [deckInitialized, setDeckInitialized] = useState(false);
+    const [localSavedDecks, setLocalSavedDecks] = useState<SavedDeck[]>([]);
 
     const [selectedPokemon, setSelectedPokemon] = useState<DeckPokemon[]>([]);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -85,27 +92,28 @@ export default function DeckBuilderPage() {
             setMoves(moves);
             setLearnsets(learnsets);
             setLoading(false);
-
-            // Load saved deck from localStorage after data is loaded
-            const saved = localStorage.getItem('savedDeck');
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved) as DeckPokemon[];
-                    const validPokemon = parsed
-                        .map((pokemon) => sanitizeDeckPokemon(pokemon, species, moves, learnsets))
-                        .filter((pokemon): pokemon is DeckPokemon => pokemon !== null);
-                    if (validPokemon.length > 0) {
-                        setSelectedPokemon(validPokemon);
-                        localStorage.setItem('savedDeck', JSON.stringify(validPokemon));
-                    } else {
-                        localStorage.removeItem('savedDeck');
-                    }
-                } catch (e) {
-                    console.error('Failed to load saved deck:', e);
-                }
-            }
         });
     }, []);
+
+    useEffect(() => {
+        if (loading || authLoading || deckInitialized) {
+            return;
+        }
+
+        const sourceDeck = supabase && user ? profile?.current_deck : readLocalDeck();
+        const validPokemon = sanitizeDeck(sourceDeck, species, moves, learnsets);
+
+        if (validPokemon.length > 0) {
+            setSelectedPokemon(validPokemon);
+            localStorage.setItem('savedDeck', JSON.stringify(validPokemon));
+        }
+
+        if (!supabase || !user) {
+            setLocalSavedDecks(readLocalSavedDecks());
+        }
+
+        setDeckInitialized(true);
+    }, [authLoading, deckInitialized, learnsets, loading, moves, profile?.current_deck, species, user]);
 
     const speciesList = Object.values(species);
 
@@ -127,12 +135,19 @@ export default function DeckBuilderPage() {
         setSelectedPokemon([...selectedPokemon, newPokemon]);
     };
 
-    // Save deck to localStorage whenever it changes
+    const savedDecks = supabase && user ? (profile?.saved_decks ?? []) : localSavedDecks;
+
+    // Save deck to the profile when possible, with localStorage kept as the offline fallback/cache.
     useEffect(() => {
-        if (!loading && selectedPokemon.length > 0) {
+        if (!loading && deckInitialized && selectedPokemon.length > 0) {
             localStorage.setItem('savedDeck', JSON.stringify(selectedPokemon));
+            if (supabase && user) {
+                void updateProfile({ current_deck: selectedPokemon }).catch((error) => {
+                    console.error('Failed to save deck:', error);
+                });
+            }
         }
-    }, [selectedPokemon, loading]);
+    }, [deckInitialized, loading, selectedPokemon, updateProfile, user]);
 
     const handleRemovePokemon = (index: number) => {
         setSelectedPokemon(selectedPokemon.filter((_, i) => i !== index));
@@ -207,6 +222,42 @@ export default function DeckBuilderPage() {
         navigate(mode === 'player' ? '/online-lobby' : '/team-preview');
     };
 
+    const handleLoadPreset = (deck: DeckPokemon[]) => {
+        const validPokemon = sanitizeDeck(deck, species, moves, learnsets);
+        if (validPokemon.length === 0) {
+            window.alert('このプリセットは読み込めませんでした。');
+            return;
+        }
+        setSelectedPokemon(validPokemon.slice(0, DECK_SIZE));
+    };
+
+    const handleSavePreset = () => {
+        if (selectedPokemon.length === 0) {
+            return;
+        }
+
+        const name = window.prompt('プリセット名を入力してください');
+        if (!name?.trim()) {
+            return;
+        }
+
+        const newPreset: SavedDeck = {
+            name: name.trim(),
+            deck: selectedPokemon,
+        };
+        const nextPresets = [...savedDecks.filter((preset) => preset.name !== newPreset.name), newPreset];
+
+        if (supabase && user) {
+            void updateProfile({ saved_decks: nextPresets }).catch((error) => {
+                console.error('Failed to save deck preset:', error);
+                window.alert('プリセットの保存に失敗しました。');
+            });
+        } else {
+            setLocalSavedDecks(nextPresets);
+            localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(nextPresets));
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-dvh bg-[var(--surface-1)] flex items-center justify-center">
@@ -243,6 +294,24 @@ export default function DeckBuilderPage() {
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
                             </h2>
 
+                            {savedDecks.length > 0 && (
+                                <div className="mb-5">
+                                    <div className="mb-2 text-sm font-medium text-[var(--text-secondary)]">保存済みプリセット</div>
+                                    <div className="space-y-2">
+                                        {savedDecks.map((preset) => (
+                                            <button
+                                                key={preset.name}
+                                                onClick={() => handleLoadPreset(preset.deck)}
+                                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--surface-4)]"
+                                            >
+                                                {preset.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             {Array.from({ length: DECK_SIZE }, (_, idx) => idx).map((idx) => (
                                     <div
@@ -282,6 +351,14 @@ export default function DeckBuilderPage() {
                             >
                                 <Swords className="size-5" />
                                 バトル開始
+                            </button>
+
+                            <button
+                                onClick={handleSavePreset}
+                                disabled={selectedPokemon.length === 0}
+                                className="mt-3 w-full rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                プリセットとして保存
                             </button>
                         </div>
                     </div>
@@ -352,6 +429,71 @@ export default function DeckBuilderPage() {
             </main>
         </div>
     );
+}
+
+function readLocalDeck(): DeckPokemon[] | null {
+    const saved = localStorage.getItem('savedDeck');
+    if (!saved) return null;
+
+    try {
+        return JSON.parse(saved) as DeckPokemon[];
+    } catch (error) {
+        console.error('Failed to load saved deck:', error);
+        return null;
+    }
+}
+
+function readLocalSavedDecks(): SavedDeck[] {
+    const saved = localStorage.getItem(LOCAL_PRESETS_KEY);
+    if (!saved) return [];
+
+    try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? (parsed as SavedDeck[]) : [];
+    } catch {
+        return [];
+    }
+}
+
+function sanitizeDeck(
+    deck: DeckPokemon[] | null | undefined,
+    species: SpeciesData,
+    moves: MoveData,
+    learnsets: Learnset,
+): DeckPokemon[] {
+    if (!deck) return [];
+
+    return deck
+        .map((pokemon) => sanitizeDeckPokemon(pokemon, species, moves, learnsets))
+        .filter((pokemon): pokemon is DeckPokemon => pokemon !== null)
+        .slice(0, DECK_SIZE);
+}
+
+function sanitizeDeckPokemon(
+    pokemon: DeckPokemon,
+    species: SpeciesData,
+    moves: MoveData,
+    learnsets: Learnset,
+): DeckPokemon | null {
+    const mon = species[pokemon.speciesId];
+    if (!mon) {
+        return null;
+    }
+
+    const sanitizedMoves = pokemon.moves
+        .filter((moveId, index, self) => self.indexOf(moveId) === index)
+        .filter((moveId) => moves[moveId])
+        .slice(0, 4);
+
+    const fallbackMoves = (learnsets[pokemon.speciesId] || [])
+        .filter((moveId) => moves[moveId])
+        .slice(0, 4);
+
+    return {
+        ...pokemon,
+        ability: mon.abilities.includes(pokemon.ability) ? pokemon.ability : (mon.abilities[0] || 'none'),
+        moves: sanitizedMoves.length > 0 ? sanitizedMoves : fallbackMoves,
+    };
 }
 
 function SelectedPokemonCard({

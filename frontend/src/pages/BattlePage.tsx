@@ -5,7 +5,13 @@ import { cn } from '../lib/cn';
 import { loadAllData, getTypeColor } from '../lib/data';
 import { BattleLog } from '../components/BattleLog';
 import { getAbilityLabel } from './PokemonDetailPage';
+
+import { uploadGlobalBattleRecord } from '../lib/globalBattleStats';
+import { mlpAI } from '../lib/mlpAI';
+import { useAuth } from '../contexts/AuthContext';
+
 import { createBattleStatsId, uploadGlobalBattleRecord } from '../lib/globalBattleStats';
+
 import {
     initEngine,
     createBattleState,
@@ -915,8 +921,12 @@ function getPokemonPortraitSrc(speciesId: string, name?: string): string {
 
 export default function BattlePage() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [battleMode] = useState<'ai' | 'player'>(() =>
         sessionStorage.getItem('battleMode') === 'player' ? 'player' : 'ai',
+    );
+    const [aiLevel] = useState<'lv1' | 'lv2'>(() =>
+        sessionStorage.getItem('aiLevel') === 'lv2' ? 'lv2' : 'lv1',
     );
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
@@ -984,6 +994,19 @@ export default function BattlePage() {
         onlineRoleRef.current = onlineSnapshot.role;
     }, [onlineSnapshot.role]);
 
+    useEffect(() => {
+        if (aiLevel === 'lv2') {
+            mlpAI.load().catch(console.error);
+        }
+    }, [aiLevel]);
+
+    const updateLastMovesFromActions = useCallback((actions: ActionWire[]) => {
+        const localId = localPlayerIdRef.current;
+        const opponentId = opponentPlayerIdRef.current;
+        setLastMoves({
+            player: actions.find((action) => action.playerId === localId)?.moveId,
+            ai: actions.find((action) => action.playerId === opponentId)?.moveId,
+        });
     const showBattlePopup = useCallback(async (popup: Omit<BattlePopup, 'id'>) => {
         const id = popupIdRef.current + 1;
         popupIdRef.current = id;
@@ -1226,14 +1249,21 @@ export default function BattlePage() {
 
         if (shouldUploadStats) {
             battleRecordSavedRef.current = true;
+        
+            saveBattleRecord(record);
+        
+if (localPlayerIdRef.current === 'host') {
+  void uploadGlobalBattleRecord({
+    id: record.id,
+    winner,
+    hostDeck: localDeckRef.current,
+    guestDeck: opponentDeckRef.current,
+    host_user_id: user?.id ?? null,
+    guest_user_id: onlineSnapshot.remoteUserId,
+    mode: battleMode,
+  });
+}
 
-            await uploadGlobalBattleRecord({
-                id: battleStatsIdRef.current,
-                winner: winnerSide,
-                playerDeck: localDeckRef.current,
-                opponentDeck: opponentDeckRef.current,
-                mode: battleMode,
-            });
         }
 
         const resultPayload = {
@@ -1252,7 +1282,7 @@ export default function BattlePage() {
         }, 1500);
 
         return true;
-    }, [battleMode, navigate]);
+    }, [battleMode, navigate, onlineSnapshot.remoteUserId, user?.id]);
 
     const resetBattlePersistenceState = useCallback(() => {
         battleRecordSavedRef.current = false;
@@ -1597,6 +1627,18 @@ export default function BattlePage() {
             targetId: localPlayerIdRef.current,
         };
     };
+
+    const getAiAction = async (state: BattleStateWire): Promise<ActionWire | null> => {
+        if (aiLevel === 'lv2' && mlpAI.isReady()) {
+            const mlpAction = mlpAI.getBestAction(state, opponentPlayerIdRef.current, moves);
+            if (mlpAction) {
+                return mlpAction;
+            }
+        }
+
+        return await getBestMoveMinimax(state, opponentPlayerIdRef.current, 1) ?? getFallbackAiAction(state);
+    };
+
     const submitOnlineAction = async (action: ActionWire) => {
         if (onlineSnapshot.role === 'guest') {
             sendPlayerAction(action);
@@ -1640,7 +1682,7 @@ export default function BattlePage() {
                 return;
             }
 
-            const aiAction = await getBestMoveMinimax(battleState, 'ai', 1) ?? getFallbackAiAction(battleState);
+            const aiAction = await getAiAction(battleState);
 
 if (!aiAction) {
     console.error('AI failed to select action');
@@ -1703,7 +1745,7 @@ if (!aiAction) {
                 return;
             }
 
-            const aiAction = await getBestMoveMinimax(battleState, 'ai', 1) ?? getFallbackAiAction(battleState);
+            const aiAction = await getAiAction(battleState);
 
 if (!aiAction) {
     console.error('AI failed to select action');
@@ -1822,19 +1864,24 @@ const battleStatusLabel = playback.isPlaying
                         </button>
                         <span className="font-medium tabular-nums text-[var(--text-primary)]">ターン {battleState.turn}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className={cn(
-                            'rounded-full border px-3 py-1 text-xs font-semibold',
-                            interactionLocked
-                                ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
-                                : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
-                        )}>
-                            {battleStatusLabel}
-                        </span>
-                        <span className="text-sm text-[var(--text-muted)]">
-                            {battleMode === 'player' ? 'VS Player (PeerJS)' : 'VS AI (Minimax)'}
-                        </span>
-                    </div>
+<div className="flex items-center gap-3">
+  <span className={cn(
+    'rounded-full border px-3 py-1 text-xs font-semibold',
+    interactionLocked
+      ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
+      : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  )}>
+    {battleStatusLabel}
+  </span>
+
+  <span className="text-sm text-[var(--text-muted)]">
+    {battleMode === 'player'
+      ? 'VS Player (PeerJS)'
+      : aiLevel === 'lv2'
+        ? 'VS AI (MLP LV2)'
+        : 'VS AI (Minimax LV1)'}
+  </span>
+</div>
                 </div>
                 {statusText && (
                     <div className="border-t border-[var(--border)] px-4 py-2 text-center text-sm text-[var(--text-muted)]">

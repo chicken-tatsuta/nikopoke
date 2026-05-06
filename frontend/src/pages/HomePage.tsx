@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Swords, Users, BookOpen, ChevronRight } from 'lucide-react';
+import { Swords, Users, BookOpen, ChevronRight, Trophy } from 'lucide-react';
 import { loadSpecies, getTypeColor } from '../lib/data';
 import type { SpeciesData, Species } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
@@ -64,7 +64,7 @@ export default function HomePage() {
             <main className="max-w-5xl mx-auto px-6 py-10 space-y-12">
                 <section>
                     <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-5">バトルモード</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Link
                             to="/deck-builder?mode=ai"
                             className="group bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5
@@ -98,6 +98,24 @@ export default function HomePage() {
                                     <p className="text-sm text-[var(--text-muted)]">PeerJS でルームを作って対戦する</p>
                                 </div>
                                 <ChevronRight className="size-5 text-[var(--text-muted)] group-hover:text-emerald-400 transition-colors" />
+                            </div>
+                        </Link>
+
+                        <Link
+                            to="/ranking"
+                            className="group bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5
+                                hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]
+                                transition-all duration-150 card-hover"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-amber-500/15 rounded-lg">
+                                    <Trophy className="size-6 text-amber-300" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-base font-semibold text-[var(--text-primary)]">ランキング</h3>
+                                    <p className="text-sm text-[var(--text-muted)]">トレーナー順位を見る</p>
+                                </div>
+                                <ChevronRight className="size-5 text-[var(--text-muted)] group-hover:text-amber-300 transition-colors" />
                             </div>
                         </Link>
                     </div>

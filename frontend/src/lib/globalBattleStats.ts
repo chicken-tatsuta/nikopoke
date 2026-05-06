@@ -1,14 +1,9 @@
+
+import type { BattleRecord } from './battleStats';
 import { createClient } from '@supabase/supabase-js';
 import type { PokemonUsageStats } from './battleStats';
 import type { DeckPokemon } from '../types/pokemon';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
-const supabase =
-    supabaseUrl && supabaseAnonKey
-        ? createClient(supabaseUrl, supabaseAnonKey)
-        : null;
+import { supabase } from './supabase';
 
 export type GlobalBattleTeamPokemon = {
     speciesId: string;
@@ -16,7 +11,17 @@ export type GlobalBattleTeamPokemon = {
     ability: string;
 };
 
-type PokemonUsageStatsRow = {
+
+export type GlobalBattleRecord = {
+    id: string;
+    created_at?: string;
+    winner: 'host' | 'guest';
+    host_user_id?: string | null;
+    guest_user_id?: string | null;
+    host_team: GlobalBattleTeamPokemon[];
+    guest_team: GlobalBattleTeamPokemon[];
+
+    type PokemonUsageStatsRow = {
     species_id: string;
     used_count: number;
     win_count: number;
@@ -27,6 +32,7 @@ type PokemonMoveUsageStatsRow = {
     species_id: string;
     move_id: string;
     used_count: number;
+
 };
 
 function deckToGlobalTeam(deck: DeckPokemon[] | null | undefined): GlobalBattleTeamPokemon[] {
@@ -44,11 +50,13 @@ export function createBattleStatsId(): string {
 }
 
 export async function uploadGlobalBattleRecord(args: {
-    id: string;
-    winner: string | null;
-    playerDeck: DeckPokemon[] | null | undefined;
-    opponentDeck: DeckPokemon[] | null | undefined;
-    mode: 'ai' | 'player';
+  id: string;
+  winner: string | null;
+  hostDeck?: DeckPokemon[] | null;
+  guestDeck?: DeckPokemon[] | null;
+  host_user_id?: string | null;
+  guest_user_id?: string | null;
+  mode?: 'ai' | 'player';
 }) {
     if (!supabase) {
         console.warn('[globalBattleStats] Supabase env is not configured.');
@@ -60,13 +68,13 @@ export async function uploadGlobalBattleRecord(args: {
         return;
     }
 
-    const { error } = await supabase.rpc('record_battle_result', {
-        p_battle_id: args.id,
-        p_mode: args.mode,
-        p_winner_side: args.winner,
-        p_player_team: deckToGlobalTeam(args.playerDeck),
-        p_opponent_team: deckToGlobalTeam(args.opponentDeck),
-    });
+const { error } = await supabase.rpc('record_battle_result', {
+  p_battle_id: args.id,
+  p_mode: args.mode,
+  p_winner_side: args.winner,
+  p_player_team: deckToGlobalTeam(args.hostDeck),
+  p_opponent_team: deckToGlobalTeam(args.guestDeck),
+});
 
     if (error) {
         console.error('[globalBattleStats] Failed to upload battle record:', {
