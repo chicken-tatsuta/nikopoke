@@ -94,17 +94,18 @@ export async function loadGlobalPokemonUsageStats(): Promise<Record<string, Poke
             .select('species_id, move_id, used_count'),
     ]);
 
-    if (usageError || moveError) {
-        console.error('[globalBattleStats] Failed to load usage stats:', {
-            usageError,
-            moveError,
-        });
+    if (usageError) {
+        console.error('[globalBattleStats] Failed to load pokemon usage summary:', usageError);
         return {};
+    }
+
+    if (moveError) {
+        console.warn('[globalBattleStats] Failed to load move usage stats. Falling back to usage summary only.', moveError);
     }
 
     const movesBySpecies = new Map<string, PokemonMoveUsageStatsRow[]>();
 
-    for (const row of (moveRows ?? []) as PokemonMoveUsageStatsRow[]) {
+    for (const row of ((moveRows ?? []) as PokemonMoveUsageStatsRow[])) {
         const current = movesBySpecies.get(row.species_id) ?? [];
         current.push(row);
         movesBySpecies.set(row.species_id, current);
