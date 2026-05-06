@@ -430,6 +430,11 @@ impl BattleEngine {
                 next = apply_event(&next, &event);
             }
             if status_before.prevent_action {
+                if let Some(player) = next.players.iter_mut().find(|p| p.id == action.player_id) {
+                    if let Some(active) = player.team.get_mut(player.active_slot) {
+                        active.statuses.retain(|s| s.id != "flinch");
+                    }
+                }
                 continue;
             }
             if let Some(override_action) = status_before.override_action {
