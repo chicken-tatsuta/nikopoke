@@ -9,4 +9,5 @@ priority: -6
 description: 相手を　逃がして 控えの　ポケモンを　ひきずりだす。 野生の　場合は　戦闘が　終わる。
 steps:
 - type: force_switch
-tags: []
+tags:
+- sound

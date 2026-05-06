@@ -6,6 +6,13 @@ import type { SpeciesData, Species } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
 import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
 
+const TYPE_LABELS: Record<string, string> = {
+    normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+    ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+    psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+    dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
+
 export default function HomePage() {
     const [species, setSpecies] = useState<SpeciesData>({});
     const [loading, setLoading] = useState(true);
@@ -176,7 +183,7 @@ function PokemonCard({
                         className="px-2.5 py-1 text-xs font-medium text-white rounded-md"
                         style={{ backgroundColor: getTypeColor(t) }}
                     >
-                        {t}
+                        {TYPE_LABELS[t] ?? t}
                     </span>
                 ))}
             </div>

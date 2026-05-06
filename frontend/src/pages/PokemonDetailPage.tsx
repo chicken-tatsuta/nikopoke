@@ -6,6 +6,13 @@ import type { MoveData, Species, SpeciesData } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
 import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
 
+const TYPE_LABELS: Record<string, string> = {
+    normal: 'ノーマル', fire: 'ほのお', water: 'みず', electric: 'でんき', grass: 'くさ',
+    ice: 'こおり', fighting: 'かくとう', poison: 'どく', ground: 'じめん', flying: 'ひこう',
+    psychic: 'エスパー', bug: 'むし', rock: 'いわ', ghost: 'ゴースト', dragon: 'ドラゴン',
+    dark: 'あく', steel: 'はがね', fairy: 'フェアリー',
+};
+
 type UsageItem = {
     name: string;
     rate: number;
@@ -36,9 +43,17 @@ export default function PokemonDetailPage() {
             });
     }, []);
 
-    const speciesList = useMemo(() => Object.values(speciesData), [speciesData]);
+    const sortedSpecies = useMemo(() => {
+        return Object.values(speciesData).sort((a, b) => {
+            const aUsed = usageStats[a.id]?.used ?? 0;
+            const bUsed = usageStats[b.id]?.used ?? 0;
+            if (aUsed !== bUsed) return bUsed - aUsed;
+            return a.name.localeCompare(b.name, 'ja');
+        });
+    }, [speciesData, usageStats]);
+
     const species = speciesId ? speciesData[speciesId] : undefined;
-    const rank = species ? speciesList.findIndex((mon) => mon.id === species.id) + 1 : 0;
+    const rank = species ? sortedSpecies.findIndex((mon) => mon.id === speciesId) + 1 : 0;
 
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
     const currentUsageMoves = useMemo(() => {
@@ -165,7 +180,7 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                                     className="px-3 py-1 text-sm font-medium text-white rounded-md"
                                     style={{ backgroundColor: getTypeColor(type) }}
                                 >
-                                    {type}
+                                    {TYPE_LABELS[type] ?? type}
                                 </span>
                             ))}
                         </div>
@@ -333,6 +348,7 @@ function mockAbilitiesFor(species: Species): UsageItem[] {
     }));
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getAbilityLabel(abilityId: string): string {
     return ABILITY_LABELS[abilityId] ?? abilityId;
 }

@@ -1,0 +1,29 @@
+[
+  {
+    "species_id": "morimitu",
+    "moves": [
+      "sand_attack",
+      "lunge",
+      "hurricane",
+      "double_hit"
+    ]
+  },
+  {
+    "species_id": "haruta",
+    "moves": [
+      "misty_explosion",
+      "moonlight",
+      "icicle_crash",
+      "headbutt"
+    ]
+  },
+  {
+    "species_id": "futo",
+    "moves": [
+      "milk_drink",
+      "bleakwind_storm",
+      "waterfall",
+      "amnesia"
+    ]
+  }
+]

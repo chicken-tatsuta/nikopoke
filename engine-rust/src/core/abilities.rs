@@ -35,6 +35,34 @@ pub struct AbilityHookResult {
     pub override_action: Option<Action>,
 }
 
+fn ability_label(ability: &str) -> &str {
+    match ability {
+        "intimidate" => "いかく",
+        "download" => "ダウンロード",
+        "drought" => "ひでり",
+        "moody" => "ムラっけ",
+        "libero" => "リベロ",
+        "receiver" => "レシーバー",
+        "power_of_alchemy" => "かがくのちから",
+        "magic_bounce" => "マジックミラー",
+        "lightning_rod" => "ひらいしん",
+        "soundproof" => "ぼうおん",
+        "stamina" => "じきゅうりょく",
+        "cotton_down" => "わたげ",
+        "berserk" => "ぎゃくじょう",
+        "competitive" => "かちき",
+        "opportunist" => "びんじょう",
+        other => other,
+    }
+}
+
+fn ability_activation_log(creature_name: &str, ability: &str) -> BattleEvent {
+    BattleEvent::Log {
+        message: format!("{}の 特性『{}』！", creature_name, ability_label(ability)),
+        meta: Map::new(),
+    }
+}
+
 pub fn run_ability_value_hook(
     state: &BattleState,
     player_id: &str,
@@ -217,7 +245,7 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
                 return AbilityHookResult::default();
             }
             let next = mark_ability_used(state, player_id, "intimidateUsed");
-            let mut events = Vec::new();
+            let mut events = vec![ability_activation_log(&active.name, ability)];
             for other in &next.players {
                 if other.id == player_id {
                     continue;
@@ -256,14 +284,17 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             stages.insert(raise.to_string(), 1);
             AbilityHookResult {
                 state: Some(next),
-                events: vec![BattleEvent::ModifyStage {
-                    target_id: player_id.to_string(),
-                    stages,
-                    clamp: true,
-                    fail_if_no_change: false,
-                    show_event: true,
-                    meta: meta_with_move_source(None, Some(player_id)),
-                }],
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::ModifyStage {
+                        target_id: player_id.to_string(),
+                        stages,
+                        clamp: true,
+                        fail_if_no_change: false,
+                        show_event: true,
+                        meta: meta_with_move_source(None, Some(player_id)),
+                    },
+                ],
                 prevent_action: false,
                 override_action: None,
             }
@@ -276,10 +307,13 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             next = set_weather(&next, WeatherKind::Sun, Some(5));
             AbilityHookResult {
                 state: Some(next),
-                events: vec![BattleEvent::Log {
-                    message: "日差しが 強く なった！".to_string(),
-                    meta: Map::new(),
-                }],
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Log {
+                        message: "日差しが 強く なった！".to_string(),
+                        meta: Map::new(),
+                    },
+                ],
                 prevent_action: false,
                 override_action: None,
             }
@@ -296,14 +330,17 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             stages.insert(stats[down_index].to_string(), -1);
             AbilityHookResult {
                 state: None,
-                events: vec![BattleEvent::ModifyStage {
-                    target_id: player_id.to_string(),
-                    stages,
-                    clamp: true,
-                    fail_if_no_change: false,
-                    show_event: true,
-                    meta: meta_with_move_source(None, Some(player_id)),
-                }],
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::ModifyStage {
+                        target_id: player_id.to_string(),
+                        stages,
+                        clamp: true,
+                        fail_if_no_change: false,
+                        show_event: true,
+                        meta: meta_with_move_source(None, Some(player_id)),
+                    },
+                ],
                 prevent_action: false,
                 override_action: None,
             }
@@ -332,10 +369,13 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             }
             AbilityHookResult {
                 state: Some(next),
-                events: vec![BattleEvent::Log {
-                    message: format!("{}は {}タイプに 変化した！", active.name, move_type),
-                    meta: meta_with_move_source(Some(move_id), Some(player_id)),
-                }],
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Log {
+                        message: format!("{}は {}タイプに 変化した！", active.name, move_type),
+                        meta: meta_with_move_source(Some(move_id), Some(player_id)),
+                    },
+                ],
                 prevent_action: false,
                 override_action: None,
             }
@@ -403,6 +443,10 @@ pub fn apply_ability_event_modifiers(
                             .unwrap_or(false);
                         if is_sound {
                             output.push(BattleEvent::Log {
+                                message: format!("{}の 特性『{}』！", target.name, ability_label("soundproof")),
+                                meta: Map::new(),
+                            });
+                            output.push(BattleEvent::Log {
                                 message: format!("{}は 音の技を 受けない！", target.name),
                                 meta: Map::new(),
                             });
@@ -416,11 +460,11 @@ pub fn apply_ability_event_modifiers(
                 if let Some(active) = get_active_creature(state, &player.id) {
                     if let Some(ability) = active.ability.as_deref() {
                         let reactions = match ability {
-                            "stamina" => after_stamina(&processed, &player.id),
-                            "cotton_down" => after_cotton_down(state, &processed, &player.id),
-                            "berserk" => after_berserk(state, &processed, &player.id),
-                            "competitive" => after_competitive(&processed, &player.id),
-                            "opportunist" => after_opportunist(&processed, &player.id),
+                            "stamina" => after_stamina(&processed, &player.id, &active.name),
+                            "cotton_down" => after_cotton_down(state, &processed, &player.id, &active.name),
+                            "berserk" => after_berserk(state, &processed, &player.id, &active.name),
+                            "competitive" => after_competitive(&processed, &player.id, &active.name),
+                            "opportunist" => after_opportunist(&processed, &player.id, &active.name),
                             _ => Vec::new(),
                         };
                         output.extend(reactions);
@@ -526,10 +570,13 @@ fn copy_fainted_ability(state: &BattleState, player_id: &str, ability_id: &str) 
 
     AbilityHookResult {
         state: Some(next),
-        events: vec![BattleEvent::Log {
-            message: format!("{}は {}を コピーした！", player.name, last),
-            meta: Map::new(),
-        }],
+        events: vec![
+            ability_activation_log(&player.name, ability_id),
+            BattleEvent::Log {
+                message: format!("{}は {}を コピーした！", player.name, ability_label(last)),
+                meta: Map::new(),
+            },
+        ],
         prevent_action: false,
         override_action: None,
     }
@@ -581,6 +628,9 @@ fn try_magic_bounce(
     if !is_reflectable_status_event(event) || !is_status_move(move_data) {
         return None;
     }
+    let target_name = get_active_creature(_state, &target_id)
+        .map(|creature| creature.name.clone())
+        .unwrap_or_else(|| target_id.clone());
 
     let mut bounced_event = event.clone();
     set_event_target(&mut bounced_event, &source_id);
@@ -588,6 +638,7 @@ fn try_magic_bounce(
     set_event_meta(&mut bounced_event, "bounced", Value::Bool(true));
 
     Some(vec![
+        ability_activation_log(&target_name, "magic_bounce"),
         BattleEvent::Log {
             message: format!("{}は 技を 跳ね返した！", target_id),
             meta: Map::new(),
@@ -607,9 +658,13 @@ fn try_lightning_rod(
         return None;
     }
     let target_id = event_target_id(event)?;
+    let target_name = get_active_creature(_state, &target_id)
+        .map(|creature| creature.name.clone())
+        .unwrap_or_else(|| target_id.clone());
     let mut stages = HashMap::new();
     stages.insert("spa".to_string(), 1);
     Some(vec![
+        ability_activation_log(&target_name, "lightning_rod"),
         BattleEvent::ModifyStage {
             target_id: target_id.clone(),
             stages,
@@ -625,28 +680,37 @@ fn try_lightning_rod(
     ])
 }
 
-fn after_stamina(event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
+fn after_stamina(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
         BattleEvent::Damage { target_id, .. } if target_id == player_id => {
             let mut stages = HashMap::new();
             stages.insert("def".to_string(), 1);
-            vec![BattleEvent::ModifyStage {
-                target_id: player_id.to_string(),
-                stages,
-                clamp: true,
-                fail_if_no_change: false,
-                show_event: true,
-                meta: Map::new(),
-            }]
+            vec![
+                BattleEvent::Log {
+                    message: format!("{}の 特性『{}』！", creature_name, ability_label("stamina")),
+                    meta: Map::new(),
+                },
+                BattleEvent::ModifyStage {
+                    target_id: player_id.to_string(),
+                    stages,
+                    clamp: true,
+                    fail_if_no_change: false,
+                    show_event: true,
+                    meta: Map::new(),
+                },
+            ]
         }
         _ => Vec::new(),
     }
 }
 
-fn after_cotton_down(state: &BattleState, event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
+fn after_cotton_down(state: &BattleState, event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
         BattleEvent::Damage { target_id, .. } if target_id == player_id => {
-            let mut events = Vec::new();
+            let mut events = vec![BattleEvent::Log {
+                message: format!("{}の 特性『{}』！", creature_name, ability_label("cotton_down")),
+                meta: Map::new(),
+            }];
             for other in &state.players {
                 if other.id == player_id {
                     continue;
@@ -668,21 +732,27 @@ fn after_cotton_down(state: &BattleState, event: &BattleEvent, player_id: &str) 
     }
 }
 
-fn after_berserk(state: &BattleState, event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
+fn after_berserk(state: &BattleState, event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
         BattleEvent::Damage { target_id, amount, .. } if target_id == player_id => {
             if let Some(target) = get_active_creature(state, player_id) {
                 if target.hp > target.max_hp / 2 && target.hp - amount <= target.max_hp / 2 {
                     let mut stages = HashMap::new();
                     stages.insert("spa".to_string(), 1);
-                    return vec![BattleEvent::ModifyStage {
-                        target_id: player_id.to_string(),
-                        stages,
-                        clamp: true,
-                        fail_if_no_change: false,
-                        show_event: true,
-                        meta: Map::new(),
-                    }];
+                    return vec![
+                        BattleEvent::Log {
+                            message: format!("{}の 特性『{}』！", creature_name, ability_label("berserk")),
+                            meta: Map::new(),
+                        },
+                        BattleEvent::ModifyStage {
+                            target_id: player_id.to_string(),
+                            stages,
+                            clamp: true,
+                            fail_if_no_change: false,
+                            show_event: true,
+                            meta: Map::new(),
+                        },
+                    ];
                 }
             }
             Vec::new()
@@ -691,7 +761,7 @@ fn after_berserk(state: &BattleState, event: &BattleEvent, player_id: &str) -> V
     }
 }
 
-fn after_competitive(event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
+fn after_competitive(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
         BattleEvent::ModifyStage { target_id, stages, meta, .. } if target_id == player_id => {
             if event_meta_flag_raw(meta, "competitive") {
@@ -702,14 +772,20 @@ fn after_competitive(event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
                 new_stages.insert("spa".to_string(), 2);
                 let mut meta = Map::new();
                 meta.insert("competitive".to_string(), Value::Bool(true));
-                return vec![BattleEvent::ModifyStage {
-                    target_id: player_id.to_string(),
-                    stages: new_stages,
-                    clamp: true,
-                    fail_if_no_change: false,
-                    show_event: true,
-                    meta,
-                }];
+                return vec![
+                    BattleEvent::Log {
+                        message: format!("{}の 特性『{}』！", creature_name, ability_label("competitive")),
+                        meta: Map::new(),
+                    },
+                    BattleEvent::ModifyStage {
+                        target_id: player_id.to_string(),
+                        stages: new_stages,
+                        clamp: true,
+                        fail_if_no_change: false,
+                        show_event: true,
+                        meta,
+                    },
+                ];
             }
             Vec::new()
         }
@@ -717,7 +793,7 @@ fn after_competitive(event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
     }
 }
 
-fn after_opportunist(event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
+fn after_opportunist(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
         BattleEvent::ModifyStage { target_id, stages, meta, .. } if target_id != player_id => {
             if event_meta_flag_raw(meta, "opportunist") {
@@ -733,14 +809,20 @@ fn after_opportunist(event: &BattleEvent, player_id: &str) -> Vec<BattleEvent> {
             }
             let mut meta = Map::new();
             meta.insert("opportunist".to_string(), Value::Bool(true));
-            vec![BattleEvent::ModifyStage {
-                target_id: player_id.to_string(),
-                stages: boosts,
-                clamp: true,
-                fail_if_no_change: false,
-                show_event: true,
-                meta,
-            }]
+            vec![
+                BattleEvent::Log {
+                    message: format!("{}の 特性『{}』！", creature_name, ability_label("opportunist")),
+                    meta: Map::new(),
+                },
+                BattleEvent::ModifyStage {
+                    target_id: player_id.to_string(),
+                    stages: boosts,
+                    clamp: true,
+                    fail_if_no_change: false,
+                    show_event: true,
+                    meta,
+                },
+            ]
         }
         _ => Vec::new(),
     }
