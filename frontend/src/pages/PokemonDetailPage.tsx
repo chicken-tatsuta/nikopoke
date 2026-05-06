@@ -43,9 +43,17 @@ export default function PokemonDetailPage() {
             });
     }, []);
 
-    const speciesKeys = useMemo(() => Object.keys(speciesData), [speciesData]);
+    const sortedSpecies = useMemo(() => {
+        return Object.values(speciesData).sort((a, b) => {
+            const aUsed = usageStats[a.id]?.used ?? 0;
+            const bUsed = usageStats[b.id]?.used ?? 0;
+            if (aUsed !== bUsed) return bUsed - aUsed;
+            return a.name.localeCompare(b.name, 'ja');
+        });
+    }, [speciesData, usageStats]);
+
     const species = speciesId ? speciesData[speciesId] : undefined;
-    const pokedexNumber = species && speciesId ? speciesKeys.indexOf(speciesId) + 1 : 0;
+    const rank = species ? sortedSpecies.findIndex((mon) => mon.id === speciesId) + 1 : 0;
 
     const currentUsage = speciesId ? usageStats[speciesId] : undefined;
     const currentUsageMoves = useMemo(() => {
@@ -90,7 +98,7 @@ export default function PokemonDetailPage() {
 
             <main className="max-w-7xl mx-auto px-6 py-10 space-y-12">
                 <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6">
-                    <PokemonHero species={species} pokedexNumber={pokedexNumber} />
+                    <PokemonHero species={species} rank={rank} />
                     <BaseStatsPanel species={species} />
                 </section>
 
@@ -145,7 +153,7 @@ function BackLink() {
     );
 }
 
-function PokemonHero({ species, pokedexNumber }: { species: Species; pokedexNumber: number }) {
+function PokemonHero({ species, rank }: { species: Species; rank: number }) {
     return (
         <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
             <div className="flex items-start gap-5">
@@ -157,10 +165,10 @@ function PokemonHero({ species, pokedexNumber }: { species: Species; pokedexNumb
                     <div>
                         <div className="flex flex-wrap items-center gap-3">
                             <h1 className="text-2xl font-bold">{species.name}</h1>
-                            {pokedexNumber > 0 && (
+                            {rank > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-muted)] px-2.5 py-1 text-sm font-semibold text-[var(--accent)]">
                                     <BarChart3 className="size-4" />
-                                    #{pokedexNumber}
+                                    {rank}位
                                 </span>
                             )}
                         </div>
