@@ -53,6 +53,7 @@ function App() {
           <Route path="/battle" element={<ProtectedRoute><BattlePage /></ProtectedRoute>} />
           <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
           <Route path="/pokedex/:speciesId" element={<ProtectedRoute><PokemonDetailPage /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

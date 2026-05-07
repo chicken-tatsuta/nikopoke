@@ -21,7 +21,10 @@ export default function LoginPage() {
             await signIn(email, password);
             navigate('/home');
         } catch (signInError) {
-            const message = signInError instanceof Error ? signInError.message : 'ログインに失敗しました。';
+            const raw = signInError instanceof Error ? signInError.message : '';
+            const message = raw.toLowerCase().includes('email not confirmed')
+                ? 'メールアドレスの確認が完了していません。届いたメールのリンクをクリックしてから再度ログインしてください。'
+                : raw || 'ログインに失敗しました。';
             setError(message);
         } finally {
             setBusy(false);
