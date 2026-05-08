@@ -41,16 +41,19 @@ pub fn apply_effects(state: &BattleState, steps: &[Effect], ctx: &mut EffectCont
         match effect.effect_type.as_str() {
             "modify_damage" => {
                 apply_modify_damage(&mut events, effect, &working_state, ctx);
+                clamp_damage_events_to_remaining_hp(&base_state, &mut events);
                 update_last_damage_from_events(ctx, &events);
                 working_state = apply_events(&base_state, &events);
             }
             "crit" => {
                 apply_force_crit(&mut events, effect, &working_state, ctx);
+                clamp_damage_events_to_remaining_hp(&base_state, &mut events);
                 update_last_damage_from_events(ctx, &events);
                 working_state = apply_events(&base_state, &events);
             }
             _ => {
-                let effect_events = apply_effect(&working_state, effect, ctx);
+                let mut effect_events = apply_effect(&working_state, effect, ctx);
+                clamp_damage_events_to_remaining_hp(&working_state, &mut effect_events);
                 update_last_damage_from_events(ctx, &effect_events);
                 if effect.effect_type == "damage" && !damage_step_connected(&effect_events) {
                     ctx.last_damage = Some(0);
@@ -71,6 +74,50 @@ pub fn apply_events(state: &BattleState, events: &[BattleEvent]) -> BattleState 
         next = apply_event(&next, event);
     }
     next
+}
+
+fn clamp_damage_events_to_remaining_hp(state: &BattleState, events: &mut [BattleEvent]) {
+    let mut simulated_state = state.clone();
+    for event in events.iter_mut() {
+        if let BattleEvent::Damage { target_id, amount, meta } = event {
+            if *amount > 0 {
+                *amount = actual_positive_damage_amount(&simulated_state, target_id, meta, *amount);
+            }
+        }
+        simulated_state = apply_event(&simulated_state, event);
+    }
+}
+
+fn actual_positive_damage_amount(
+    state: &BattleState,
+    target_id: &str,
+    meta: &Map<String, Value>,
+    amount: i32,
+) -> i32 {
+    let Some(player) = state.players.iter().find(|player| player.id == *target_id) else {
+        return amount;
+    };
+    let Some(active) = player.team.get(player.active_slot) else {
+        return amount;
+    };
+    let source = meta.get("source").and_then(|value| value.as_str());
+    let bypass_substitute = meta
+        .get("bypassSubstitute")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let is_self = source == Some(target_id);
+    if !bypass_substitute && !is_self {
+        if let Some(substitute) = active.statuses.iter().find(|status| status.id == "substitute") {
+            let substitute_hp = substitute
+                .data
+                .get("hp")
+                .and_then(|value| value.as_i64())
+                .map(|value| value as i32)
+                .unwrap_or_else(|| ((active.max_hp as f64) * 0.25).floor().max(1.0) as i32);
+            return amount.min(substitute_hp.max(0));
+        }
+    }
+    amount.min(active.hp.max(0))
 }
 
 fn damage_step_connected(events: &[BattleEvent]) -> bool {
@@ -3190,5 +3237,30 @@ mod tests {
 
         assert!(events.iter().any(|event| matches!(event, BattleEvent::Damage { amount, .. } if *amount > 0)));
         assert!(events.iter().any(|event| matches!(event, BattleEvent::ApplyStatus { status_id, .. } if status_id == "burn")));
+    }
+
+    #[test]
+    fn damage_reference_uses_actual_hp_lost() {
+        let mut state = test_state();
+        state.players[1].team[0].hp = 10;
+        let type_chart = TypeChart::new();
+        let move_data = test_move();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+        let steps = vec![
+            effect(json!({ "type": "damage_ratio", "ratioMaxHp": 3.0 })),
+            effect(json!({ "type": "heal_last_damage", "target": "self", "ratio": 0.5 })),
+        ];
+
+        let events = apply_effects(&state, &steps, &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::Damage { target_id, amount, .. } if target_id == "opponent" && *amount == 10
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::Damage { target_id, amount, .. } if target_id == "player" && *amount == -5
+        )));
     }
 }
