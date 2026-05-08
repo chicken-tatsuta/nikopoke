@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import TitlePage from './pages/TitlePage';
 import HomePage from './pages/HomePage';
@@ -12,15 +12,11 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import RankingPage from './pages/RankingPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { supabase } from './lib/supabase';
 import './index.css';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
-
-  if (!supabase) {
-    return <>{children}</>;
-  }
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -31,7 +27,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   return <>{children}</>;
@@ -44,7 +40,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/ranking" element={<RankingPage />} />
+          <Route path="/ranking" element={<ProtectedRoute><RankingPage /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><TitlePage /></ProtectedRoute>} />
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/deck-builder" element={<ProtectedRoute><DeckBuilderPage /></ProtectedRoute>} />
@@ -53,7 +49,7 @@ function App() {
           <Route path="/battle" element={<ProtectedRoute><BattlePage /></ProtectedRoute>} />
           <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
           <Route path="/pokedex/:speciesId" element={<ProtectedRoute><PokemonDetailPage /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<ProtectedRoute><Navigate to="/home" replace /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

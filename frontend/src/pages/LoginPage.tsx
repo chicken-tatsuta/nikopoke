@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { signIn } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+
+    const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+    const redirectTo = from?.pathname ? `${from.pathname}${from.search ?? ''}` : '/home';
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -19,7 +23,7 @@ export default function LoginPage() {
 
         try {
             await signIn(email, password);
-            navigate('/home');
+            navigate(redirectTo, { replace: true });
         } catch (signInError) {
             const raw = signInError instanceof Error ? signInError.message : '';
             const message = raw.toLowerCase().includes('email not confirmed')
