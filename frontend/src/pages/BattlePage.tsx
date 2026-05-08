@@ -1823,7 +1823,7 @@ export default function BattlePage() {
     };
 
     const getAiAction = async (state: BattleStateWire): Promise<ActionWire | null> => {
-        const minimaxDepth = aiLevel === 'lv2' ? 3 : 1;
+        const minimaxDepth = aiLevel === 'lv2' ? 2 : 1;
         return await getBestMoveMinimax(state, opponentPlayerIdRef.current, minimaxDepth) ?? getFallbackAiAction(state);
     };
 
@@ -2067,7 +2067,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     {battleMode === 'player'
       ? 'VS Player (PeerJS)'
       : aiLevel === 'lv2'
-        ? 'VS AI (Minimax 深さ3)'
+        ? 'VS AI (Minimax 深さ2)'
         : 'VS AI (Minimax 深さ1)'}
   </span>
 </div>

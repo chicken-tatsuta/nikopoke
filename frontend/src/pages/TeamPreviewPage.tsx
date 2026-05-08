@@ -430,7 +430,7 @@ export default function TeamPreviewPage() {
                                                     : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
                                             }`}
                                         >
-                                            LV2: Minimax 3
+                                            LV2: Minimax 2
                                         </button>
                                     </div>
                                 </div>
