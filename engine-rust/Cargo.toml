@@ -32,6 +32,10 @@ path = "src/bin/split_moves_yaml.rs"
 name = "pokeapi-move-import"
 path = "src/bin/pokeapi_move_import.rs"
 
+[[bin]]
+name = "tune-vega"
+path = "src/bin/tune_vega.rs"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -39,6 +43,7 @@ serde_yaml = "0.9"
 
 # For CLI tools (non-wasm only)
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.10"
 inquire = "0.7"
 wana_kana = "3.0"
 reqwest = { version = "0.11", features = ["json"] }
