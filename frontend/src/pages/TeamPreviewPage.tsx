@@ -42,9 +42,22 @@ function pickRandomTeam(deck: DeckPokemon[], count: number): DeckPokemon[] {
         .slice(0, count);
 }
 
+function shuffle<T>(items: T[]): T[] {
+    return [...items].sort(() => Math.random() - 0.5);
+}
+
 type AiTeamEntry = {
     species_id: string;
     moves: string[];
+};
+
+type AiTeamCandidate = {
+    id?: string;
+    generation?: number;
+    wins?: number;
+    total?: number;
+    winRate?: number;
+    team: AiTeamEntry[];
 };
 
 async function loadAiTeam(): Promise<AiTeamEntry[] | null> {
@@ -58,6 +71,30 @@ async function loadAiTeam(): Promise<AiTeamEntry[] | null> {
         console.warn('[team-preview] Failed to load ai_team.json:', error);
         return null;
     }
+}
+
+async function loadAiTeamPool(): Promise<AiTeamCandidate[]> {
+    try {
+        const response = await fetch('/ai_teams.json');
+        if (!response.ok) {
+            return [];
+        }
+
+        const candidates = (await response.json()) as AiTeamCandidate[];
+        return candidates.filter((candidate) => candidate.team.length === SELECT_TEAM_SIZE);
+    } catch (error) {
+        console.warn('[team-preview] Failed to load ai_teams.json:', error);
+        return [];
+    }
+}
+
+function pickAiTeamCandidate(candidates: AiTeamCandidate[]): AiTeamCandidate | null {
+    if (candidates.length === 0) return null;
+
+    const topCandidates = [...candidates]
+        .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0))
+        .slice(0, 12);
+    return topCandidates[Math.floor(Math.random() * topCandidates.length)] ?? null;
 }
 
 function normalizeAiTeam(
@@ -76,6 +113,68 @@ function normalizeAiTeam(
             };
         })
         .filter((pokemon): pokemon is DeckPokemon => pokemon !== null);
+}
+
+function buildFallbackAiDeck(
+    loadedSpecies: SpeciesData,
+    loadedMoves: MoveData,
+    loadedPlayerDeck: DeckPokemon[],
+): DeckPokemon[] {
+    const usedIds = new Set(loadedPlayerDeck.map((pokemon) => pokemon.speciesId));
+    const speciesList = Object.values(loadedSpecies).filter((mon) => !usedIds.has(mon.id));
+
+    return speciesList
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 6)
+        .map((mon) => {
+            const fallbackMoves = Object.values(loadedMoves)
+                .filter((move) => mon.type.includes(move.type))
+                .slice(0, 4)
+                .map((move) => move.id);
+
+            const playerFallbackMoves = loadedPlayerDeck[0]?.moves ?? [];
+
+            return {
+                speciesId: mon.id,
+                moves: fallbackMoves.length > 0 ? fallbackMoves : playerFallbackMoves.slice(0, 4),
+                ability: mon.abilities[0] || 'none',
+            };
+        });
+}
+
+async function buildLv2AiDeck(loadedSpecies: SpeciesData): Promise<DeckPokemon[] | null> {
+    const candidates = await loadAiTeamPool();
+    const primaryCandidate = pickAiTeamCandidate(candidates);
+    const candidateTeams = [
+        ...(primaryCandidate ? [primaryCandidate] : []),
+        ...shuffle(candidates.filter((candidate) => candidate !== primaryCandidate)),
+    ];
+
+    const deck: DeckPokemon[] = [];
+    const usedSpeciesIds = new Set<string>();
+
+    for (const candidate of candidateTeams) {
+        for (const pokemon of normalizeAiTeam(candidate.team, loadedSpecies)) {
+            if (usedSpeciesIds.has(pokemon.speciesId)) {
+                continue;
+            }
+
+            deck.push(pokemon);
+            usedSpeciesIds.add(pokemon.speciesId);
+
+            if (deck.length >= 6) {
+                return deck;
+            }
+        }
+    }
+
+    if (deck.length >= SELECT_TEAM_SIZE) {
+        return deck;
+    }
+
+    const fallbackTeam = await loadAiTeam();
+    const normalizedFallback = fallbackTeam ? normalizeAiTeam(fallbackTeam, loadedSpecies) : [];
+    return normalizedFallback.length >= SELECT_TEAM_SIZE ? normalizedFallback : null;
 }
 
 export default function TeamPreviewPage() {
@@ -131,33 +230,11 @@ export default function TeamPreviewPage() {
     
             const loadedPlayerDeck: DeckPokemon[] = JSON.parse(deckJson);
     
-            const usedIds = new Set(loadedPlayerDeck.map((pokemon) => pokemon.speciesId));
-            const speciesList = Object.values(loadedSpecies).filter((mon) => !usedIds.has(mon.id));
-            const buildFallbackAiDeck = () =>
-                speciesList
-                    .sort(() => Math.random() - 0.5)
-                    .slice(0, 6)
-                    .map((mon) => {
-                        const fallbackMoves = Object.values(loadedMoves)
-                            .filter((move) => mon.type.includes(move.type))
-                            .slice(0, 4)
-                            .map((move) => move.id);
-
-                        const playerFallbackMoves = loadedPlayerDeck[0]?.moves ?? [];
-
-                        return {
-                            speciesId: mon.id,
-                            moves: fallbackMoves.length > 0 ? fallbackMoves : playerFallbackMoves.slice(0, 4),
-                            ability: mon.abilities[0] || 'none',
-                        };
-                    });
-
-            let aiDeck: DeckPokemon[] = buildFallbackAiDeck();
+            let aiDeck: DeckPokemon[] = buildFallbackAiDeck(loadedSpecies, loadedMoves, loadedPlayerDeck);
             if (currentBattleMode === 'ai' && storedAiLevel === 'lv2') {
-                const aiTeamJson = await loadAiTeam();
-                const normalizedAiTeam = aiTeamJson ? normalizeAiTeam(aiTeamJson, loadedSpecies) : [];
-                if (normalizedAiTeam.length === 3) {
-                    aiDeck = normalizedAiTeam;
+                const lv2Deck = await buildLv2AiDeck(loadedSpecies);
+                if (lv2Deck) {
+                    aiDeck = lv2Deck;
                 }
             }
     
@@ -226,6 +303,25 @@ export default function TeamPreviewPage() {
         [playerDeck, selectedIndexes],
     );
 
+    const changeAiLevel = async (nextAiLevel: 'lv1' | 'lv2') => {
+        setAiLevel(nextAiLevel);
+        sessionStorage.setItem('aiLevel', nextAiLevel);
+
+        if (battleMode !== 'ai' || playerDeck.length === 0 || Object.keys(species).length === 0) {
+            return;
+        }
+
+        if (nextAiLevel === 'lv2') {
+            const lv2Deck = await buildLv2AiDeck(species);
+            if (lv2Deck) {
+                setOpponentDeck(lv2Deck);
+            }
+            return;
+        }
+
+        setOpponentDeck(buildFallbackAiDeck(species, moves, playerDeck));
+    };
+
     const toggleSelected = (index: number) => {
         setSelectedIndexes((current) => {
             if (current.includes(index)) {
@@ -263,10 +359,7 @@ export default function TeamPreviewPage() {
             return;
         }
     
-        const selectedOpponentDeck =
-            battleMode === 'ai' && aiLevel === 'lv2'
-                ? opponentDeck.slice(0, SELECT_TEAM_SIZE)
-                : pickRandomTeam(opponentDeck, SELECT_TEAM_SIZE);
+        const selectedOpponentDeck = pickRandomTeam(opponentDeck, SELECT_TEAM_SIZE);
     
         sessionStorage.setItem('selectedPlayerDeck', JSON.stringify(selectedTeam));
         sessionStorage.setItem('selectedOpponentDeck', JSON.stringify(selectedOpponentDeck));
@@ -317,27 +410,27 @@ export default function TeamPreviewPage() {
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium text-[var(--text-primary)]">AIの強さ:</span>
                                     <div className="grid grid-cols-2 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setAiLevel('lv1')}
-                                            className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                                                aiLevel === 'lv1'
-                                                    ? 'bg-[var(--accent)] text-white'
+                                            <button
+                                                type="button"
+                                                onClick={() => void changeAiLevel('lv1')}
+                                                className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                                    aiLevel === 'lv1'
+                                                        ? 'bg-[var(--accent)] text-white'
                                                     : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
                                             }`}
                                         >
-                                            LV1: Minimax
+                                            LV1: Minimax 1
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setAiLevel('lv2')}
-                                            className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                                                aiLevel === 'lv2'
-                                                    ? 'bg-[var(--accent)] text-white'
+                                            <button
+                                                type="button"
+                                                onClick={() => void changeAiLevel('lv2')}
+                                                className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                                    aiLevel === 'lv2'
+                                                        ? 'bg-[var(--accent)] text-white'
                                                     : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
                                             }`}
                                         >
-                                            LV2: MLP (進化戦略)
+                                            LV2: Minimax 2
                                         </button>
                                     </div>
                                 </div>
@@ -426,16 +519,14 @@ export default function TeamPreviewPage() {
 
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
                     <h2 className="mb-1 text-base font-bold text-[var(--text-primary)]">
-                        {battleMode === 'ai' && aiLevel === 'lv2' ? '相手の固定チーム' : '相手の6匹'}
+                        相手の6匹
                     </h2>
                     <p className="mb-4 text-sm text-[var(--text-muted)]">
                         {battleMode === 'player'
                             ? onlineSnapshot.remoteSelectedDeck
                                 ? '相手の選出が完了しました'
                                 : '相手もこの中から3匹を選出します'
-                            : aiLevel === 'lv2'
-                                ? '学習済みのAIチームを使います'
-                                : 'AIはこの中から3匹を選出します'}
+                            : 'AIはこの中から3匹を選出します'}
                     </p>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

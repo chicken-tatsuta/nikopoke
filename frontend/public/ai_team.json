@@ -1,29 +1,29 @@
 [
   {
-    "species_id": "morimitu",
+    "species_id": "reosan",
     "moves": [
-      "sand_attack",
-      "lunge",
-      "hurricane",
-      "double_hit"
+      "nasty_plot",
+      "water_pulse",
+      "u_turn",
+      "rage_fist"
     ]
   },
   {
-    "species_id": "haruta",
+    "species_id": "ayuma",
     "moves": [
-      "misty_explosion",
-      "moonlight",
-      "icicle_crash",
-      "headbutt"
+      "rock_smash",
+      "rest",
+      "lash_out",
+      "iron_head"
     ]
   },
   {
-    "species_id": "futo",
+    "species_id": "ikkun",
     "moves": [
-      "milk_drink",
-      "bleakwind_storm",
-      "waterfall",
-      "amnesia"
+      "take_down",
+      "astonish",
+      "substitute",
+      "rock_slide"
     ]
   }
 ]

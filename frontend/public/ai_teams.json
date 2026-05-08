@@ -1,0 +1,380 @@
+[
+  {
+    "id": "gen-100",
+    "generation": 100,
+    "wins": 28,
+    "total": 35,
+    "winRate": 0.8,
+    "team": [
+      {
+        "species_id": "reosan",
+        "moves": ["nasty_plot", "water_pulse", "u_turn", "rage_fist"]
+      },
+      {
+        "species_id": "ayuma",
+        "moves": ["rock_smash", "rest", "lash_out", "iron_head"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["take_down", "astonish", "substitute", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-028",
+    "generation": 28,
+    "wins": 34,
+    "total": 35,
+    "winRate": 0.9714,
+    "team": [
+      {
+        "species_id": "makocchan",
+        "moves": ["sweet_kiss", "baneful_bunker", "fillet_away", "guillotine"]
+      },
+      {
+        "species_id": "tomoki",
+        "moves": ["dual_wingbeat", "ice_fang", "haze", "acrobatics"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["smokescreen", "power_gem", "rock_blast", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-013",
+    "generation": 13,
+    "wins": 34,
+    "total": 35,
+    "winRate": 0.9714,
+    "team": [
+      {
+        "species_id": "makocchan",
+        "moves": ["sweet_kiss", "volt_switch", "spark", "guillotine"]
+      },
+      {
+        "species_id": "tatuta",
+        "moves": ["reversal", "cotton_spore", "baton_pass", "grassy_glide"]
+      },
+      {
+        "species_id": "macchan",
+        "moves": ["bone_rush", "shock_wave", "low_sweep", "acrobatics"]
+      }
+    ]
+  },
+  {
+    "id": "gen-007",
+    "generation": 7,
+    "wins": 33,
+    "total": 35,
+    "winRate": 0.9429,
+    "team": [
+      {
+        "species_id": "tomoki",
+        "moves": ["sheer_cold", "flame_charge", "ice_beam", "thunder_wave"]
+      },
+      {
+        "species_id": "eiraku",
+        "moves": ["work_up", "teeter_dance", "string_shot", "aqua_tail"]
+      },
+      {
+        "species_id": "macchan",
+        "moves": ["bullet_punch", "endure", "low_sweep", "acrobatics"]
+      }
+    ]
+  },
+  {
+    "id": "gen-066",
+    "generation": 66,
+    "wins": 32,
+    "total": 35,
+    "winRate": 0.9143,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["thunder_shock", "giga_impact", "aqua_ring", "headbutt"]
+      },
+      {
+        "species_id": "ayuma",
+        "moves": ["rock_smash", "volt_switch", "iron_tail", "iron_head"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["smokescreen", "harden", "echoed_voice", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-056",
+    "generation": 56,
+    "wins": 32,
+    "total": 35,
+    "winRate": 0.9143,
+    "team": [
+      {
+        "species_id": "tatuta",
+        "moves": ["aerial_ace", "thunder_wave", "tackle", "draco_meteor"]
+      },
+      {
+        "species_id": "reosan",
+        "moves": ["cosmic_power", "dark_pulse", "charge_beam", "lick"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["hard_press", "smokescreen", "rock_blast", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-052",
+    "generation": 52,
+    "wins": 32,
+    "total": 35,
+    "winRate": 0.9143,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["thunder_shock", "giga_impact", "aqua_ring", "headbutt"]
+      },
+      {
+        "species_id": "reosan",
+        "moves": ["cosmic_power", "dark_pulse", "charge_beam", "lick"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["hard_press", "power_gem", "rock_blast", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-006",
+    "generation": 6,
+    "wins": 32,
+    "total": 35,
+    "winRate": 0.9143,
+    "team": [
+      {
+        "species_id": "makocchan",
+        "moves": ["sweet_kiss", "volt_switch", "spark", "guillotine"]
+      },
+      {
+        "species_id": "eiraku",
+        "moves": ["double_hit", "teeter_dance", "string_shot", "aqua_tail"]
+      },
+      {
+        "species_id": "macchan",
+        "moves": ["twister", "shock_wave", "low_sweep", "acrobatics"]
+      }
+    ]
+  },
+  {
+    "id": "gen-084",
+    "generation": 84,
+    "wins": 31,
+    "total": 35,
+    "winRate": 0.8857,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["thunder_shock", "giga_impact", "aqua_ring", "flip_turn"]
+      },
+      {
+        "species_id": "ayuma",
+        "moves": ["double_hit", "volt_switch", "iron_tail", "iron_head"]
+      },
+      {
+        "species_id": "macchan",
+        "moves": ["triple_kick", "retaliate", "take_down", "low_sweep"]
+      }
+    ]
+  },
+  {
+    "id": "gen-039",
+    "generation": 39,
+    "wins": 31,
+    "total": 35,
+    "winRate": 0.8857,
+    "team": [
+      {
+        "species_id": "sena",
+        "moves": ["slash", "double_hit", "outrage", "thunder_punch"]
+      },
+      {
+        "species_id": "tomoki",
+        "moves": ["dual_wingbeat", "ice_fang", "haze", "acrobatics"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["smokescreen", "power_gem", "rock_blast", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-036",
+    "generation": 36,
+    "wins": 31,
+    "total": 35,
+    "winRate": 0.8857,
+    "team": [
+      {
+        "species_id": "haruta",
+        "moves": ["aurora_beam", "nasty_plot", "fly", "overheat"]
+      },
+      {
+        "species_id": "tomoki",
+        "moves": ["dual_wingbeat", "ice_fang", "haze", "acrobatics"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["smokescreen", "power_gem", "rock_blast", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-012",
+    "generation": 12,
+    "wins": 31,
+    "total": 35,
+    "winRate": 0.8857,
+    "team": [
+      {
+        "species_id": "machida",
+        "moves": ["feather_dance", "flame_charge", "bulldoze", "sandsear_storm"]
+      },
+      {
+        "species_id": "eiraku",
+        "moves": ["teeter_dance", "metal_sound", "strength", "hyper_voice"]
+      },
+      {
+        "species_id": "macchan",
+        "moves": ["twister", "shock_wave", "low_sweep", "acrobatics"]
+      }
+    ]
+  },
+  {
+    "id": "gen-061",
+    "generation": 61,
+    "wins": 30,
+    "total": 35,
+    "winRate": 0.8571,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["thunder_shock", "giga_impact", "aqua_ring", "headbutt"]
+      },
+      {
+        "species_id": "tomoki",
+        "moves": ["dual_wingbeat", "ice_fang", "haze", "acrobatics"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["smokescreen", "harden", "echoed_voice", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-043",
+    "generation": 43,
+    "wins": 30,
+    "total": 35,
+    "winRate": 0.8571,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["quick_attack", "giga_impact", "aqua_ring", "headbutt"]
+      },
+      {
+        "species_id": "tomoki",
+        "moves": ["dual_wingbeat", "ice_fang", "haze", "acrobatics"]
+      },
+      {
+        "species_id": "eiraku",
+        "moves": ["baby_doll_eyes", "fly", "struggle", "giga_impact"]
+      }
+    ]
+  },
+  {
+    "id": "gen-060",
+    "generation": 60,
+    "wins": 29,
+    "total": 35,
+    "winRate": 0.8286,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["thunder_shock", "giga_impact", "aqua_ring", "headbutt"]
+      },
+      {
+        "species_id": "tomoki",
+        "moves": ["dual_wingbeat", "ice_fang", "copycat", "acrobatics"]
+      },
+      {
+        "species_id": "takaho",
+        "moves": ["headbutt", "confide", "detect", "power_whip"]
+      }
+    ]
+  },
+  {
+    "id": "gen-093",
+    "generation": 93,
+    "wins": 28,
+    "total": 35,
+    "winRate": 0.8,
+    "team": [
+      {
+        "species_id": "makocchan",
+        "moves": ["growth", "electro_ball", "tachyon_cutter", "guillotine"]
+      },
+      {
+        "species_id": "ayuma",
+        "moves": ["rock_smash", "metal_claw", "lash_out", "iron_head"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["smokescreen", "astonish", "echoed_voice", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-058",
+    "generation": 58,
+    "wins": 28,
+    "total": 35,
+    "winRate": 0.8,
+    "team": [
+      {
+        "species_id": "reosan",
+        "moves": ["mud_shot", "confuse_ray", "confusion", "electroweb"]
+      },
+      {
+        "species_id": "reosan",
+        "moves": ["cosmic_power", "dark_pulse", "charge_beam", "lick"]
+      },
+      {
+        "species_id": "ikkun",
+        "moves": ["hard_press", "smokescreen", "rock_blast", "rock_slide"]
+      }
+    ]
+  },
+  {
+    "id": "gen-049",
+    "generation": 49,
+    "wins": 28,
+    "total": 35,
+    "winRate": 0.8,
+    "team": [
+      {
+        "species_id": "eiraku",
+        "moves": ["quick_attack", "giga_impact", "aqua_ring", "headbutt"]
+      },
+      {
+        "species_id": "machida",
+        "moves": ["volt_switch", "volt_tackle", "lock_on", "protect"]
+      },
+      {
+        "species_id": "futo",
+        "moves": ["petal_dance", "flame_charge", "bleakwind_storm", "waterfall"]
+      }
+    ]
+  }
+]
