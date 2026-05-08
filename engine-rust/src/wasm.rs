@@ -3,10 +3,10 @@ use crate::core::battle::{
     apply_initial_switch_in_effects, is_battle_over, replace_fainted_pokemon, step_battle,
     BattleOptions,
 };
-use crate::core::factory::{create_creature, CreateCreatureOptions, EVStats};
+use crate::core::factory::{create_creature, CreateCreatureOptions};
 use crate::core::state::{
     Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, FieldEffect,
-    FieldState, PlayerState, Status,
+    EVStats, FieldState, PlayerState, Status,
 };
 use crate::data::learnsets::LearnsetDatabase;
 use crate::data::moves::MoveDatabase;
@@ -26,7 +26,7 @@ static LEARNSETS_DB: Lazy<LearnsetDatabase> =
 static MOVE_DB: Lazy<MoveDatabase> =
     Lazy::new(|| MoveDatabase::load_default().unwrap_or_else(|_| MoveDatabase::minimal()));
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EVStatsWire {
     #[serde(default)]
@@ -52,6 +52,19 @@ impl From<EVStatsWire> for EVStats {
             spa: wire.spa.unwrap_or(0),
             spd: wire.spd.unwrap_or(0),
             spe: wire.spe.unwrap_or(0),
+        }
+    }
+}
+
+impl From<EVStats> for EVStatsWire {
+    fn from(evs: EVStats) -> Self {
+        Self {
+            hp: Some(evs.hp),
+            atk: Some(evs.atk),
+            def: Some(evs.def),
+            spa: Some(evs.spa),
+            spd: Some(evs.spd),
+            spe: Some(evs.spe),
         }
     }
 }
@@ -96,6 +109,8 @@ struct CreatureStateWire {
     moves: Vec<String>,
     ability: Option<String>,
     item: Option<String>,
+    #[serde(default)]
+    evs: EVStatsWire,
     hp: i32,
     max_hp: i32,
     stages: crate::core::state::StatStages,
@@ -306,6 +321,7 @@ impl From<CreatureState> for CreatureStateWire {
             moves: creature.moves,
             ability: creature.ability,
             item: creature.item,
+            evs: EVStatsWire::from(creature.evs),
             hp: creature.hp,
             max_hp: creature.max_hp,
             stages: creature.stages,
@@ -334,6 +350,7 @@ impl From<CreatureStateWire> for CreatureState {
             moves: creature.moves,
             ability: creature.ability,
             item: creature.item,
+            evs: EVStats::from(creature.evs),
             hp: creature.hp,
             max_hp: creature.max_hp,
             stages: creature.stages,

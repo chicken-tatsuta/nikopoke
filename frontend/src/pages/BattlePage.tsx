@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { loadAllData, getTypeColor } from '../lib/data';
+import { normalizeEvs } from '../lib/evs';
+import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 import { BattleLog } from '../components/BattleLog';
 import { getAbilityLabel } from './PokemonDetailPage';
 
@@ -563,19 +565,6 @@ const STATUS_FLASH_COLORS: Record<BattleStatusFlashType, string> = {
     freeze: '#38bdf8',
     confusion: '#ec4899',
 };
-const POKEMON_IMAGE_MODULES = import.meta.glob('../../image/*.{png,jpg,jpeg,webp,avif}', {
-    eager: true,
-    query: '?url',
-    import: 'default',
-}) as Record<string, string>;
-const POKEMON_IMAGE_BY_ID = Object.fromEntries(
-    Object.entries(POKEMON_IMAGE_MODULES).map(([path, url]) => {
-        const filename = path.split('/').pop() ?? '';
-        const id = filename.replace(/\.(png|jpe?g|webp|avif)$/i, '').toLowerCase();
-        return [id, url];
-    }),
-);
-
 function wait(ms: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -1029,26 +1018,6 @@ function parseAbilityPopup(
         text: match[1],
     };
 }
-
-function pokemonPortraitFallback(speciesId: string, name?: string): string {
-    const seed = speciesId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const hue = seed % 360;
-    const label = (name ?? speciesId).slice(0, 2);
-
-    return `data:image/svg+xml;utf8,${encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
-            <rect width="160" height="160" rx="28" fill="hsl(${hue} 42% 24%)"/>
-            <circle cx="80" cy="64" r="42" fill="hsl(${hue} 54% 42%)"/>
-            <path d="M38 126c12-30 72-30 84 0" fill="hsl(${hue} 48% 34%)"/>
-            <text x="80" y="92" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="white">${label}</text>
-        </svg>
-    `)}`;
-}
-
-function getPokemonPortraitSrc(speciesId: string, name?: string): string {
-    return POKEMON_IMAGE_BY_ID[speciesId.toLowerCase()] ?? pokemonPortraitFallback(speciesId, name);
-}
-
 
 export default function BattlePage() {
     const navigate = useNavigate();
@@ -2434,13 +2403,21 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     {(() => {
                                         const stats = monSpecies?.baseStats;
                                         if (!stats) return null;
+                                        const evs = normalizeEvs(mon.evs);
                                         const total = stats.hp + stats.atk + stats.def + stats.spa + stats.spd + stats.spe;
-                                        const renderBar = (label: string, value: number, max: number) => {
+                                        const renderBar = (label: string, value: number, ev: number, max: number) => {
                                             const percentage = Math.min(100, (value / max) * 100);
+                                            const evPercentage = Math.min(100, ((value + ev) / max) * 100);
                                             return (
                                                 <div className="grid grid-cols-[64px_1fr_40px] items-center gap-2 text-xs">
                                                     <span className="text-[var(--text-muted)]">{label}</span>
                                                     <div className="relative h-2.5 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                                                        {ev > 0 && (
+                                                            <div
+                                                                className="absolute left-0 top-0 h-full rounded-full bg-amber-400"
+                                                                style={{ width: `${evPercentage}%` }}
+                                                            />
+                                                        )}
                                                         <div
                                                             className="absolute left-0 top-0 h-full rounded-full bg-[var(--accent)]"
                                                             style={{ width: `${percentage}%` }}
@@ -2454,13 +2431,13 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                         };
                                         return (
                                             <div className="space-y-2">
-                                                {renderBar('HP', stats.hp, 255)}
-                                                {renderBar('攻撃', stats.atk, 255)}
-                                                {renderBar('防御', stats.def, 255)}
-                                                {renderBar('特攻', stats.spa, 255)}
-                                                {renderBar('特防', stats.spd, 255)}
-                                                {renderBar('素早さ', stats.spe, 255)}
-                                                {renderBar('合計', total, 720)}
+                                                {renderBar('HP', stats.hp, evs.hp, 255)}
+                                                {renderBar('攻撃', stats.atk, evs.atk, 255)}
+                                                {renderBar('防御', stats.def, evs.def, 255)}
+                                                {renderBar('特攻', stats.spa, evs.spa, 255)}
+                                                {renderBar('特防', stats.spd, evs.spd, 255)}
+                                                {renderBar('素早さ', stats.spe, evs.spe, 255)}
+                                                {renderBar('合計', total, 0, 720)}
                                             </div>
                                         );
                                     })()}

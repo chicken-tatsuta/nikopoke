@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
 import { getTypeColor, loadAllData } from '../lib/data';
+import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 import type { MoveData, Species, SpeciesData } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
 import { loadGlobalPokemonUsageStats } from '../lib/globalBattleStats';
@@ -154,11 +155,17 @@ function BackLink() {
 }
 
 function PokemonHero({ species, rank }: { species: Species; rank: number }) {
+    const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
+
     return (
         <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
             <div className="flex items-start gap-5">
-                <div className="size-20 shrink-0 rounded-2xl bg-[var(--surface-3)] border border-[var(--border)] grid place-items-center text-3xl font-bold text-[var(--text-muted)]">
-                    {species.name.slice(0, 1)}
+                <div className="size-24 shrink-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-3)]">
+                    <img
+                        src={portraitSrc}
+                        alt={species.name}
+                        className="size-full object-cover"
+                    />
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-4">
@@ -186,8 +193,8 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                         </div>
                     </div>
 
-                    <div className="rounded-xl bg-[var(--surface-3)] border border-[var(--border)] p-4 text-sm text-[var(--text-secondary)] leading-relaxed">
-                        高さ・重さ・説明文などは、あとで species.json に項目があればここに表示できます。
+                    <div className="whitespace-pre-line rounded-xl bg-[var(--surface-3)] border border-[var(--border)] p-4 text-sm text-[var(--text-secondary)] leading-relaxed">
+                        {species.description || '説明文はまだありません。'}
                     </div>
                 </div>
             </div>
@@ -292,6 +299,7 @@ const ABILITY_LABELS: Record<string, string> = {
     contrary: 'あまのじゃく',
     cotton_down: 'わたげ',
     download: 'ダウンロード',
+    aroma_veil: 'アロマベール',
     drought: 'ひでり',
     fur_coat: 'ファーコート',
     guts: 'こんじょう',

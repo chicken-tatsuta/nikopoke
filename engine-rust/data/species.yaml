@@ -290,7 +290,7 @@ tatuta:
 tomoki:
   abilities:
     - download
-    - opportunist
+    - aroma_veil
   baseStats:
     atk: 105
     def: 60

@@ -3055,7 +3055,7 @@ fn stage_value(stages: &crate::core::state::StatStages, stat: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::state::{create_battle_state, CreatureState, PlayerState, StatStages};
+    use crate::core::state::{create_battle_state, CreatureState, EVStats, PlayerState, StatStages};
     use serde_json::json;
 
     fn test_creature(id: &str) -> CreatureState {
@@ -3068,6 +3068,7 @@ mod tests {
             moves: Vec::new(),
             ability: None,
             item: None,
+            evs: EVStats::default(),
             hp: 100,
             max_hp: 100,
             stages: StatStages::default(),

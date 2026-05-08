@@ -341,11 +341,11 @@
       "chlorophyll"
     ],
     "baseStats": {
-      "atk": 90,
+      "atk": 80,
       "def": 75,
       "hp": 103,
       "spa": 107,
-      "spd": 78,
+      "spd": 88,
       "spe": 107
     },
     "id": "tatuta",
@@ -359,7 +359,7 @@
   "tomoki": {
     "abilities": [
       "download",
-      "opportunist"
+      "aroma_veil"
     ],
     "baseStats": {
       "atk": 105,

@@ -9,7 +9,7 @@ import init, {
     replaceFaintedPokemon as wasmReplaceFaintedPokemon,
 } from './engine-rust/engine_rust.js';
 
-import type { DeckPokemon } from '../types/pokemon';
+import type { DeckPokemon, EVStats } from '../types/pokemon';
 import { loadAllData } from './data';
 import { normalizeEvs } from './evs';
 
@@ -40,6 +40,7 @@ export interface CreatureStateWire {
     moves: string[];
     ability: string | null;
     item: string | null;
+    evs: EVStats;
     hp: number;
     maxHp: number;
     stages: { atk: number; def: number; spa: number; spd: number; spe: number; accuracy: number; evasion: number };

@@ -9,7 +9,25 @@ export async function loadSpecies(): Promise<SpeciesData> {
     if (speciesCache) return speciesCache;
 
     const response = await fetch('/data/species.json');
-    speciesCache = await response.json();
+    const species = await response.json() as SpeciesData;
+    let descriptions: Record<string, string> = {};
+
+    try {
+        const descriptionsResponse = await fetch('/data/speciesDescriptions.json');
+        descriptions = await descriptionsResponse.json();
+    } catch {
+        descriptions = {};
+    }
+
+    speciesCache = Object.fromEntries(
+        Object.entries(species).map(([speciesId, mon]) => [
+            speciesId,
+            {
+                ...mon,
+                description: descriptions[speciesId]?.trim() || mon.description,
+            },
+        ]),
+    );
     return speciesCache!;
 }
 
