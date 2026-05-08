@@ -54,9 +54,9 @@ futo:
     - insomnia
     - own_tempo
   baseStats:
-    atk: 85
+    atk: 115
     def: 80
-    hp: 105
+    hp: 85
     spa: 75
     spd: 77
     spe: 88
@@ -275,11 +275,11 @@ tatuta:
     - cotton_down
     - chlorophyll
   baseStats:
-    atk: 90
+    atk: 70
     def: 75
     hp: 103
     spa: 107
-    spd: 78
+    spd: 98
     spe: 107
   id: tatuta
   name: たつた

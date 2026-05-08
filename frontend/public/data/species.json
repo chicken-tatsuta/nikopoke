@@ -341,11 +341,11 @@
       "chlorophyll"
     ],
     "baseStats": {
-      "atk": 80,
+      "atk": 70,
       "def": 75,
       "hp": 103,
       "spa": 107,
-      "spd": 88,
+      "spd": 98,
       "spe": 107
     },
     "id": "tatuta",
