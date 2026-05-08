@@ -7,7 +7,6 @@ import { BattleLog } from '../components/BattleLog';
 import { getAbilityLabel } from './PokemonDetailPage';
 
 import { uploadGlobalBattleRecord, createBattleStatsId } from '../lib/globalBattleStats';
-import { mlpAI } from '../lib/mlpAI';
 import { useAuth } from '../contexts/AuthContext';
 
 import {
@@ -1125,12 +1124,6 @@ export default function BattlePage() {
         onlineRoleRef.current = onlineSnapshot.role;
     }, [onlineSnapshot.role]);
 
-    useEffect(() => {
-        if (aiLevel === 'lv2') {
-            mlpAI.load().catch(console.error);
-        }
-    }, [aiLevel]);
-
     const showBattlePopup = useCallback(async (popup: Omit<BattlePopup, 'id'>) => {
         const id = popupIdRef.current + 1;
         popupIdRef.current = id;
@@ -1451,7 +1444,8 @@ export default function BattlePage() {
             winnerSide &&
             localDeckRef.current &&
             opponentDeckRef.current &&
-            (battleMode === 'ai' || localPlayerIdRef.current === 'host');
+            battleMode === 'player' &&
+            localPlayerIdRef.current === 'host';
 
         if (shouldUploadStats) {
             battleRecordSavedRef.current = true;
@@ -1829,14 +1823,8 @@ export default function BattlePage() {
     };
 
     const getAiAction = async (state: BattleStateWire): Promise<ActionWire | null> => {
-        if (aiLevel === 'lv2' && mlpAI.isReady()) {
-            const mlpAction = mlpAI.getBestAction(state, opponentPlayerIdRef.current, moves);
-            if (mlpAction) {
-                return mlpAction;
-            }
-        }
-
-        return await getBestMoveMinimax(state, opponentPlayerIdRef.current, 1) ?? getFallbackAiAction(state);
+        const minimaxDepth = aiLevel === 'lv2' ? 3 : 1;
+        return await getBestMoveMinimax(state, opponentPlayerIdRef.current, minimaxDepth) ?? getFallbackAiAction(state);
     };
 
     const submitOnlineAction = async (action: ActionWire) => {
@@ -2079,8 +2067,8 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     {battleMode === 'player'
       ? 'VS Player (PeerJS)'
       : aiLevel === 'lv2'
-        ? 'VS AI (MLP LV2)'
-        : 'VS AI (Minimax LV1)'}
+        ? 'VS AI (Minimax 深さ3)'
+        : 'VS AI (Minimax 深さ1)'}
   </span>
 </div>
                 </div>
