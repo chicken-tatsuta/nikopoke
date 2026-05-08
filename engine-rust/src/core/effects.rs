@@ -2132,20 +2132,16 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
         return Vec::new();
     }
 
-    let Some(slot) = player
+    let has_available_switch = player
         .team
         .iter()
         .enumerate()
-        .find(|(slot, creature)| *slot != player.active_slot && creature.hp > 0)
-        .map(|(slot, _)| slot)
-    else {
+        .any(|(slot, creature)| slot != player.active_slot && creature.hp > 0);
+    if !has_available_switch {
         return Vec::new();
-    };
+    }
 
-    vec![BattleEvent::Switch {
-        player_id: ctx.attacker_player_id.clone(),
-        slot,
-    }]
+    apply_pending_switch(&ctx.attacker_player_id, ctx)
 }
 
 fn move_has_damage_step(move_data: &MoveData) -> bool {
