@@ -68,9 +68,9 @@
       "own_tempo"
     ],
     "baseStats": {
-      "atk": 85,
+      "atk": 115,
       "def": 80,
-      "hp": 105,
+      "hp": 85,
       "spa": 75,
       "spd": 77,
       "spe": 88
@@ -170,7 +170,7 @@
   "makocchan": {
     "abilities": [
       "power_of_alchemy",
-      "sharpness"
+      "magic_guard"
     ],
     "baseStats": {
       "atk": 55,
@@ -379,7 +379,7 @@
   },
   "touma": {
     "abilities": [
-      "quick_feet",
+      "opportunist",
       "lightning_rod"
     ],
     "baseStats": {

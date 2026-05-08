@@ -529,8 +529,12 @@ type BattlePlaybackState = {
     attackingPlayerId?: string;
     damagedPlayerId?: string;
     effectType?: string;
+    statusFlashPlayerId?: string;
+    statusFlashType?: BattleStatusFlashType;
     faintedCreatureIds: string[];
 };
+
+type BattleStatusFlashType = 'poison' | 'burn' | 'paralysis' | 'sleep' | 'freeze' | 'confusion';
 
 type BattlePopup = {
     id: number;
@@ -551,6 +555,14 @@ const PLAYBACK_HIT_MS = 1300;
 const PLAYBACK_FAINT_MS = 2000;
 const BATTLE_POPUP_MS = 1400;
 const HIDDEN_BATTLE_STATUS_IDS = new Set(['pending_switch']);
+const STATUS_FLASH_COLORS: Record<BattleStatusFlashType, string> = {
+    poison: '#a855f7',
+    burn: '#f97316',
+    paralysis: '#facc15',
+    sleep: '#818cf8',
+    freeze: '#38bdf8',
+    confusion: '#ec4899',
+};
 const POKEMON_IMAGE_MODULES = import.meta.glob('../../image/*.{png,jpg,jpeg,webp,avif}', {
     eager: true,
     query: '?url',
@@ -579,6 +591,60 @@ function findPlayerInState(state: BattleStateWire, playerId: string): PlayerStat
 function findActiveCreature(state: BattleStateWire, playerId: string): CreatureStateWire | undefined {
     const player = findPlayerInState(state, playerId);
     return player?.team[player.activeSlot];
+}
+
+function findStatusFlashTargetFromName(
+    state: BattleStateWire,
+    log: string,
+    statusType: BattleStatusFlashType,
+): { playerId: string; statusType: BattleStatusFlashType } | null {
+    const matchedCreature = state.players
+        .flatMap((player) => player.team.map((creature) => ({ playerId: player.id, name: creature.name })))
+        .find(({ name }) => log.includes(name));
+    return matchedCreature ? { playerId: matchedCreature.playerId, statusType } : null;
+}
+
+function getStatusFlashFromLogs(
+    logs: string[],
+    state: BattleStateWire,
+    fallbackPlayerId?: string,
+): { playerId: string; statusType: BattleStatusFlashType } | null {
+    for (const log of logs) {
+        if (log.includes('効かない') || log.includes('効かなかった') || log.includes('すでに')) {
+            continue;
+        }
+        if (log.includes('どくの ダメージ') || log.includes('もうどくの ダメージ') || log.includes('毒をあびた')) {
+            const target = findStatusFlashTargetFromName(state, log, 'poison');
+            if (target) return target;
+        }
+        if (log.includes('やけどのダメージ')) {
+            const target = findStatusFlashTargetFromName(state, log, 'burn');
+            if (target) return target;
+        }
+        if (log.includes('しびれて 動けない')) {
+            return fallbackPlayerId ? { playerId: fallbackPlayerId, statusType: 'paralysis' } : null;
+        }
+        if (log.includes('眠り続けている') || log.includes('眠りながら')) {
+            const target = findStatusFlashTargetFromName(state, log, 'sleep');
+            if (target) return target;
+        }
+        if (log.includes('凍りついて 動けない') || log.includes('こおりが とけた')) {
+            const target = findStatusFlashTargetFromName(state, log, 'freeze');
+            if (target) return target;
+        }
+        if (log.includes('わけもわからず 自分を 攻撃した')) {
+            return fallbackPlayerId ? { playerId: fallbackPlayerId, statusType: 'confusion' } : null;
+        }
+    }
+    return null;
+}
+
+function isStatusNoEffectLog(log: string): boolean {
+    return (
+        log.includes('効かない') ||
+        log.includes('効かなかった') ||
+        log.includes('すでに')
+    );
 }
 
 function copyFinalActiveCreature(
@@ -779,9 +845,22 @@ function visibleStatuses(statuses: CreatureStateWire['statuses']): CreatureState
     return statuses.filter((status) => !HIDDEN_BATTLE_STATUS_IDS.has(status.id));
 }
 
+function hasPendingSwitchStatus(creature: CreatureStateWire | undefined): boolean {
+    return Boolean(creature?.statuses.some((status) => status.id === 'pending_switch'));
+}
+
+function isForcedReplacementAction(action: ActionWire, state: BattleStateWire): boolean {
+    if (action.type !== 'switch') {
+        return false;
+    }
+    const actor = findActiveCreature(state, action.playerId);
+    return Boolean(actor && (actor.hp <= 0 || hasPendingSwitchStatus(actor)));
+}
+
 function logsMentionNegativeEffect(logs: string[], creatureName: string): boolean {
     return logs.some((log) => (
         log.includes(creatureName) &&
+        !isStatusNoEffectLog(log) &&
         (
             log.includes('ダメージ') ||
             log.includes('下がった') ||
@@ -852,6 +931,9 @@ function getActionLabel(
     const side = action.playerId === localPlayerId ? 'あなた' : '相手';
 
     if (action.type === 'switch') {
+        if (isForcedReplacementAction(action, state)) {
+            return `${side}が出すポケモンを選んでいます`;
+        }
         return `${side}が交代しています`;
     }
 
@@ -1117,11 +1199,14 @@ export default function BattlePage() {
             const move = action.moveId ? moves[action.moveId] : undefined;
             const isForceSwitchMove = moveHasEffect(move, 'force_switch');
             const isDamagingForceSwitchMove = isForceSwitchMove && moveHasEffect(move, 'damage');
+            const isSelfSwitchMove = moveHasEffect(move, 'self_switch');
+            const willSelfSwitch = isSelfSwitchMove && activeSlotChanged(stagedState, finalState, action.playerId);
+            const isForcedReplacement = isForcedReplacementAction(action, stagedState);
 
             setPlayback({
                 isPlaying: true,
                 label: getActionLabel(action, stagedState, moves, localPlayerIdRef.current),
-                attackingPlayerId: action.playerId,
+                attackingPlayerId: action.type === 'switch' ? undefined : action.playerId,
                 effectType: moveType,
                 faintedCreatureIds: [],
             });
@@ -1132,6 +1217,8 @@ export default function BattlePage() {
             const nextLogCount = Math.min(newLogs.length, nextActionLogStart ?? newLogs.length);
             const actionLogStart = consumedLogs;
             const actionLogs = newLogs.slice(consumedLogs, nextLogCount);
+            const statusFlash = getStatusFlashFromLogs(actionLogs, stagedState, action.playerId);
+            const hasNoEffectStatusLog = actionLogs.some(isStatusNoEffectLog);
             let displayedLogCount = consumedLogs;
             const switchLogIndex = action.type === 'switch'
                 ? actionLogs.findIndex((log) => log.includes('を 繰り出した！'))
@@ -1161,13 +1248,24 @@ export default function BattlePage() {
                     actionLogs,
                 );
                 setBattleState(cloneBattleState(stagedState));
-                await wait(PLAYBACK_STEP_MS);
+                await wait(isForcedReplacement ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
 
                 if (nextLogCount > displayedLogCount) {
                     stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
                     setBattleState(cloneBattleState(stagedState));
                     await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
                     displayedLogCount = nextLogCount;
+                }
+
+                if (statusFlash) {
+                    setPlayback({
+                        isPlaying: true,
+                        label: '状態変化を反映中',
+                        statusFlashPlayerId: statusFlash.playerId,
+                        statusFlashType: statusFlash.statusType,
+                        faintedCreatureIds: [],
+                    });
+                    await wait(PLAYBACK_STEP_MS);
                 }
 
                 if (switchInHpDelta !== null) {
@@ -1210,6 +1308,8 @@ export default function BattlePage() {
                 attackingPlayerId: action.playerId,
                 damagedPlayerId: visualImpactPlayerId,
                 effectType: moveType,
+                statusFlashPlayerId: statusFlash?.playerId,
+                statusFlashType: statusFlash?.statusType,
                 faintedCreatureIds: [],
             });
 
@@ -1222,7 +1322,7 @@ export default function BattlePage() {
             } else {
                 copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
             }
-            if (!isForceSwitchMove || isDamagingForceSwitchMove) {
+            if ((!isForceSwitchMove || isDamagingForceSwitchMove) && !willSelfSwitch) {
                 copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
             }
             setBattleState(cloneBattleState(stagedState));
@@ -1232,7 +1332,13 @@ export default function BattlePage() {
             newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
             setPlayback((current) => ({
                 ...current,
-                label: newlyFaintedIds.length > 0 ? 'ひんし処理中' : 'ダメージ・状態を反映中',
+                label: newlyFaintedIds.length > 0
+                    ? 'ひんし処理中'
+                    : hasNoEffectStatusLog
+                        ? '効果を確認中'
+                        : statusFlash
+                            ? '状態異常を反映中'
+                            : 'ダメージ・状態を反映中',
                 faintedCreatureIds: newlyFaintedIds,
             }));
 
@@ -1300,7 +1406,13 @@ export default function BattlePage() {
 
         if (consumedLogs < newLogs.length) {
             const remainingLogs = newLogs.slice(consumedLogs);
-            setPlayback((current) => ({ ...current, label: '状態変化を反映中' }));
+            const statusFlash = getStatusFlashFromLogs(remainingLogs, finalState);
+            setPlayback((current) => ({
+                ...current,
+                label: '状態変化を反映中',
+                statusFlashPlayerId: statusFlash?.playerId,
+                statusFlashType: statusFlash?.statusType,
+            }));
             stagedState.log = finalState.log;
             setBattleState(cloneBattleState(stagedState));
             await showPopupsFromLogs(remainingLogs, stagedState);
@@ -1988,6 +2100,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 <div className="flex items-start gap-4">
                     <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
                     <PokemonStatus
+                        key={aiPokemon.id}
                         creature={aiPokemon}
                         species={aiSpecies}
                         isPlayer={false}
@@ -1995,6 +2108,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                         isDamaged={playback.damagedPlayerId === opponentPlayerId}
                         isFainting={playback.faintedCreatureIds.includes(aiPokemon.id)}
                         effectType={playback.effectType}
+                        statusFlashType={playback.statusFlashPlayerId === opponentPlayerId ? playback.statusFlashType : undefined}
                     />
                 </div>
                 
@@ -2007,6 +2121,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 <div className="flex items-end gap-4">
                     <TeamIndicator team={player.team} activeSlot={player.activeSlot} species={species} isPlayer={true} />
                     <PokemonStatus
+                        key={playerPokemon.id}
                         creature={playerPokemon}
                         species={playerSpecies}
                         isPlayer={true}
@@ -2014,6 +2129,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                         isDamaged={playback.damagedPlayerId === localPlayerId}
                         isFainting={playback.faintedCreatureIds.includes(playerPokemon.id)}
                         effectType={playback.effectType}
+                        statusFlashType={playback.statusFlashPlayerId === localPlayerId ? playback.statusFlashType : undefined}
                     />
                 </div>
 
@@ -2318,27 +2434,13 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     {(() => {
                                         const stats = monSpecies?.baseStats;
                                         if (!stats) return null;
-                                        const evs = {
-                                            hp: 0,
-                                            atk: 252,
-                                            def: 0,
-                                            spa: 252,
-                                            spd: 4,
-                                            spe: 0,
-                                        };
                                         const total = stats.hp + stats.atk + stats.def + stats.spa + stats.spd + stats.spe;
-                                        const renderBar = (label: string, value: number, ev: number, max: number) => {
+                                        const renderBar = (label: string, value: number, max: number) => {
                                             const percentage = Math.min(100, (value / max) * 100);
-                                            const evBonus = Math.floor(ev / 4);
-                                            const evPercentage = Math.min(100, (evBonus / max) * 100);
                                             return (
                                                 <div className="grid grid-cols-[64px_1fr_40px] items-center gap-2 text-xs">
                                                     <span className="text-[var(--text-muted)]">{label}</span>
                                                     <div className="relative h-2.5 overflow-hidden rounded-full bg-[var(--surface-4)]">
-                                                        <div
-                                                            className="absolute left-0 top-0 h-full rounded-full bg-amber-400"
-                                                            style={{ width: `${Math.min(100, percentage + evPercentage)}%` }}
-                                                        />
                                                         <div
                                                             className="absolute left-0 top-0 h-full rounded-full bg-[var(--accent)]"
                                                             style={{ width: `${percentage}%` }}
@@ -2352,13 +2454,13 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                         };
                                         return (
                                             <div className="space-y-2">
-                                                {renderBar('HP', stats.hp, evs.hp, 255)}
-                                                {renderBar('攻撃', stats.atk, evs.atk, 255)}
-                                                {renderBar('防御', stats.def, evs.def, 255)}
-                                                {renderBar('特攻', stats.spa, evs.spa, 255)}
-                                                {renderBar('特防', stats.spd, evs.spd, 255)}
-                                                {renderBar('素早さ', stats.spe, evs.spe, 255)}
-                                                {renderBar('合計', total, 0, 720)}
+                                                {renderBar('HP', stats.hp, 255)}
+                                                {renderBar('攻撃', stats.atk, 255)}
+                                                {renderBar('防御', stats.def, 255)}
+                                                {renderBar('特攻', stats.spa, 255)}
+                                                {renderBar('特防', stats.spd, 255)}
+                                                {renderBar('素早さ', stats.spe, 255)}
+                                                {renderBar('合計', total, 720)}
                                             </div>
                                         );
                                     })()}
@@ -2594,6 +2696,7 @@ function PokemonStatus({
     isDamaged = false,
     isFainting = false,
     effectType = 'normal',
+    statusFlashType,
 }: {
     creature: CreatureStateWire;
     species: SpeciesData[string] | undefined;
@@ -2602,11 +2705,13 @@ function PokemonStatus({
     isDamaged?: boolean;
     isFainting?: boolean;
     effectType?: string;
+    statusFlashType?: BattleStatusFlashType;
 }) {
     const hpPercentage = creature.maxHp > 0 ? (creature.hp / creature.maxHp) * 100 : 0;
     const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
     const portraitSrc = getPokemonPortraitSrc(creature.speciesId, species?.name || creature.name);
     const typeColor = getTypeColor(effectType);
+    const statusFlashColor = statusFlashType ? STATUS_FLASH_COLORS[statusFlashType] : undefined;
 
     return (
         <div className={cn('flex-1', isPlayer ? 'text-right' : 'text-left')}>
@@ -2632,6 +2737,15 @@ function PokemonStatus({
                             className="size-full object-cover"
                             draggable={false}
                         />
+                        {statusFlashColor && (
+                            <div
+                                className="pointer-events-none absolute inset-0 battle-status-flash"
+                                style={{
+                                    backgroundColor: statusFlashColor,
+                                    boxShadow: `inset 0 0 0 2px ${statusFlashColor}, 0 0 24px ${statusFlashColor}`,
+                                }}
+                            />
+                        )}
                         <div className={cn(
                             'absolute bottom-1 size-3 rounded-full ring-2 ring-[var(--surface-2)]',
                             isPlayer ? 'right-1 bg-blue-400' : 'left-1 bg-red-400',
@@ -2676,6 +2790,8 @@ function PokemonStatus({
                     if (stages.spa !== 0) displayStages.push({ label: 'とくこう', value: stages.spa });
                     if (stages.spd !== 0) displayStages.push({ label: 'とくぼう', value: stages.spd });
                     if (stages.spe !== 0) displayStages.push({ label: 'すばやさ', value: stages.spe });
+                    if (stages.accuracy !== 0) displayStages.push({ label: 'めいちゅう', value: stages.accuracy });
+                    if (stages.evasion !== 0) displayStages.push({ label: 'かいひ', value: stages.evasion });
 
                     return displayStages.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">

@@ -7,8 +7,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static CREATURE_COUNTER: AtomicUsize = AtomicUsize::new(1);
+const EV_STAT_MAX: i32 = 32;
+const EV_TOTAL_MAX: i32 = 66;
 
-/// EVStats represents effort values for each stat (max 252 per stat, 510 total)
+/// EVStats represents effort values for each stat (max 32 per stat, 66 total)
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct EVStats {
     pub hp: i32,
@@ -22,6 +24,45 @@ pub struct EVStats {
 impl EVStats {
     pub fn total(&self) -> i32 {
         self.hp + self.atk + self.def + self.spa + self.spd + self.spe
+    }
+
+    pub fn normalized(&self) -> Self {
+        let raw_values = [self.hp, self.atk, self.def, self.spa, self.spd, self.spe]
+            .map(|value| value.max(0));
+        let legacy_scale = raw_values.iter().any(|value| *value > EV_STAT_MAX);
+        let mut values = raw_values.map(|value| {
+            let converted = if legacy_scale {
+                ((value as f32) / 8.0).round() as i32
+            } else {
+                value
+            };
+            converted.clamp(0, EV_STAT_MAX)
+        });
+
+        let mut overflow = values.iter().sum::<i32>() - EV_TOTAL_MAX;
+        while overflow > 0 {
+            let Some((largest_index, largest_value)) = values
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, value)| **value)
+            else {
+                break;
+            };
+            if *largest_value <= 0 {
+                break;
+            }
+            values[largest_index] -= 1;
+            overflow -= 1;
+        }
+
+        Self {
+            hp: values[0],
+            atk: values[1],
+            def: values[2],
+            spa: values[3],
+            spd: values[4],
+            spe: values[5],
+        }
     }
 }
 
@@ -49,10 +90,11 @@ impl Default for CreateCreatureOptions {
 }
 
 pub fn calc_stat(base: i32, is_hp: bool, level: i32, iv: i32, ev: i32) -> i32 {
+    let ev_bonus = ev.clamp(0, EV_STAT_MAX);
     if is_hp {
-        ((base * 2 + iv + (ev / 4)) * level) / 100 + level + 10
+        ((base * 2 + iv) * level) / 100 + level + 10 + ev_bonus
     } else {
-        ((base * 2 + iv + (ev / 4)) * level) / 100 + 5
+        ((base * 2 + iv) * level) / 100 + 5 + ev_bonus
     }
 }
 
@@ -103,7 +145,7 @@ pub fn create_creature(
 ) -> Result<CreatureState, String> {
     let level = options.level.unwrap_or(50);
     let iv = 31;
-    let evs = options.evs.unwrap_or_default();
+    let evs = options.evs.unwrap_or_default().normalized();
     let stats = &species.base_stats;
 
     let max_hp = calc_stat(stats.hp, true, level as i32, iv, evs.hp);

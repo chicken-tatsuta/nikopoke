@@ -108,6 +108,15 @@ body {
   100% { opacity: 0; transform: scale(1.08); }
 }
 
+@keyframes battle-status-flash {
+  0%, 100% { opacity: 0; }
+  14% { opacity: 0.75; }
+  28% { opacity: 0.1; }
+  44% { opacity: 0.68; }
+  62% { opacity: 0.16; }
+  78% { opacity: 0.52; }
+}
+
 @keyframes battle-faint {
   0% { opacity: 1; transform: translateY(0); filter: grayscale(0); }
   100% { opacity: 0.38; transform: translateY(14px); filter: grayscale(1); }
@@ -148,6 +157,11 @@ body {
 
 .battle-hit-flash {
   animation: battle-hit-flash 520ms ease-out;
+}
+
+.battle-status-flash {
+  mix-blend-mode: screen;
+  animation: battle-status-flash 980ms ease-in-out;
 }
 
 .battle-faint {

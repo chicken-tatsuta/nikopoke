@@ -29,7 +29,7 @@ export interface Move {
     priority?: number;
 }
 
-// Effort Values (EVs) - max 252 per stat, 510 total
+// Effort Values (EVs) - max 32 per stat, 66 total
 export interface EVStats {
     hp: number;
     atk: number;

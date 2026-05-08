@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, X, ArrowLeft, Swords, Sliders } from 'lucide-react';
+import { Check, X, ArrowLeft, Swords, Sliders, FolderOpen, Save } from 'lucide-react';
 import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
 import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
@@ -8,6 +8,7 @@ import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
 import { useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { getAbilityLabel } from './PokemonDetailPage';
+import { EMPTY_EVS, EV_KEYS, EV_STAT_MAX, EV_TOTAL_MAX, evTotal, normalizeEvs } from '../lib/evs';
 
 
 const DECK_SIZE = 6;
@@ -84,7 +85,8 @@ export default function DeckBuilderPage() {
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editingMoves, setEditingMoves] = useState<string[]>([]);
     const [editingEVIndex, setEditingEVIndex] = useState<number | null>(null);
-    const [editingEVs, setEditingEVs] = useState<EVStats>({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
+    const [editingEVs, setEditingEVs] = useState<EVStats>(EMPTY_EVS);
+    const [selectedPresetName, setSelectedPresetName] = useState('');
 
     useEffect(() => {
         loadAllData().then(({ species, moves, learnsets }) => {
@@ -130,13 +132,19 @@ export default function DeckBuilderPage() {
             speciesId: mon.id,
             moves: presetMoves,
             ability: mon.abilities[0] || 'none',
-            evs: preset?.evs ?? { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+            evs: normalizeEvs(preset?.evs),
         };
     
         setSelectedPokemon([...selectedPokemon, newPokemon]);
     };
 
-    const savedDecks = supabase && user ? (profile?.saved_decks ?? []) : localSavedDecks;
+    const savedDecks = useMemo(
+        () => (supabase && user ? (profile?.saved_decks ?? []) : localSavedDecks),
+        [localSavedDecks, profile?.saved_decks, user],
+    );
+    const activePresetName = savedDecks.some((preset) => preset.name === selectedPresetName)
+        ? selectedPresetName
+        : (savedDecks[0]?.name ?? '');
 
     // Save deck to the profile when possible, with localStorage kept as the offline fallback/cache.
     useEffect(() => {
@@ -167,7 +175,7 @@ export default function DeckBuilderPage() {
 
     const handleEditEVs = (index: number) => {
         setEditingEVIndex(index);
-        setEditingEVs(selectedPokemon[index].evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
+        setEditingEVs(normalizeEvs(selectedPokemon[index].evs));
     };
 
     const handleAbilityChange = (index: number, ability: string) => {
@@ -195,7 +203,7 @@ export default function DeckBuilderPage() {
     const handleSaveEVs = () => {
         if (editingEVIndex === null) return;
         const updated = [...selectedPokemon];
-        updated[editingEVIndex] = { ...updated[editingEVIndex], evs: editingEVs };
+        updated[editingEVIndex] = { ...updated[editingEVIndex], evs: normalizeEvs(editingEVs) };
         setSelectedPokemon(updated);
         setEditingEVIndex(null);
     };
@@ -230,6 +238,14 @@ export default function DeckBuilderPage() {
             return;
         }
         setSelectedPokemon(validPokemon.slice(0, DECK_SIZE));
+    };
+
+    const handleLoadSelectedPreset = () => {
+        const preset = savedDecks.find((preset) => preset.name === activePresetName);
+        if (!preset) {
+            return;
+        }
+        handleLoadPreset(preset.deck);
     };
 
     const handleSavePreset = () => {
@@ -295,22 +311,41 @@ export default function DeckBuilderPage() {
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
                             </h2>
 
-                            {savedDecks.length > 0 && (
-                                <div className="mb-5">
-                                    <div className="mb-2 text-sm font-medium text-[var(--text-secondary)]">保存済みプリセット</div>
-                                    <div className="space-y-2">
-                                        {savedDecks.map((preset) => (
-                                            <button
-                                                key={preset.name}
-                                                onClick={() => handleLoadPreset(preset.deck)}
-                                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-3)] px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:border-[var(--border-hover)] hover:bg-[var(--surface-4)]"
-                                            >
-                                                {preset.name}
-                                            </button>
-                                        ))}
+                            <div className="mb-5 rounded-xl border border-[var(--border)] bg-[var(--surface-3)] p-3">
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                                        <FolderOpen className="size-4 text-[var(--accent)]" />
+                                        プリセット
                                     </div>
+                                    <span className="text-xs text-[var(--text-muted)]">{savedDecks.length}件</span>
                                 </div>
-                            )}
+                                <div className="flex gap-2">
+                                    <select
+                                        value={activePresetName}
+                                        onChange={(event) => setSelectedPresetName(event.target.value)}
+                                        disabled={savedDecks.length === 0}
+                                        className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--surface-4)] focus:ring-2 focus:ring-[var(--accent)]/40 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {savedDecks.length === 0 ? (
+                                            <option value="">保存済みなし</option>
+                                        ) : (
+                                            savedDecks.map((preset) => (
+                                                <option key={preset.name} value={preset.name}>
+                                                    {preset.name}
+                                                </option>
+                                            ))
+                                        )}
+                                    </select>
+                                    <button
+                                        onClick={handleLoadSelectedPreset}
+                                        disabled={savedDecks.length === 0}
+                                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:bg-[var(--surface-4)] disabled:text-[var(--text-muted)]"
+                                    >
+                                        <FolderOpen className="size-4" />
+                                        読込
+                                    </button>
+                                </div>
+                            </div>
 
                             <div className="space-y-3">
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -358,8 +393,9 @@ export default function DeckBuilderPage() {
                             <button
                                 onClick={handleSavePreset}
                                 disabled={selectedPokemon.length === 0}
-                                className="mt-3 w-full rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50"
+                                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50"
                             >
+                                <Save className="size-4" />
                                 プリセットとして保存
                             </button>
                         </div>
@@ -494,6 +530,7 @@ function sanitizeDeckPokemon(
     return {
         ...pokemon,
         ability: mon.abilities.includes(pokemon.ability) ? pokemon.ability : (mon.abilities[0] || 'none'),
+        evs: normalizeEvs(pokemon.evs),
         moves: sanitizedMoves.length > 0 ? sanitizedMoves : fallbackMoves,
     };
 }
@@ -515,7 +552,7 @@ function SelectedPokemonCard({
     onEditEVs: () => void;
     onAbilityChange: (ability: string) => void;
 }) {
-    const totalEvs = pokemon.evs ? pokemon.evs.hp + pokemon.evs.atk + pokemon.evs.def + pokemon.evs.spa + pokemon.evs.spd + pokemon.evs.spe : 0;
+    const totalEvs = evTotal(pokemon.evs);
 
     return (
         <div className="flex h-full min-w-0 flex-col">
@@ -566,7 +603,7 @@ function SelectedPokemonCard({
             </div>
             {totalEvs > 0 && (
                 <div className="mt-2 text-xs text-[var(--text-muted)]">
-                    EV: {totalEvs}/510
+                    EV: {totalEvs}/{EV_TOTAL_MAX}
                 </div>
             )}
             <div className="mt-auto flex gap-2 pt-3">
@@ -733,21 +770,21 @@ function EVEditor({
     onSave: () => void;
     onCancel: () => void;
 }) {
-    const stats = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'] as const;
     const statLabels = { hp: 'HP', atk: '攻撃', def: '防御', spa: '特攻', spd: '特防', spe: '素早' };
-    const total = evs.hp + evs.atk + evs.def + evs.spa + evs.spd + evs.spe;
-    const remaining = 510 - total;
+    const normalizedEvs = normalizeEvs(evs);
+    const total = evTotal(normalizedEvs);
+    const remaining = EV_TOTAL_MAX - total;
 
     const handleStatChange = (stat: keyof EVStats, value: number) => {
-        const current = evs[stat];
-        const newValue = Math.min(252, Math.max(0, value));
+        const current = normalizedEvs[stat];
+        const newValue = Math.min(EV_STAT_MAX, Math.max(0, Math.floor(value)));
         const diff = newValue - current;
 
-        if (total + diff > 510) {
-            const maxAllowed = Math.min(252, current + remaining);
-            onEVChange({ ...evs, [stat]: maxAllowed });
+        if (total + diff > EV_TOTAL_MAX) {
+            const maxAllowed = Math.min(EV_STAT_MAX, current + remaining);
+            onEVChange({ ...normalizedEvs, [stat]: maxAllowed });
         } else {
-            onEVChange({ ...evs, [stat]: newValue });
+            onEVChange({ ...normalizedEvs, [stat]: newValue });
         }
     };
 
@@ -756,7 +793,7 @@ function EVEditor({
             <div className="flex items-center justify-between mb-5">
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
                     {species.name}のEVを編集
-                    <span className="text-[var(--text-muted)] font-normal ml-2">({total}/510)</span>
+                    <span className="text-[var(--text-muted)] font-normal ml-2">({total}/{EV_TOTAL_MAX})</span>
                 </h2>
                 <div className="flex gap-2">
                     <button
@@ -776,12 +813,12 @@ function EVEditor({
 
             {remaining < 0 && (
                 <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-                    ⚠️ 合計が510を超えています
+                    合計が{EV_TOTAL_MAX}を超えています
                 </div>
             )}
 
             <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5 space-y-5">
-                {stats.map((stat) => (
+                {EV_KEYS.map((stat) => (
                     <div key={stat} className="space-y-2">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-[var(--text-primary)]">{statLabels[stat]}</span>
@@ -789,20 +826,20 @@ function EVEditor({
                                 <input
                                     type="number"
                                     min={0}
-                                    max={252}
-                                    value={evs[stat]}
+                                    max={EV_STAT_MAX}
+                                    value={normalizedEvs[stat]}
                                     onChange={(e) => handleStatChange(stat, parseInt(e.target.value) || 0)}
                                     className="w-16 px-2 py-1 bg-[var(--surface-3)] border border-[var(--border)] rounded text-center text-sm text-[var(--text-primary)] tabular-nums"
                                 />
-                                <span className="text-xs text-[var(--text-muted)] w-10">/ 252</span>
+                                <span className="text-xs text-[var(--text-muted)] w-10">/ {EV_STAT_MAX}</span>
                             </div>
                         </div>
                         <input
                             type="range"
                             min={0}
-                            max={252}
-                            step={4}
-                            value={evs[stat]}
+                            max={EV_STAT_MAX}
+                            step={1}
+                            value={normalizedEvs[stat]}
                             onChange={(e) => handleStatChange(stat, parseInt(e.target.value))}
                             className="w-full accent-[var(--accent)]"
                         />
@@ -812,7 +849,7 @@ function EVEditor({
 
             <div className="mt-4 flex justify-center gap-2">
                 <button
-                    onClick={() => onEVChange({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })}
+                    onClick={() => onEVChange(EMPTY_EVS)}
                     className="px-3 py-1.5 bg-[var(--surface-3)] text-[var(--text-muted)] rounded-lg text-sm hover:bg-[var(--surface-4)] transition-colors"
                 >
                     リセット

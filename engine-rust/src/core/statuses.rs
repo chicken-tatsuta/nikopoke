@@ -334,25 +334,22 @@ fn match_status(
                 }
 
                 if let Some(idx) = status_idx {
+                    let can_act_while_asleep = ctx
+                        .move_data
+                        .is_some_and(|move_data| is_usable_while_asleep(&move_data.id));
                     let mut new_state = state.clone();
                     let player = new_state.players.iter_mut().find(|p| p.id == player_id).unwrap();
                     let active = player.team.get_mut(player.active_slot).unwrap();
                     let status = &mut active.statuses[idx];
 
-                    // ターン数が設定されていない場合は2-4で設定
-                    let current_turns = if let Some(t) = status.data.get("turns").and_then(|v| v.as_i64()) {
-                        t
-                    } else {
-                        let min = 2;
-                        let max = 4;
-                        let duration = min + (((ctx.rng)() * ((max - min + 1) as f64)).floor() as i64);
-                        duration
-                    };
+                    let elapsed = status
+                        .data
+                        .get("elapsed")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0)
+                        + 1;
 
-                    let next_turns = current_turns - 1;
-
-                    if next_turns <= 0 {
-                        // 目覚める
+                    if elapsed >= 3 || (elapsed >= 2 && (ctx.rng)() < (1.0 / 3.0)) {
                         return StatusHookResult {
                             events: vec![
                                 BattleEvent::RemoveStatus {
@@ -367,20 +364,29 @@ fn match_status(
                             ],
                             ..Default::default()
                         };
-                    } else {
-                        // 眠り継続
-                        status.data.insert("turns".to_string(), Value::Number(next_turns.into()));
-                        let name = active.name.clone();
+                    }
+
+                    status.data.insert("elapsed".to_string(), Value::Number(elapsed.into()));
+                    let name = active.name.clone();
+                    if can_act_while_asleep {
                         return StatusHookResult {
                             state: Some(new_state),
-                            prevent_action: true,
                             events: vec![BattleEvent::Log {
-                                message: format!("{}は ぐうぐう 眠り続けている。", name),
+                                message: format!("{}は 眠りながら 技を 出した！", name),
                                 meta: Map::new(),
                             }],
                             ..Default::default()
                         };
                     }
+                    return StatusHookResult {
+                        state: Some(new_state),
+                        prevent_action: true,
+                        events: vec![BattleEvent::Log {
+                            message: format!("{}は ぐうぐう 眠り続けている。", name),
+                            meta: Map::new(),
+                        }],
+                        ..Default::default()
+                    };
                 }
                 StatusHookResult::default()
             }
@@ -474,6 +480,14 @@ fn match_status(
                     }],
                     ..Default::default()
                 }
+            }
+            "onTurnEnd" => StatusHookResult {
+                events: vec![BattleEvent::RemoveStatus {
+                    target_id: player_id.to_string(),
+                    status_id: "flinch".to_string(),
+                    meta: Map::new(),
+                }],
+                ..Default::default()
             },
             _ => StatusHookResult::default(),
         },
@@ -481,7 +495,7 @@ fn match_status(
             "onEventTransform" => {
                 let active = get_active_creature(state, player_id).unwrap();
                 let mut transforms = Vec::new();
-                let types = ["damage", "apply_status", "modify_stage"];
+                let types = ["damage", "apply_status", "modify_stage", "set_ability"];
                 for t in types {
                     transforms.push(EventTransform {
                         transform_type: "replace_event".to_string(),
@@ -515,7 +529,7 @@ fn match_status(
                     .map(|player| player.id.clone())
                     .unwrap_or_default();
                 let mut transforms = Vec::new();
-                let types = ["damage", "apply_status", "modify_stage"];
+                let types = ["damage", "apply_status", "modify_stage", "set_ability"];
                 for t in types {
                     let mut replacement = vec![BattleEvent::Log {
                         message: format!("{}は 攻撃から 身を 守った！", active.name),
@@ -1198,6 +1212,10 @@ fn matches_timing(hook: &str, timing: &str) -> bool {
     }
 }
 
+fn is_usable_while_asleep(move_id: &str) -> bool {
+    matches!(move_id, "sleep_talk" | "snore")
+}
+
 fn effects_from_status(status: &Status) -> Vec<Effect> {
     match status.data.get("effects") {
         Some(Value::Array(items)) => items
@@ -1235,8 +1253,8 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
             
             // Apply confusion if needed (from expiring lock_move with confuseOnEnd)
             if apply_confusion && active.hp > 0 {
-                // Check if not already confused
-                if !active.statuses.iter().any(|s| s.id == "confusion") {
+                // Major status effects are mutually exclusive in Nikimon battle rules.
+                if !active.statuses.iter().any(|s| is_exclusive_major_status(&s.id)) {
                     let rng_data = HashMap::new();
                     // Duration 2-4 turns (pseudo-random based on turn number)
                     let duration = 2 + ((state.turn % 3) as i32);
@@ -1246,11 +1264,32 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
                         data: rng_data,
                     });
                     next.log.push(format!("{}は 混乱してしまった！", active.name));
+                } else {
+                    next.log.push("しかしうまく決まらなかった！".to_string());
                 }
             }
         }
     }
     next
+}
+
+fn is_exclusive_major_status(status_id: &str) -> bool {
+    matches!(
+        status_id,
+        "burn"
+            | "poison"
+            | "toxic"
+            | "badly_poison"
+            | "badly_poisoned"
+            | "paralysis"
+            | "paralyzed"
+            | "freeze"
+            | "frozen"
+            | "sleep"
+            | "asleep"
+            | "confusion"
+            | "confused"
+    )
 }
 
 pub fn tick_field_effects(state: &BattleState) -> BattleState {

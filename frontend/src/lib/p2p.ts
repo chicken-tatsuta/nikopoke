@@ -123,6 +123,34 @@ const PEER_OPTIONS = {
         ],
     },
 };
+const ROOM_CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+export function normalizeRoomCode(code: string): string {
+    return code.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+export function validateRoomCode(code: string): string | null {
+    if (code.length < 4) {
+        return 'ルームコードは4文字以上で入力してください。';
+    }
+    if (code.length > 24) {
+        return 'ルームコードは24文字以内で入力してください。';
+    }
+    if (!/^[a-z0-9-]+$/.test(code)) {
+        return 'ルームコードは半角英数字とハイフンだけ使えます。';
+    }
+    if (code.startsWith('-') || code.endsWith('-') || code.includes('--')) {
+        return 'ハイフンは先頭・末尾・連続では使えません。';
+    }
+    return null;
+}
+
+function createReadableRoomCode(): string {
+    const suffix = Array.from({ length: 4 }, () => (
+        ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)]
+    )).join('');
+    return `niko-${suffix}`;
+}
 
 function createInitialState(): OnlineSessionState {
     return {
@@ -396,8 +424,17 @@ export function clearOnlineSession(): void {
     emitSnapshot();
 }
 
-export async function createHostSession(deck: DeckPokemon[], userId?: string | null): Promise<string> {
+export async function createHostSession(
+    deck: DeckPokemon[],
+    userId?: string | null,
+    requestedRoomCode?: string,
+): Promise<string> {
     clearOnlineSession();
+    const roomCode = normalizeRoomCode(requestedRoomCode || createReadableRoomCode());
+    const validationError = validateRoomCode(roomCode);
+    if (validationError) {
+        throw new Error(validationError);
+    }
     session.role = 'host';
     session.status = 'hosting';
     session.localDeck = cloneDeck(deck);
@@ -405,7 +442,7 @@ export async function createHostSession(deck: DeckPokemon[], userId?: string | n
     emitSnapshot();
 
     return await new Promise<string>((resolve, reject) => {
-        const peer = new Peer(PEER_OPTIONS);
+        const peer = new Peer(roomCode, PEER_OPTIONS);
         session.peer = peer;
         emitSnapshot();
         setupPeerCommon(peer);
@@ -440,9 +477,14 @@ export async function joinHostSession(
     userId?: string | null,
 ): Promise<void> {
     clearOnlineSession();
+    const roomCode = normalizeRoomCode(hostPeerId);
+    const validationError = validateRoomCode(roomCode);
+    if (validationError) {
+        throw new Error(validationError);
+    }
     session.role = 'guest';
     session.status = 'joining';
-    session.hostPeerId = hostPeerId.trim();
+    session.hostPeerId = roomCode;
     session.localDeck = cloneDeck(deck);
     session.localUserId = userId ?? null;
     emitSnapshot();

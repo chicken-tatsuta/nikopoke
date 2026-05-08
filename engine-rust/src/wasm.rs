@@ -1,5 +1,8 @@
 use crate::ai::{get_best_move_mcts, get_best_move_minimax};
-use crate::core::battle::{is_battle_over, replace_fainted_pokemon, step_battle, BattleOptions};
+use crate::core::battle::{
+    apply_initial_switch_in_effects, is_battle_over, replace_fainted_pokemon, step_battle,
+    BattleOptions,
+};
 use crate::core::factory::{create_creature, CreateCreatureOptions, EVStats};
 use crate::core::state::{
     Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, FieldEffect,
@@ -555,6 +558,8 @@ pub fn create_battle_state_wasm(players: JsValue) -> Result<JsValue, JsValue> {
         serde_wasm_bindgen::from_value(players).map_err(js_err)?;
     let players: Vec<PlayerState> = players_wire.into_iter().map(PlayerState::from).collect();
     let state = create_battle_state(players);
+    let mut rng = || Math::random();
+    let state = apply_initial_switch_in_effects(&state, &mut rng);
     serde_wasm_bindgen::to_value(&BattleStateWire::from(state)).map_err(js_err)
 }
 

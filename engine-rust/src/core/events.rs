@@ -1,5 +1,5 @@
 use crate::core::abilities::{
-    get_weather, is_weather_id, modify_stages_with_ability, run_ability_check_hook,
+    ability_label, get_weather, is_weather_id, modify_stages_with_ability, run_ability_check_hook,
     AbilityCheckContext, WeatherKind,
 };
 use crate::core::state::{BattleState, Status, StatStages};
@@ -356,6 +356,15 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             active.item = Some(item_id.clone());
                         }
                     }
+                    if is_exclusive_major_status(status_id)
+                        && active
+                            .statuses
+                            .iter()
+                            .any(|status| is_exclusive_major_status(&status.id))
+                    {
+                        next.log.push("しかしうまく決まらなかった！".to_string());
+                        return next;
+                    }
                     if !stack {
                         if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id) {
                             next.log.push(format!("{}は すでに {}状態だ！", active.name, status_id));
@@ -575,6 +584,13 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         }
                     }
                     active.ability = ability_id.clone();
+                    let message = match ability_id {
+                        Some(ability_id) => {
+                            format!("{}の 特性は『{}』に なった！", active.name, ability_label(ability_id))
+                        }
+                        None => format!("{}の 特性が 消えた！", active.name),
+                    };
+                    next.log.push(message);
                 }
             }
         }
@@ -760,6 +776,25 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         }
     }
     next
+}
+
+fn is_exclusive_major_status(status_id: &str) -> bool {
+    matches!(
+        status_id,
+        "burn"
+            | "poison"
+            | "toxic"
+            | "badly_poison"
+            | "badly_poisoned"
+            | "paralysis"
+            | "paralyzed"
+            | "freeze"
+            | "frozen"
+            | "sleep"
+            | "asleep"
+            | "confusion"
+            | "confused"
+    )
 }
 
 fn status_blocked_by_type_or_field(

@@ -170,7 +170,7 @@
   "makocchan": {
     "abilities": [
       "power_of_alchemy",
-      "sharpness"
+      "magic_guard"
     ],
     "baseStats": {
       "atk": 55,
@@ -379,7 +379,7 @@
   },
   "touma": {
     "abilities": [
-      "quick_feet",
+      "opportunist",
       "lightning_rod"
     ],
     "baseStats": {

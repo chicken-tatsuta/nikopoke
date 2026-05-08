@@ -11,6 +11,7 @@ import init, {
 
 import type { DeckPokemon } from '../types/pokemon';
 import { loadAllData } from './data';
+import { normalizeEvs } from './evs';
 
 // WASM initialization state
 let wasmInitialized = false;
@@ -269,6 +270,7 @@ function normalizeDeckPokemon(
 
     return {
         ...pokemon,
+        evs: normalizeEvs(pokemon.evs),
         moves: selectedMoves,
     };
 }

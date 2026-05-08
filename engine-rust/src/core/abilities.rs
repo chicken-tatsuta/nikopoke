@@ -37,7 +37,7 @@ pub struct AbilityHookResult {
     pub override_action: Option<Action>,
 }
 
-fn ability_label(ability: &str) -> &str {
+pub fn ability_label(ability: &str) -> &str {
     match ability {
         "intimidate" => "いかく",
         "download" => "ダウンロード",
@@ -906,6 +906,7 @@ fn is_reflectable_status_event(event: &BattleEvent) -> bool {
             | BattleEvent::ClearStages { .. }
             | BattleEvent::ResetStages { .. }
             | BattleEvent::CureAllStatus { .. }
+            | BattleEvent::SetAbility { .. }
     )
 }
 
@@ -918,7 +919,8 @@ fn set_event_target(event: &mut BattleEvent, target_id: &str) {
         | BattleEvent::ModifyStage { target_id: t, .. }
         | BattleEvent::ClearStages { target_id: t, .. }
         | BattleEvent::ResetStages { target_id: t, .. }
-        | BattleEvent::CureAllStatus { target_id: t, .. } => {
+        | BattleEvent::CureAllStatus { target_id: t, .. }
+        | BattleEvent::SetAbility { target_id: t, .. } => {
             *t = target_id.to_string();
         }
         _ => {}
@@ -936,6 +938,7 @@ fn set_event_meta(event: &mut BattleEvent, key: &str, value: Value) {
         | BattleEvent::ResetStages { meta, .. }
         | BattleEvent::CureAllStatus { meta, .. }
         | BattleEvent::RandomMove { meta, .. }
+        | BattleEvent::SetAbility { meta, .. }
         | BattleEvent::Log { meta, .. }
         | BattleEvent::ApplyFieldStatus { meta, .. }
         | BattleEvent::RemoveFieldStatus { meta, .. } => meta,

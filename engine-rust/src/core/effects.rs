@@ -575,8 +575,32 @@ fn apply_status(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_
         }
     }
 
+    let is_targeted_status_move = ctx
+        .move_data
+        .and_then(|move_data| move_data.category.as_deref())
+        == Some("status")
+        && target_id != ctx.attacker_player_id;
+    if is_targeted_status_move {
+        let mut accuracy = value_f64(effect.data.get("accuracy"), state, ctx)
+            .or_else(|| ctx.move_data.and_then(|move_data| move_data.accuracy).map(|value| value as f64))
+            .or_else(|| value_f64(effect.data.get("chance"), state, ctx))
+            .unwrap_or(1.0);
+        if status_id == "toxic"
+            && get_active_creature(state, &ctx.attacker_player_id)
+                .is_some_and(|attacker| attacker.types.iter().any(|t| t == "poison"))
+        {
+            accuracy = 1.0;
+        }
+        if (ctx.rng)() > accuracy {
+            return vec![BattleEvent::Log {
+                message: "しかし はずれた！".to_string(),
+                meta: meta_with_move_source(ctx.move_data.map(|m| m.id.as_str()), Some(&ctx.attacker_player_id)),
+            }];
+        }
+    }
+
     if let Some(chance) = value_f64(effect.data.get("chance"), state, ctx) {
-        if (ctx.rng)() > chance {
+        if !is_targeted_status_move && (ctx.rng)() > chance {
             return vec![BattleEvent::Log {
                 message: format!("{}の {}は 効かなかった！",
                     get_active_creature(state, &ctx.attacker_player_id).map(|c| c.name.clone()).unwrap_or_else(|| "誰か".to_string()),
@@ -1437,13 +1461,39 @@ fn apply_field_status(state: &BattleState, effect: &Effect, ctx: &mut EffectCont
         };
         data.insert("sideId".to_string(), Value::String(side_id));
     }
-    vec![BattleEvent::ApplyFieldStatus {
+    let apply_event = BattleEvent::ApplyFieldStatus {
         status_id,
         duration: value_i32(effect.data.get("duration"), state, ctx),
         stack: effect.data.get("stack").and_then(|v| v.as_bool()).unwrap_or(false),
         data,
         meta: meta_with_move_source(ctx.move_data.map(|m| m.id.as_str()), Some(&ctx.attacker_player_id)),
-    }]
+    };
+    if let Some(message) = field_status_setup_message(&apply_event) {
+        return vec![
+            BattleEvent::Log {
+                message,
+                meta: meta_with_move_source(ctx.move_data.map(|m| m.id.as_str()), Some(&ctx.attacker_player_id)),
+            },
+            apply_event,
+        ];
+    }
+    vec![apply_event]
+}
+
+fn field_status_setup_message(event: &BattleEvent) -> Option<String> {
+    let BattleEvent::ApplyFieldStatus { status_id, data, .. } = event else {
+        return None;
+    };
+    if data.get("scope").and_then(|v| v.as_str()) != Some("side") {
+        return None;
+    }
+    match status_id.as_str() {
+        "stealth_rock" => Some("あいての 周りに 尖った岩が 漂った！".to_string()),
+        "sticky_web" => Some("あいての あしもとに ねばねばネットが ちらばった！".to_string()),
+        "toxic_spikes" => Some("あいての あしもとに どくびしが ちらばった！".to_string()),
+        "spikes" => Some("あいての あしもとに まきびしが ちらばった！".to_string()),
+        _ => None,
+    }
 }
 
 fn apply_remove_field_status(effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
@@ -2530,7 +2580,21 @@ fn evaluate_condition(state: &BattleState, cond: Option<&Value>, ctx: &EffectCon
         "user_has_item" => get_active_creature(state, &ctx.attacker_player_id).map_or(false, |c| has_item(c)),
         "user_has_no_item" => get_active_creature(state, &ctx.attacker_player_id).map_or(false, |c| !has_item(c)),
         "target_has_major_status" => {
-            let major_statuses = ["burn", "poison", "toxic", "badly_poisoned", "paralysis", "freeze", "sleep"];
+            let major_statuses = [
+                "burn",
+                "poison",
+                "toxic",
+                "badly_poison",
+                "badly_poisoned",
+                "paralysis",
+                "paralyzed",
+                "freeze",
+                "frozen",
+                "sleep",
+                "asleep",
+                "confusion",
+                "confused",
+            ];
             get_active_creature(state, &ctx.target_player_id)
                 .map_or(false, |c| c.statuses.iter().any(|s| major_statuses.contains(&s.id.as_str())))
         }
@@ -2609,6 +2673,19 @@ fn compute_speed(state: &BattleState, player_id: &str, turn: u32) -> f32 {
     };
     let stage = creature.stages.spe;
     let mut speed = creature.speed as f32 * stage_multiplier(stage);
+    let side_tailwind = state
+        .field
+        .sides
+        .get(player_id)
+        .map(|effects| effects.iter().any(|effect| effect.id == "tailwind"))
+        .unwrap_or(false);
+    let global_tailwind = state.field.global.iter().any(|effect| effect.id == "tailwind");
+    if side_tailwind || global_tailwind {
+        speed *= 2.0;
+    }
+    if creature.statuses.iter().any(|s| s.id == "paralysis") {
+        speed *= 0.5;
+    }
     let weather = crate::core::abilities::get_weather(state);
     speed = run_ability_value_hook(
         state,
@@ -2883,6 +2960,13 @@ fn calc_damage(power: i32, state: &BattleState, attacker_id: &str, target_id: &s
         if category == "special" && (side_has("light_screen") || has_aurora_veil) {
             modifier *= 0.5;
         }
+    }
+
+    if category == "physical"
+        && attacker.statuses.iter().any(|s| s.id == "burn")
+        && attacker.ability.as_deref() != Some("guts")
+    {
+        modifier *= 0.5;
     }
 
     if is_crit {

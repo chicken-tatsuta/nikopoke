@@ -43,6 +43,18 @@ impl BattleEngine {
         Self { move_db, type_chart }
     }
 
+    pub fn apply_initial_switch_in_effects(
+        &self,
+        state: &BattleState,
+        rng: &mut dyn FnMut() -> f64,
+    ) -> BattleState {
+        let mut next = state.clone();
+        for player in state.players.clone() {
+            next = apply_switch_in_effects(next, &player.id, rng, &self.type_chart);
+        }
+        next
+    }
+
     pub fn step_battle(
         &self,
         state: &BattleState,
@@ -916,9 +928,22 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_c
     }
     let grounded = is_grounded_for_field(&active);
     let mut events = Vec::new();
+    let toxic_spikes_layers = effects
+        .iter()
+        .filter(|effect| effect.id == "toxic_spikes")
+        .count();
+    let mut spikes_logged = false;
+    let mut toxic_spikes_handled = false;
     for effect in effects {
         match effect.id.as_str() {
             "spikes" if grounded => {
+                if !spikes_logged {
+                    events.push(BattleEvent::Log {
+                        message: format!("まきびしが 相手の {}に くいこんだ！", active.name),
+                        meta: Map::new(),
+                    });
+                    spikes_logged = true;
+                }
                 events.push(BattleEvent::Damage {
                     target_id: player_id.to_string(),
                     amount: (active.max_hp / 8).max(1),
@@ -928,16 +953,33 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_c
             "stealth_rock" => {
                 let effectiveness = type_chart.effectiveness("rock", &effective_types_for_field(&active));
                 let amount = ((active.max_hp as f32 / 8.0) * effectiveness).floor() as i32;
+                events.push(BattleEvent::Log {
+                    message: format!("{}に尖った岩がくいこんだ！", active.name),
+                    meta: Map::new(),
+                });
                 events.push(BattleEvent::Damage {
                     target_id: player_id.to_string(),
                     amount: amount.max(1),
                     meta: Map::new(),
                 });
             }
-            "toxic_spikes" if grounded => {
+            "toxic_spikes" if grounded && !toxic_spikes_handled => {
+                toxic_spikes_handled = true;
+                let status_id = if toxic_spikes_layers >= 2 { "toxic" } else { "poison" };
+                if can_be_poisoned_by_toxic_spikes(&state, &active) {
+                    let message = if status_id == "toxic" {
+                        format!("{}は猛毒をあびた！", active.name)
+                    } else {
+                        format!("{}は毒をあびた！", active.name)
+                    };
+                    events.push(BattleEvent::Log {
+                        message,
+                        meta: Map::new(),
+                    });
+                }
                 events.push(BattleEvent::ApplyStatus {
                     target_id: player_id.to_string(),
-                    status_id: "poison".to_string(),
+                    status_id: status_id.to_string(),
                     duration: None,
                     stack: false,
                     data: std::collections::HashMap::new(),
@@ -945,6 +987,10 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_c
                 });
             }
             "sticky_web" if grounded => {
+                events.push(BattleEvent::Log {
+                    message: format!("{}はねばねばネットにひっかかった！", active.name),
+                    meta: Map::new(),
+                });
                 events.push(BattleEvent::ModifyStage {
                     target_id: player_id.to_string(),
                     stages: std::collections::HashMap::from([("spe".to_string(), -1)]),
@@ -963,6 +1009,14 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_c
     state
 }
 
+fn can_be_poisoned_by_toxic_spikes(
+    state: &BattleState,
+    active: &crate::core::state::CreatureState,
+) -> bool {
+    !active.types.iter().any(|t| t == "poison" || t == "steel")
+        && !state.field.global.iter().any(|effect| effect.id == "misty_terrain")
+}
+
 #[derive(Clone, Debug)]
 struct OrderedAction {
     action: Action,
@@ -978,6 +1032,13 @@ pub fn step_battle(
     options: BattleOptions,
 ) -> BattleState {
     BattleEngine::default().step_battle(state, actions, rng, options)
+}
+
+pub fn apply_initial_switch_in_effects(
+    state: &BattleState,
+    rng: &mut dyn FnMut() -> f64,
+) -> BattleState {
+    BattleEngine::default().apply_initial_switch_in_effects(state, rng)
 }
 
 pub fn replace_fainted_pokemon(
