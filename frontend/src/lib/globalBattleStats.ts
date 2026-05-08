@@ -73,6 +73,8 @@ const { error } = await supabase.rpc('record_battle_result', {
   p_winner_side: args.winner,
   p_player_team: deckToGlobalTeam(args.hostDeck),
   p_opponent_team: deckToGlobalTeam(args.guestDeck),
+  p_player_user_id: args.host_user_id ?? null,
+  p_opponent_user_id: args.guest_user_id ?? null,
 });
 
     if (error) {
