@@ -18,16 +18,16 @@ export default function TitlePage() {
                 <div className="flex items-center justify-center gap-4 mb-6">
                     <Zap className="size-10 text-[var(--accent)]" strokeWidth={2.5} />
                     <h1 className="text-balance text-6xl sm:text-7xl font-black tracking-tight text-[var(--text-primary)]">
-                        Nikipoke
+                        Nikimon
                     </h1>
                     <Zap className="size-10 text-[var(--accent)]" strokeWidth={2.5} />
                 </div>
 
                 {/* Subtitle */}
                 <p className="text-lg text-[var(--text-secondary)] max-w-sm mx-auto leading-relaxed">
-                    神山まるごと高専2期生版
+                    2期生男子
                     <br />
-                    <span className="text-[var(--text-muted)]">ポケットモンスター バトルシミュレーター</span>
+                    <span className="text-[var(--text-muted)]">ポケモンバトルシミュレーター</span>
                 </p>
 
                 {/* Start Button */}

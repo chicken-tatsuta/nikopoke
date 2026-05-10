@@ -10,4 +10,10 @@ description: 絶対零度の　冷たさで 相手を　攻撃する。 当た�
 steps:
 - type: ohko
   baseAccuracy: 0.3
+  nonMatchingTypeAccuracy: 0.2
+  levelScaling: true
+  requiredType: ice
+  respectTypeImmunity: true
+  immuneTypes:
+  - ice
 tags: []

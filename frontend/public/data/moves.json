@@ -12160,6 +12160,13 @@
     "steps": [
       {
         "baseAccuracy": 0.3,
+        "immuneTypes": [
+          "ice"
+        ],
+        "levelScaling": true,
+        "nonMatchingTypeAccuracy": 0.2,
+        "requiredType": "ice",
+        "respectTypeImmunity": true,
         "type": "ohko"
       }
     ],

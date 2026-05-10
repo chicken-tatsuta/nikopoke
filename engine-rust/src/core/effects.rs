@@ -471,7 +471,7 @@ fn apply_damage(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_
     }
 
     if attacker.ability.as_deref() == Some("parental_bond") {
-        let second_power = (power as f32 * 0.5).floor() as i32;
+        let second_power = (power as f32 * 0.25).floor() as i32;
         // Pass true for is_secondary_hit, parental bond 2nd hit doesn't crit
         let (second_amount, _) = calc_damage(second_power, state, &attacker_id, &target_id, ctx, true, use_defensive_stat, offensive_stat);
         
@@ -1712,7 +1712,19 @@ fn apply_ohko(state: &BattleState, effect: &Effect, ctx: &mut EffectContext<'_>)
         .get("baseAccuracy")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.3);
-    let mut accuracy = base_accuracy;
+    let required_type = effect.data.get("requiredType").and_then(|v| v.as_str());
+    let attacker_has_required_type = required_type
+        .map(|required| attacker.types.iter().any(|ty| ty.eq_ignore_ascii_case(required)))
+        .unwrap_or(true);
+    let mut accuracy = if attacker_has_required_type {
+        base_accuracy
+    } else {
+        effect
+            .data
+            .get("nonMatchingTypeAccuracy")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(base_accuracy)
+    };
     if effect.data.get("levelScaling").and_then(|v| v.as_bool()).unwrap_or(true) {
         accuracy += (attacker.level as f64 - target.level as f64) / 100.0;
     }
