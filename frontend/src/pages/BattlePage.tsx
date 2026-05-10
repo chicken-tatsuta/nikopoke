@@ -2080,7 +2080,52 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 getBattleWeatherClass(battleWeatherId),
             )}>
                 <BattlePopupToast popup={battlePopup} />
-                <div className="flex items-start gap-2 sm:gap-4">
+                <div className="grid grid-cols-[minmax(0,42%)_minmax(0,58%)] gap-2 lg:hidden">
+                    <div className="flex min-h-0 flex-col gap-2">
+                        <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
+                        <div className="h-[21rem] min-h-0">
+                            <BattleLog
+                                logs={battleState.log}
+                                currentTurn={battleState.turn}
+                                className="h-full"
+                                compact
+                            />
+                        </div>
+                        <TeamIndicator team={player.team} activeSlot={player.activeSlot} species={species} isPlayer={true} />
+                    </div>
+
+                    <div className="flex min-w-0 flex-col gap-2">
+                        <PokemonStatus
+                            key={aiPokemon.id}
+                            creature={aiPokemon}
+                            species={aiSpecies}
+                            isPlayer={false}
+                            isAttacking={playback.attackingPlayerId === opponentPlayerId}
+                            isDamaged={playback.damagedPlayerId === opponentPlayerId}
+                            isFainting={playback.faintedCreatureIds.includes(aiPokemon.id)}
+                            effectType={playback.effectType}
+                            statusFlashType={playback.statusFlashPlayerId === opponentPlayerId ? playback.statusFlashType : undefined}
+                        />
+                        <BattleFieldStatusPanel
+                            field={(battleState as BattleStateWithField).field}
+                            localPlayerId={localPlayerId}
+                            opponentPlayerId={opponentPlayerId}
+                        />
+                        <PokemonStatus
+                            key={playerPokemon.id}
+                            creature={playerPokemon}
+                            species={playerSpecies}
+                            isPlayer={true}
+                            isAttacking={playback.attackingPlayerId === localPlayerId}
+                            isDamaged={playback.damagedPlayerId === localPlayerId}
+                            isFainting={playback.faintedCreatureIds.includes(playerPokemon.id)}
+                            effectType={playback.effectType}
+                            statusFlashType={playback.statusFlashPlayerId === localPlayerId ? playback.statusFlashType : undefined}
+                        />
+                    </div>
+                </div>
+
+                <div className="hidden items-start gap-2 sm:gap-4 lg:flex">
                     <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
                     <PokemonStatus
                         key={aiPokemon.id}
@@ -2095,13 +2140,15 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                     />
                 </div>
                 
-                <BattleFieldStatusPanel
-                    field={(battleState as BattleStateWithField).field}
-                    localPlayerId={localPlayerId}
-                    opponentPlayerId={opponentPlayerId}
-                />
+                <div className="hidden lg:block">
+                    <BattleFieldStatusPanel
+                        field={(battleState as BattleStateWithField).field}
+                        localPlayerId={localPlayerId}
+                        opponentPlayerId={opponentPlayerId}
+                    />
+                </div>
 
-                <div className="flex items-end justify-end gap-2 sm:gap-4">
+                <div className="hidden items-end justify-end gap-2 sm:gap-4 lg:flex">
                     <TeamIndicator team={player.team} activeSlot={player.activeSlot} species={species} isPlayer={true} />
                     <PokemonStatus
                         key={playerPokemon.id}
@@ -2296,8 +2343,8 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                 </div>
                 </section>
 
-                <aside className="min-h-0 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 lg:min-h-0">
-            <div ref={logsRef} className="h-48 min-h-0 pr-1 sm:h-56 lg:h-full">
+                <aside className="hidden min-h-0 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 lg:block lg:min-h-0">
+            <div ref={logsRef} className="h-full min-h-0 pr-1">
         <BattleLog
             logs={battleState.log}
             currentTurn={battleState.turn}

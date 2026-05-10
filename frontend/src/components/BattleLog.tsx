@@ -11,6 +11,7 @@ interface BattleLogProps {
     logs: string[];
     currentTurn: number;
     className?: string;
+    compact?: boolean;
 }
 
 // Parse log message to determine its type and enhance display
@@ -102,7 +103,7 @@ function getLogStyle(type: LogEntry['type']) {
     }
 }
 
-export function BattleLog({ logs, currentTurn, className }: BattleLogProps) {
+export function BattleLog({ logs, currentTurn, className, compact = false }: BattleLogProps) {
     const entriesRef = useRef<HTMLDivElement>(null);
     // Parse all logs
     const parsedEntries = logs.map(parseLogEntry);
@@ -119,17 +120,23 @@ export function BattleLog({ logs, currentTurn, className }: BattleLogProps) {
             className
         )}>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-700/50 bg-slate-800/50 px-4 py-2">
-                <h3 className="text-sm font-medium text-slate-200">バトルログ</h3>
-                <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-xs font-medium tabular-nums text-indigo-300">
+            <div className={cn(
+                'flex items-center justify-between border-b border-slate-700/50 bg-slate-800/50',
+                compact ? 'px-2 py-1.5' : 'px-4 py-2',
+            )}>
+                <h3 className={cn('font-medium text-slate-200', compact ? 'text-xs' : 'text-sm')}>バトルログ</h3>
+                <span className={cn(
+                    'rounded-full bg-indigo-500/20 font-medium tabular-nums text-indigo-300',
+                    compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs',
+                )}>
                     ターン {currentTurn}
                 </span>
             </div>
 
             {/* Log entries */}
-            <div ref={entriesRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+            <div ref={entriesRef} className={cn('min-h-0 flex-1 overflow-y-auto', compact ? 'space-y-1 p-1.5' : 'space-y-1 p-2')}>
                 {parsedEntries.length === 0 ? (
-                    <p className="px-2 py-4 text-center text-sm text-slate-500">
+                    <p className={cn('px-2 py-4 text-center text-slate-500', compact ? 'text-xs' : 'text-sm')}>
                         バトル開始！
                     </p>
                 ) : (
@@ -137,7 +144,8 @@ export function BattleLog({ logs, currentTurn, className }: BattleLogProps) {
                         <div
                             key={i}
                             className={cn(
-                                'flex items-start gap-2 rounded-lg border-l-2 px-3 py-1.5 text-sm',
+                                'flex items-start rounded-lg border-l-2',
+                                compact ? 'gap-1 px-1.5 py-1 text-[11px] leading-snug' : 'gap-2 px-3 py-1.5 text-sm',
                                 getLogStyle(entry.type)
                             )}
                         >
