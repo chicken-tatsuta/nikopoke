@@ -10349,7 +10349,9 @@
     "steps": [
       {
         "accuracy": 1,
+        "basePower": 20,
         "power": 20,
+        "powerPerPositiveStage": 20,
         "type": "damage"
       }
     ],

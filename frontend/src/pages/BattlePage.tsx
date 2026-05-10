@@ -786,6 +786,7 @@ function copyActorAfterOwnAction(
     finalState: BattleStateWire,
     playerId: string,
     actionLogs: string[],
+    allowHpDecrease = false,
 ) {
     const pair = activeCreaturePair(draft, finalState, playerId);
     if (!pair) {
@@ -796,7 +797,7 @@ function copyActorAfterOwnAction(
     draftCreature.movePp = { ...finalCreature.movePp };
 
     const loggedDelta = getLoggedHpDelta(actionLogs, draftCreature.name);
-    if (loggedDelta !== null && loggedDelta > 0) {
+    if (loggedDelta !== null && (loggedDelta > 0 || allowHpDecrease)) {
         draftCreature.hp = Math.max(0, Math.min(draftCreature.maxHp, draftCreature.hp + loggedDelta));
     } else if (finalCreature.hp > draftCreature.hp) {
         draftCreature.hp = finalCreature.hp;
@@ -824,9 +825,27 @@ function activeSlotChanged(
     return Boolean(draftPlayer && finalPlayer && draftPlayer.activeSlot !== finalPlayer.activeSlot);
 }
 
+type MoveStepLike = {
+    type?: string;
+    target?: string;
+};
+
+const SELF_ONLY_STEP_TYPES = new Set([
+    'set_atk_max',
+]);
+
+function moveSteps(move: MoveData[string] | undefined): MoveStepLike[] {
+    return (move as { steps?: MoveStepLike[] } | undefined)?.steps ?? [];
+}
+
 function moveHasEffect(move: MoveData[string] | undefined, effectType: string): boolean {
-    const steps = (move as { steps?: Array<{ type?: string }> } | undefined)?.steps ?? [];
+    const steps = moveSteps(move);
     return steps.some((step) => step.type === effectType);
+}
+
+function moveTargetsOnlySelf(move: MoveData[string] | undefined): boolean {
+    const steps = moveSteps(move);
+    return steps.length > 0 && steps.every((step) => step.target === 'self' || SELF_ONLY_STEP_TYPES.has(step.type ?? ''));
 }
 
 function visibleStatuses(statuses: CreatureStateWire['statuses']): CreatureStateWire['statuses'] {
@@ -875,6 +894,10 @@ function getVisualImpactPlayerId(
     const target = findActiveCreature(state, targetId);
     const actor = findActiveCreature(state, action.playerId);
     const move = action.moveId ? moves[action.moveId] : undefined;
+
+    if (moveTargetsOnlySelf(move)) {
+        return actor && getLoggedHpDelta(actionLogs, actor.name) !== null ? action.playerId : undefined;
+    }
 
     if (moveHasEffect(move, 'force_switch')) {
         if (!moveHasEffect(move, 'damage')) {
@@ -1162,6 +1185,7 @@ export default function BattlePage() {
             const isForceSwitchMove = moveHasEffect(move, 'force_switch');
             const isDamagingForceSwitchMove = isForceSwitchMove && moveHasEffect(move, 'damage');
             const isSelfSwitchMove = moveHasEffect(move, 'self_switch');
+            const isSelfOnlyMove = moveTargetsOnlySelf(move);
             const willSelfSwitch = isSelfSwitchMove && activeSlotChanged(stagedState, finalState, action.playerId);
             const isForcedReplacement = isForcedReplacementAction(action, stagedState);
 
@@ -1279,12 +1303,14 @@ export default function BattlePage() {
 
             if (isDamagingForceSwitchMove) {
                 copyCurrentSlotAfterAction(stagedState, finalState, targetId, actionLogs);
+            } else if (isSelfOnlyMove) {
+                copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs, true);
             } else if (!isForceSwitchMove) {
                 copyTargetAfterAction(stagedState, finalState, targetId, actionLogs, hasLaterTargetAction);
             } else {
                 copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
             }
-            if ((!isForceSwitchMove || isDamagingForceSwitchMove) && !willSelfSwitch) {
+            if ((!isForceSwitchMove || isDamagingForceSwitchMove) && !willSelfSwitch && !isSelfOnlyMove) {
                 copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
             }
             setBattleState(cloneBattleState(stagedState));
@@ -2006,7 +2032,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     return (
         <div className="flex min-h-dvh flex-col bg-[var(--surface-1)]">
             <header className="border-b border-[var(--border)] bg-[var(--surface-2)]">
-                <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+                <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-4">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => {
@@ -2022,7 +2048,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                         </button>
                         <span className="font-medium tabular-nums text-[var(--text-primary)]">ターン {battleState.turn}</span>
                     </div>
-<div className="flex items-center gap-3">
+<div className="flex min-w-0 items-center gap-2 sm:gap-3">
   <span className={cn(
     'rounded-full border px-3 py-1 text-xs font-semibold',
     interactionLocked
@@ -2032,7 +2058,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     {battleStatusLabel}
   </span>
 
-  <span className="text-sm text-[var(--text-muted)]">
+  <span className="hidden truncate text-sm text-[var(--text-muted)] sm:inline">
     {battleMode === 'player'
       ? 'VS Player (PeerJS)'
       : aiLevel === 'lv2'
@@ -2048,13 +2074,13 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 )}
             </header>
 
-            <main className="mx-auto grid h-[calc(100dvh-65px)] min-h-0 w-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-4 py-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <main className="mx-auto grid min-h-0 w-full max-w-7xl grid-cols-1 gap-3 overflow-y-auto px-3 py-3 pb-24 lg:h-[calc(100dvh-65px)] lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-4 lg:overflow-hidden lg:px-4 lg:py-4 lg:pb-4">
             <section className={cn(
-                'battle-weather-base relative flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl',
+                'battle-weather-base relative flex min-h-0 flex-col gap-2 overflow-visible rounded-xl lg:overflow-hidden',
                 getBattleWeatherClass(battleWeatherId),
             )}>
                 <BattlePopupToast popup={battlePopup} />
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-2 sm:gap-4">
                     <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
                     <PokemonStatus
                         key={aiPokemon.id}
@@ -2075,7 +2101,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                     opponentPlayerId={opponentPlayerId}
                 />
 
-                <div className="flex items-end gap-4">
+                <div className="flex items-end justify-end gap-2 sm:gap-4">
                     <TeamIndicator team={player.team} activeSlot={player.activeSlot} species={species} isPlayer={true} />
                     <PokemonStatus
                         key={playerPokemon.id}
@@ -2090,7 +2116,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                     />
                 </div>
 
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-2.5 sm:p-3">
                 <div className="mb-2 grid grid-cols-2 gap-2">
     <button
         onClick={() => setCommandMode('fight')}
@@ -2165,21 +2191,21 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                                 onClick={() => handleSelectMove(moveId)}
                                                 disabled={interactionLocked || pp === 0}
                                                 className={cn(
-                                                    'w-full rounded-xl border p-2.5 text-left transition-all',
+                                                    'min-h-[86px] w-full rounded-xl border p-2 text-left transition-all sm:min-h-0 sm:p-2.5',
                                                     interactionLocked || pp === 0
                                                         ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-3)] opacity-50'
                                                         : 'border-[var(--border)] bg-[var(--surface-3)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-4)]',
                                                 )}
                                             >
-                                                <div className="mb-2 flex items-center justify-between gap-2">
+                                                <div className="mb-2 flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
     <span className="min-w-0 flex-1 truncate font-medium text-[var(--text-primary)]">
         {move.name}
     </span>
 
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1">
         {effectivenessLabel && (
             <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${getEffectivenessClass(effectiveness)}`}
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:px-2 ${getEffectivenessClass(effectiveness)}`}
             >
                 {effectivenessLabel}
                 {formatEffectivenessMultiplier(effectiveness)}
@@ -2187,7 +2213,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
         )}
 
 <span
-    className="rounded-full px-2 py-0.5 text-xs text-white"
+    className="rounded-full px-1.5 py-0.5 text-[10px] text-white sm:px-2 sm:text-xs"
     style={{ backgroundColor: getTypeColor(move.type) }}
 >
     {getTypeLabel(move.type)}
@@ -2195,7 +2221,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
     </div>
 </div>
                                     
-                                                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                                                <div className="flex flex-col gap-0.5 text-[11px] text-[var(--text-muted)] sm:flex-row sm:items-center sm:justify-between sm:text-xs">
                                                     <span>{categoryLabel}</span>
                                                     <span>
                                                     威力 {move.power ?? '-'} / 命中 {accuracyLabel}
@@ -2207,7 +2233,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                                 </div>
                                             </button>
                                     
-                                            <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-80 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-2xl group-hover:block group-focus-within:block">
+                                            <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-2xl group-hover:block group-focus-within:block">
                                                 <div className="mb-3 flex items-start justify-between gap-3">
                                                     <div>
                                                         <div className="text-sm font-bold text-[var(--text-primary)]">
@@ -2270,8 +2296,8 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                 </div>
                 </section>
 
-                <aside className="min-h-0 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-            <div ref={logsRef} className="h-full min-h-0 pr-1">
+                <aside className="min-h-0 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 lg:min-h-0">
+            <div ref={logsRef} className="h-48 min-h-0 pr-1 sm:h-56 lg:h-full">
         <BattleLog
             logs={battleState.log}
             currentTurn={battleState.turn}
@@ -2280,14 +2306,15 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
         </aside>
         {!playback.isPlaying && (commandMode === 'pokemon' || mustSwitch) && (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
-        <div className="grid h-[80dvh] w-full max-w-7xl grid-cols-[320px_minmax(0,1fr)_320px] gap-5">
+    <div className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/60 p-3 sm:items-center sm:p-4">
+        <div className="grid max-h-[94dvh] w-full max-w-7xl grid-cols-1 gap-3 overflow-y-auto rounded-2xl sm:gap-4 lg:h-[80dvh] lg:grid-cols-[320px_minmax(0,1fr)_320px] lg:gap-5 lg:overflow-visible">
             {/* Left column: player team list */}
-            <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-4">
+            <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-3 sm:p-4 lg:overflow-hidden">
                 <div className="mb-2 text-sm font-bold text-[var(--text-primary)]">
                     味方チーム
                 </div>
 
+                <div className="grid grid-cols-2 gap-2 lg:block lg:space-y-2">
                 {player.team.map((mon, idx) => {
                     const monSpecies = species[mon.speciesId];
                     const isActive = idx === player.activeSlot;
@@ -2317,10 +2344,11 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                         </button>
                     );
                 })}
+                </div>
             </div>
 
             {/* Center column: focused pokemon detail */}
-            <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-xl bg-[var(--surface-2)] p-6">
+            <div className="grid min-h-0 rounded-xl bg-[var(--surface-2)] p-4 sm:p-5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)] lg:p-6 lg:overflow-hidden">
                 {(() => {
                     const mon = player.team[focusedTeamSlot] ?? player.team[player.activeSlot];
                     const monSpecies = species[mon.speciesId];
@@ -2336,7 +2364,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     return (
                         <>
                             {/* 上段 */}
-                            <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
                                 {/* 左：基本情報 */}
                                 <div className="space-y-4">
                                     <div className="mb-3 flex items-start justify-between gap-3">
@@ -2384,7 +2412,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 </div>
 
                                 {/* 右：種族値 */}
-                                <div className="rounded-xl bg-[var(--surface-3)] p-4">
+                                <div className="rounded-xl bg-[var(--surface-3)] p-3 sm:p-4">
                                     <div className="mb-3 text-sm font-semibold text-[var(--text-muted)]">
                                         種族値
                                     </div>
@@ -2397,7 +2425,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                             const percentage = Math.min(100, (value / max) * 100);
                                             const evPercentage = Math.min(100, ((value + ev) / max) * 100);
                                             return (
-                                                <div className="grid grid-cols-[64px_1fr_40px] items-center gap-2 text-xs">
+                                                <div className="grid grid-cols-[56px_1fr_36px] items-center gap-2 text-xs sm:grid-cols-[64px_1fr_40px]">
                                                     <span className="text-[var(--text-muted)]">{label}</span>
                                                     <div className="relative h-2.5 overflow-hidden rounded-full bg-[var(--surface-4)]">
                                                         {ev > 0 && (
@@ -2438,7 +2466,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     <div className="text-xs text-[var(--text-muted)]">状態</div>
                                     <div className="font-bold text-[var(--text-primary)]">{statusLabel}</div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     {mon.moves?.map((moveId) => {
                                         const move = moves[moveId];
                                         if (!move) return null;
@@ -2477,7 +2505,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
 
             {/* Right column: opponent team list */}
-            <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-4">
+            <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-3 sm:p-4 lg:overflow-hidden">
                 <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="text-sm font-bold text-[var(--text-primary)]">
                         相手チーム
@@ -2487,6 +2515,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     </div>
                 </div>
 
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:block lg:space-y-2">
                 {ai.team.map((mon, idx) => {
                     const monSpecies = species[mon.speciesId];
                     const isActive = idx === ai.activeSlot;
@@ -2563,6 +2592,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                           </div>
                       );
                   })}
+                </div>
               </div>
           </div>
       </div>
@@ -2586,8 +2616,8 @@ function TeamIndicator({
 }) {
     return (
         <div className={cn(
-            'flex flex-col gap-1',
-            isPlayer ? 'items-end' : 'items-start'
+            'flex flex-row gap-1 sm:flex-col',
+            isPlayer ? 'items-end' : 'items-start',
         )}>
             {team.map((mon, idx) => {
                 const hpPercent = mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
@@ -2599,7 +2629,7 @@ function TeamIndicator({
                     <div
                         key={idx}
                         className={cn(
-                            'flex items-center gap-2 rounded-full px-2 py-1 text-xs',
+                            'flex items-center gap-1.5 rounded-full px-1.5 py-1 text-xs sm:gap-2 sm:px-2',
                             isActive ? 'bg-[var(--accent-muted)]' : 'bg-[var(--surface-3)]'
                         )}
                         title={`${monSpecies?.name}: ${mon.hp}/${mon.maxHp} HP`}
@@ -2608,7 +2638,7 @@ function TeamIndicator({
                             'size-2 rounded-full',
                             isFainted ? 'bg-red-500' : isActive ? 'bg-[var(--accent)]' : 'bg-[var(--text-muted)]'
                         )} />
-                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                        <div className="h-1.5 w-8 overflow-hidden rounded-full bg-[var(--surface-4)] sm:w-12">
                             <div
                                 className={cn(
                                     'h-full transition-all duration-700 ease-out',
@@ -2630,13 +2660,13 @@ function BattlePopupToast({ popup }: { popup: BattlePopup | null }) {
     }
 
     const positionClass = popup.side === 'opponent'
-        ? 'left-14 top-3 battle-popup-slide-opponent'
+        ? 'left-3 top-3 battle-popup-slide-opponent sm:left-14'
         : popup.side === 'player'
-            ? 'right-4 bottom-48 battle-popup-slide-player'
+            ? 'right-3 bottom-28 battle-popup-slide-player sm:right-4 sm:bottom-48'
             : 'right-4 top-1/2 -translate-y-1/2 battle-popup-slide';
 
     return (
-        <div className={cn('pointer-events-none absolute z-30 w-[min(360px,calc(100%-2rem))]', positionClass)}>
+        <div className={cn('pointer-events-none absolute z-30 w-[min(320px,calc(100%-1.5rem))] sm:w-[min(360px,calc(100%-2rem))]', positionClass)}>
             <div className={cn(
                 'rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-md',
                 popup.tone === 'ability'
@@ -2679,10 +2709,10 @@ function PokemonStatus({
     const statusFlashColor = statusFlashType ? STATUS_FLASH_COLORS[statusFlashType] : undefined;
 
     return (
-        <div className={cn('flex-1', isPlayer ? 'text-right' : 'text-left')}>
+        <div className={cn('min-w-0 flex-1', isPlayer ? 'text-right' : 'text-left')}>
             <div
                 className={cn(
-                    'relative inline-block min-w-64 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 transition-all duration-300',
+                    'relative inline-block w-full max-w-[22rem] rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 transition-all duration-300 sm:min-w-64 sm:p-4',
                     isAttacking && (isPlayer ? 'battle-lunge-player' : 'battle-lunge-opponent'),
                     isDamaged && 'battle-shake',
                     isFainting && 'battle-faint',
@@ -2694,8 +2724,8 @@ function PokemonStatus({
                         style={{ borderColor: typeColor, boxShadow: `0 0 28px ${typeColor}` }}
                     />
                 )}
-                <div className={cn('flex items-center gap-3', isPlayer ? 'flex-row-reverse' : '')}>
-                    <div className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
+                <div className={cn('flex items-center gap-2 sm:gap-3', isPlayer ? 'flex-row-reverse' : '')}>
+                    <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)] sm:size-24">
                         <img
                             src={portraitSrc}
                             alt={species?.name || creature.name}
@@ -2716,13 +2746,13 @@ function PokemonStatus({
                             isPlayer ? 'right-1 bg-blue-400' : 'left-1 bg-red-400',
                         )} />
                     </div>
-                    <div className={isPlayer ? 'text-right' : ''}>
-                        <h3 className="text-balance text-lg font-bold text-[var(--text-primary)]">{species?.name || creature.name}</h3>
-                        <div className={cn('flex gap-1', isPlayer ? 'justify-end' : '')}>
+                    <div className={cn('min-w-0', isPlayer ? 'text-right' : '')}>
+                        <h3 className="truncate text-base font-bold text-[var(--text-primary)] sm:text-balance sm:text-lg">{species?.name || creature.name}</h3>
+                        <div className={cn('flex flex-wrap gap-1', isPlayer ? 'justify-end' : '')}>
                         {(creature.types || species?.type || []).map((t) => (
     <span
         key={t}
-        className="rounded-full px-2 py-0.5 text-xs text-white"
+        className="rounded-full px-1.5 py-0.5 text-[10px] text-white sm:px-2 sm:text-xs"
         style={{ backgroundColor: getTypeColor(t) }}
     >
         {getTypeLabel(t)}

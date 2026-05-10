@@ -46,6 +46,7 @@ pub fn ability_label(ability: &str) -> &str {
         "libero" => "リベロ",
         "receiver" => "レシーバー",
         "power_of_alchemy" => "かがくのちから",
+        "slow_start" => "スロースタート",
         "magic_bounce" => "マジックミラー",
         "aroma_veil" => "アロマベール",
         "lightning_rod" => "ひらいしん",
@@ -62,6 +63,13 @@ pub fn ability_label(ability: &str) -> &str {
 fn ability_activation_log(creature_name: &str, ability: &str) -> BattleEvent {
     BattleEvent::Log {
         message: format!("{}の 特性『{}』！", creature_name, ability_label(ability)),
+        meta: Map::new(),
+    }
+}
+
+pub fn slow_start_log(creature_name: &str) -> BattleEvent {
+    BattleEvent::Log {
+        message: format!("{}は 調子が 上がらない！", creature_name),
         meta: Map::new(),
     }
 }
@@ -321,6 +329,15 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
                 override_action: None,
             }
         }
+        ("slow_start", "onSwitchIn") => AbilityHookResult {
+            state: None,
+            events: vec![
+                ability_activation_log(&active.name, ability),
+                slow_start_log(&active.name),
+            ],
+            prevent_action: false,
+            override_action: None,
+        },
         ("moody", "onTurnEnd") => {
             let stats = ["atk", "def", "spa", "spd", "spe"];
             let up_index = (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();

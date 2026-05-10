@@ -9,7 +9,9 @@ priority: 0
 description: 自分の　強さを　鼻高々に 攻撃する。自分の　能力が あがって　いるほど　威力が　あがる。
 steps:
 - type: damage
+  basePower: 20
   power: 20
+  powerPerPositiveStage: 20
   accuracy: 1.0
 tags:
 - contact

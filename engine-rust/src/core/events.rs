@@ -591,6 +591,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         None => format!("{}の 特性が 消えた！", active.name),
                     };
                     next.log.push(message);
+                    if ability_id.as_deref() == Some("slow_start") {
+                        next.log.push(format!("{}は 調子が 上がらない！", active.name));
+                    }
                 }
             }
         }
@@ -617,8 +620,16 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         }
                     }
                 }
-                next.players[left_idx].team[left_slot].ability = right_current;
-                next.players[right_idx].team[right_slot].ability = left_current;
+                next.players[left_idx].team[left_slot].ability = right_current.clone();
+                next.players[right_idx].team[right_slot].ability = left_current.clone();
+                if right_current.as_deref() == Some("slow_start") {
+                    let name = next.players[left_idx].team[left_slot].name.clone();
+                    next.log.push(format!("{}は 調子が 上がらない！", name));
+                }
+                if left_current.as_deref() == Some("slow_start") {
+                    let name = next.players[right_idx].team[right_slot].name.clone();
+                    next.log.push(format!("{}は 調子が 上がらない！", name));
+                }
             }
         }
         BattleEvent::SetItem {
