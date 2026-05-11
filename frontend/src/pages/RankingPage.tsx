@@ -47,7 +47,7 @@ export default function RankingPage() {
     return (
         <div className="min-h-dvh bg-[var(--surface-1)]">
             <header className="border-b border-[var(--border)] bg-[var(--surface-2)]">
-                <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
+                <div className="mx-auto flex max-w-5xl items-center gap-3 px-3 py-4 sm:gap-4 sm:px-6">
                     <button
                         onClick={() => navigate('/home')}
                         className="rounded-lg p-2 transition-colors hover:bg-[var(--surface-3)]"
@@ -65,48 +65,52 @@ export default function RankingPage() {
                 </div>
             </header>
 
-            <main className="mx-auto max-w-5xl px-6 py-8">
+            <main className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-8">
                 <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
-                    <div className="grid grid-cols-[64px_1fr_80px_80px_92px] gap-3 border-b border-[var(--border)] bg-[var(--surface-3)] px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">
-                        <span>順位</span>
-                        <span>トレーナー</span>
-                        <span className="text-right">勝利</span>
-                        <span className="text-right">敗北</span>
-                        <span className="text-right">勝率</span>
-                    </div>
+                    <div className="max-h-[calc(100dvh-150px)] overflow-auto">
+                        <div className="min-w-[330px]">
+                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_46px_46px_58px] gap-2 border-b border-[var(--border)] bg-[var(--surface-3)] px-3 py-3 text-xs font-semibold text-[var(--text-muted)] sm:grid-cols-[64px_1fr_80px_80px_92px] sm:gap-3 sm:px-4">
+                                <span>順位</span>
+                                <span>トレーナー</span>
+                                <span className="text-right">勝利</span>
+                                <span className="text-right">敗北</span>
+                                <span className="text-right">勝率</span>
+                            </div>
 
-                    {loading ? (
-                        <div className="px-4 py-12 text-center text-[var(--text-muted)]">読み込み中...</div>
-                    ) : error ? (
-                        <div className="px-4 py-12 text-center text-red-300">{error}</div>
-                    ) : !supabase ? (
-                        <div className="px-4 py-12 text-center text-[var(--text-muted)]">Supabase が設定されていません。</div>
-                    ) : profiles.length === 0 ? (
-                        <div className="px-4 py-12 text-center text-[var(--text-muted)]">まだランキングデータがありません。</div>
-                    ) : (
-                        <div className="divide-y divide-[var(--border)]">
-                            {profiles.map((profile, index) => {
-                                const isCurrentUser = user?.id === profile.id;
-                                return (
-                                    <div
-                                        key={profile.id}
-                                        className={`grid grid-cols-[64px_1fr_80px_80px_92px] gap-3 px-4 py-3 text-sm ${isCurrentUser
-                                            ? 'bg-[var(--accent-muted)] text-[var(--text-primary)]'
-                                            : 'text-[var(--text-secondary)]'
-                                            }`}
-                                    >
-                                        <span className="font-semibold tabular-nums">{index + 1}位</span>
-                                        <span className="min-w-0 truncate font-medium text-[var(--text-primary)]">
-                                            {profile.username}
-                                        </span>
-                                        <span className="text-right tabular-nums">{profile.win_count}</span>
-                                        <span className="text-right tabular-nums">{profile.loss_count}</span>
-                                        <span className="text-right tabular-nums">{getWinRate(profile).toFixed(1)}%</span>
-                                    </div>
-                                );
-                            })}
+                            {loading ? (
+                                <div className="px-4 py-12 text-center text-[var(--text-muted)]">読み込み中...</div>
+                            ) : error ? (
+                                <div className="px-4 py-12 text-center text-red-300">{error}</div>
+                            ) : !supabase ? (
+                                <div className="px-4 py-12 text-center text-[var(--text-muted)]">Supabase が設定されていません。</div>
+                            ) : profiles.length === 0 ? (
+                                <div className="px-4 py-12 text-center text-[var(--text-muted)]">まだランキングデータがありません。</div>
+                            ) : (
+                                <div className="divide-y divide-[var(--border)]">
+                                    {profiles.map((profile, index) => {
+                                        const isCurrentUser = user?.id === profile.id;
+                                        return (
+                                            <div
+                                                key={profile.id}
+                                                className={`grid grid-cols-[44px_minmax(0,1fr)_46px_46px_58px] gap-2 px-3 py-3 text-xs sm:grid-cols-[64px_1fr_80px_80px_92px] sm:gap-3 sm:px-4 sm:text-sm ${isCurrentUser
+                                                    ? 'bg-[var(--accent-muted)] text-[var(--text-primary)]'
+                                                    : 'text-[var(--text-secondary)]'
+                                                    }`}
+                                            >
+                                                <span className="font-semibold tabular-nums">{index + 1}位</span>
+                                                <span className="min-w-0 truncate font-medium text-[var(--text-primary)]">
+                                                    {profile.username}
+                                                </span>
+                                                <span className="text-right tabular-nums">{profile.win_count}</span>
+                                                <span className="text-right tabular-nums">{profile.loss_count}</span>
+                                                <span className="text-right tabular-nums">{getWinRate(profile).toFixed(1)}%</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </section>
             </main>
         </div>

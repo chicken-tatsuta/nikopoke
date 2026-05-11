@@ -58,7 +58,7 @@ export default function HomePage() {
         <div className="min-h-dvh bg-[var(--surface-1)]">
             <header className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                 <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-                    <h1 className="text-xl font-bold text-[var(--text-primary)]">Nikipoke</h1>
+                    <h1 className="text-xl font-bold text-[var(--text-primary)]">Nikimon</h1>
                     <span className="text-sm text-[var(--text-muted)]">
                         ようこそ、{profile?.username ?? 'トレーナー'}！
                     </span>
