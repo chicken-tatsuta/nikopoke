@@ -7,14 +7,10 @@ import { useAuth } from '../contexts/AuthContext';
 type RankingProfile = {
     id: string;
     username: string;
+    rating: number;
     win_count: number;
     loss_count: number;
 };
-
-function getWinRate(profile: RankingProfile): number {
-    const total = profile.win_count + profile.loss_count;
-    return total > 0 ? (profile.win_count / total) * 100 : 0;
-}
 
 export default function RankingPage() {
     const navigate = useNavigate();
@@ -30,8 +26,8 @@ export default function RankingPage() {
 
         supabase
             .from('profiles')
-            .select('id, username, win_count, loss_count')
-            .order('win_count', { ascending: false })
+            .select('id, username, rating, win_count, loss_count')
+            .order('rating', { ascending: false })
             .limit(50)
             .then(({ data, error: loadError }) => {
                 if (loadError) {
@@ -60,7 +56,7 @@ export default function RankingPage() {
                             <Trophy className="size-5 text-[var(--accent)]" />
                             ランキング
                         </h1>
-                        <p className="text-sm text-[var(--text-muted)]">勝利数が多いトレーナー上位50人</p>
+                        <p className="text-sm text-[var(--text-muted)]">レートが高いトレーナー上位50人</p>
                     </div>
                 </div>
             </header>
@@ -69,12 +65,12 @@ export default function RankingPage() {
                 <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
                     <div className="max-h-[calc(100dvh-150px)] overflow-auto">
                         <div className="min-w-[330px]">
-                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_46px_46px_58px] gap-2 border-b border-[var(--border)] bg-[var(--surface-3)] px-3 py-3 text-xs font-semibold text-[var(--text-muted)] sm:grid-cols-[64px_1fr_80px_80px_92px] sm:gap-3 sm:px-4">
+                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_64px_42px_42px] gap-2 border-b border-[var(--border)] bg-[var(--surface-3)] px-3 py-3 text-xs font-semibold text-[var(--text-muted)] sm:grid-cols-[64px_1fr_92px_80px_80px] sm:gap-3 sm:px-4">
                                 <span>順位</span>
                                 <span>トレーナー</span>
+                                <span className="text-right">レート</span>
                                 <span className="text-right">勝利</span>
                                 <span className="text-right">敗北</span>
-                                <span className="text-right">勝率</span>
                             </div>
 
                             {loading ? (
@@ -92,7 +88,7 @@ export default function RankingPage() {
                                         return (
                                             <div
                                                 key={profile.id}
-                                                className={`grid grid-cols-[44px_minmax(0,1fr)_46px_46px_58px] gap-2 px-3 py-3 text-xs sm:grid-cols-[64px_1fr_80px_80px_92px] sm:gap-3 sm:px-4 sm:text-sm ${isCurrentUser
+                                                className={`grid grid-cols-[44px_minmax(0,1fr)_64px_42px_42px] gap-2 px-3 py-3 text-xs sm:grid-cols-[64px_1fr_92px_80px_80px] sm:gap-3 sm:px-4 sm:text-sm ${isCurrentUser
                                                     ? 'bg-[var(--accent-muted)] text-[var(--text-primary)]'
                                                     : 'text-[var(--text-secondary)]'
                                                     }`}
@@ -101,9 +97,9 @@ export default function RankingPage() {
                                                 <span className="min-w-0 truncate font-medium text-[var(--text-primary)]">
                                                     {profile.username}
                                                 </span>
+                                                <span className="text-right font-semibold tabular-nums text-[var(--text-primary)]">{profile.rating ?? 1500}</span>
                                                 <span className="text-right tabular-nums">{profile.win_count}</span>
                                                 <span className="text-right tabular-nums">{profile.loss_count}</span>
-                                                <span className="text-right tabular-nums">{getWinRate(profile).toFixed(1)}%</span>
                                             </div>
                                         );
                                     })}

@@ -1139,6 +1139,34 @@ export default function BattlePage() {
         }
     }, [showBattlePopup]);
 
+    const uploadOnlineBattleResult = useCallback((winnerSideForHost: 'player' | 'opponent') => {
+        if (
+            battleRecordSavedRef.current ||
+            battleMode !== 'player'
+        ) {
+            return;
+        }
+
+        const localIsHost = localPlayerIdRef.current === 'host';
+        const hostDeck = localIsHost ? localDeckRef.current : opponentDeckRef.current;
+        const guestDeck = localIsHost ? opponentDeckRef.current : localDeckRef.current;
+
+        if (!hostDeck || !guestDeck) {
+            return;
+        }
+
+        battleRecordSavedRef.current = true;
+        void uploadGlobalBattleRecord({
+            id: battleStatsIdRef.current,
+            winner: winnerSideForHost,
+            hostDeck,
+            guestDeck,
+            host_user_id: localIsHost ? (user?.id ?? null) : onlineSnapshot.remoteUserId,
+            guest_user_id: localIsHost ? onlineSnapshot.remoteUserId : (user?.id ?? null),
+            mode: battleMode,
+        });
+    }, [battleMode, onlineSnapshot.remoteUserId, user?.id]);
+
     const playBattleResolution = useCallback(async (
         startState: BattleStateWire,
         finalState: BattleStateWire,
@@ -1428,31 +1456,21 @@ export default function BattlePage() {
     
         const winner = getWinner(nextState);
 
-        const winnerSide =
-            winner === localPlayerIdRef.current
+        const winnerSideForHost =
+            winner === 'host'
                 ? 'player'
-                : winner === opponentPlayerIdRef.current
+                : winner === 'guest'
                   ? 'opponent'
                   : null;
         const shouldUploadStats =
             !battleRecordSavedRef.current &&
-            winnerSide &&
+            winnerSideForHost &&
             localDeckRef.current &&
             opponentDeckRef.current &&
-            battleMode === 'player' &&
-            localPlayerIdRef.current === 'host';
+            battleMode === 'player';
 
         if (shouldUploadStats) {
-            battleRecordSavedRef.current = true;
-            void uploadGlobalBattleRecord({
-                id: battleStatsIdRef.current,
-                winner: winnerSide,
-                hostDeck: localDeckRef.current,
-                guestDeck: opponentDeckRef.current,
-                host_user_id: user?.id ?? null,
-                guest_user_id: onlineSnapshot.remoteUserId,
-                mode: battleMode,
-            });
+            uploadOnlineBattleResult(winnerSideForHost);
         }
 
         const resultPayload = {
@@ -1471,7 +1489,7 @@ export default function BattlePage() {
         }, 1500);
 
         return true;
-    }, [battleMode, navigate, onlineSnapshot.remoteUserId, user?.id]);
+    }, [battleMode, navigate, uploadOnlineBattleResult]);
 
     const resetBattlePersistenceState = useCallback(() => {
         battleRecordSavedRef.current = false;
@@ -1616,8 +1634,26 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'peer_left') {
-                setStatusText('相手との接続が切れました。');
+                const winnerSideForHost = localPlayerIdRef.current === 'host' ? 'player' : 'opponent';
+                const currentState = battleStateRef.current;
+                const disconnectLog = '相手の切断により あなたの勝ちです。';
+                const logs = currentState ? [...currentState.log, disconnectLog] : [disconnectLog];
+
+                uploadOnlineBattleResult(winnerSideForHost);
+                setStatusText('相手が切断しました。あなたの勝ちです。');
                 setWaiting(false);
+                window.setTimeout(() => {
+                    navigate('/result', {
+                        state: {
+                            battleMode,
+                            result: {
+                                winner: localPlayerIdRef.current,
+                                localPlayerId: localPlayerIdRef.current,
+                                logs,
+                            },
+                        },
+                    });
+                }, 1000);
                 return;
             }
             if (event.type === 'error') {
@@ -1625,7 +1661,7 @@ export default function BattlePage() {
                 setWaiting(false);
             }
         });
-    }, [battleMode, finishBattle, playBattleResolution, resolveForcedSwitch, resolveHostTurn]);
+    }, [battleMode, finishBattle, navigate, playBattleResolution, resolveForcedSwitch, resolveHostTurn, uploadOnlineBattleResult]);
 
     useEffect(() => {
         if (loading || initializedRef.current) {

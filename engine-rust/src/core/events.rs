@@ -515,7 +515,16 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         BattleEvent::Switch { player_id, slot } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
                 if *slot < player.team.len() {
+                    let mut baton_pass_stages = None;
                     if let Some(outgoing) = player.team.get_mut(player.active_slot) {
+                        if outgoing
+                            .volatile_data
+                            .get("batonPass")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
+                            baton_pass_stages = Some(outgoing.stages.clone());
+                        }
                         outgoing.stages = StatStages::default();
                         // Non-volatile statuses that persist on switch.
                         let non_volatile = ["burn", "poison", "toxic", "paralysis", "freeze", "sleep"];
@@ -534,6 +543,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     }
                     player.active_slot = *slot;
                     if let Some(incoming) = player.team.get_mut(player.active_slot) {
+                        if let Some(stages) = baton_pass_stages {
+                            incoming.stages = stages;
+                        }
                         incoming.statuses.retain(|s| s.id != "pending_switch");
                         incoming
                             .volatile_data
@@ -963,5 +975,103 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
         | BattleEvent::AverageStats { meta, .. }
         | BattleEvent::SwapAttackDefense { meta, .. } => Some(meta),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::state::{BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages};
+    use std::collections::HashMap;
+
+    fn test_creature(id: &str) -> CreatureState {
+        CreatureState {
+            id: id.to_string(),
+            species_id: id.to_string(),
+            name: id.to_string(),
+            level: 50,
+            types: vec!["normal".to_string()],
+            moves: Vec::new(),
+            ability: None,
+            item: None,
+            evs: EVStats::default(),
+            hp: 100,
+            max_hp: 100,
+            stages: StatStages::default(),
+            statuses: Vec::new(),
+            move_pp: HashMap::new(),
+            ability_data: HashMap::new(),
+            volatile_data: HashMap::new(),
+            attack: 100,
+            defense: 100,
+            sp_attack: 100,
+            sp_defense: 100,
+            speed: 100,
+            weight_kg: 50.0,
+        }
+    }
+
+    fn test_state() -> BattleState {
+        BattleState {
+            players: vec![PlayerState {
+                id: "player".to_string(),
+                name: "player".to_string(),
+                team: vec![test_creature("outgoing"), test_creature("incoming")],
+                active_slot: 0,
+                last_fainted_ability: None,
+            }],
+            field: FieldState {
+                global: Vec::new(),
+                sides: HashMap::new(),
+            },
+            turn: 1,
+            log: Vec::new(),
+            history: None,
+        }
+    }
+
+    #[test]
+    fn baton_pass_switch_carries_stat_stages_to_incoming_creature() {
+        let mut state = test_state();
+        state.players[0].team[0].stages.atk = 2;
+        state.players[0].team[0].stages.def = -1;
+        state.players[0].team[0].stages.spe = 3;
+        state.players[0].team[0]
+            .volatile_data
+            .insert("batonPass".to_string(), Value::Bool(true));
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        let outgoing = &next.players[0].team[0];
+        let incoming = &next.players[0].team[1];
+        assert_eq!(outgoing.stages.atk, 0);
+        assert_eq!(incoming.stages.atk, 2);
+        assert_eq!(incoming.stages.def, -1);
+        assert_eq!(incoming.stages.spe, 3);
+    }
+
+    #[test]
+    fn normal_switch_resets_stat_stages_without_carrying_them() {
+        let mut state = test_state();
+        state.players[0].team[0].stages.atk = 2;
+        state.players[0].team[0].stages.spe = 3;
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        assert_eq!(next.players[0].team[0].stages.atk, 0);
+        assert_eq!(next.players[0].team[1].stages.atk, 0);
+        assert_eq!(next.players[0].team[1].stages.spe, 0);
     }
 }

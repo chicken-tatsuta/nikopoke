@@ -2153,7 +2153,16 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
         return Vec::new();
     }
 
-    apply_pending_switch(&ctx.attacker_player_id, ctx)
+    let mut events = Vec::new();
+    if ctx.move_data.is_some_and(|move_data| move_data.id == "baton_pass") {
+        events.push(BattleEvent::SetVolatile {
+            target_id: ctx.attacker_player_id.clone(),
+            key: "batonPass".to_string(),
+            value: Value::Bool(true),
+        });
+    }
+    events.extend(apply_pending_switch(&ctx.attacker_player_id, ctx));
+    events
 }
 
 fn move_has_damage_step(move_data: &MoveData) -> bool {
@@ -3269,6 +3278,30 @@ mod tests {
         assert!(events.iter().any(|event| matches!(
             event,
             BattleEvent::Damage { target_id, amount, .. } if target_id == "player" && *amount == -5
+        )));
+    }
+
+    #[test]
+    fn baton_pass_self_switch_marks_next_switch_to_carry_stages() {
+        let mut state = test_state();
+        state.players[0].team.push(test_creature("bench"));
+        let type_chart = TypeChart::new();
+        let mut move_data = test_move();
+        move_data.id = "baton_pass".to_string();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+
+        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::SetVolatile { target_id, key, value }
+                if target_id == "player" && key == "batonPass" && value.as_bool() == Some(true)
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::ApplyStatus { target_id, status_id, .. }
+                if target_id == "player" && status_id == "pending_switch"
         )));
     }
 }

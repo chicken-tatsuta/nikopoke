@@ -1,64 +1,89 @@
-create table if not exists public.battle_stat_events (
-  id text primary key,
-  mode text not null check (mode in ('ai', 'player')),
-  winner_side text not null check (winner_side in ('player', 'opponent')),
-  player_user_id uuid references auth.users(id) on delete set null,
-  opponent_user_id uuid references auth.users(id) on delete set null,
-  player_team jsonb not null,
-  opponent_team jsonb not null,
-  created_at timestamptz not null default now()
-);
+alter table public.profiles
+  add column if not exists rating integer not null default 1500;
 
-alter table public.battle_stat_events
-  add column if not exists player_user_id uuid references auth.users(id) on delete set null,
-  add column if not exists opponent_user_id uuid references auth.users(id) on delete set null;
+create index if not exists idx_profiles_rating
+  on public.profiles (rating desc);
 
-create table if not exists public.pokemon_usage_stats (
-  species_id text primary key,
-  used_count integer not null default 0,
-  win_count integer not null default 0,
-  loss_count integer not null default 0,
-  updated_at timestamptz not null default now()
-);
+create or replace function public.rating_delta(
+  p_rating integer,
+  p_opponent_rating integer,
+  p_score numeric
+)
+returns integer
+language sql
+immutable
+as $$
+  select case
+    when p_score >= 1 then greatest(1, round(40 * (1 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
+    else least(-1, round(40 * (0 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
+  end
+$$;
 
-create table if not exists public.pokemon_move_usage_stats (
-  species_id text not null,
-  move_id text not null,
-  used_count integer not null default 0,
-  updated_at timestamptz not null default now(),
-  primary key (species_id, move_id)
-);
+create or replace function public.apply_profile_rating_result(
+  p_winner_user_id uuid,
+  p_loser_user_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  winner_rating integer;
+  loser_rating integer;
+  winner_delta integer;
+  loser_delta integer;
+begin
+  if p_winner_user_id is null and p_loser_user_id is null then
+    return;
+  end if;
 
-create index if not exists idx_pokemon_usage_stats_used_count
-  on public.pokemon_usage_stats (used_count desc);
+  if p_winner_user_id is not null then
+    select rating into winner_rating from public.profiles where id = p_winner_user_id;
+  end if;
+  if p_loser_user_id is not null then
+    select rating into loser_rating from public.profiles where id = p_loser_user_id;
+  end if;
 
-create index if not exists idx_pokemon_move_usage_stats_species_id
-  on public.pokemon_move_usage_stats (species_id);
+  winner_rating := coalesce(winner_rating, 1500);
+  loser_rating := coalesce(loser_rating, 1500);
+  winner_delta := public.rating_delta(winner_rating, loser_rating, 1);
+  loser_delta := public.rating_delta(loser_rating, winner_rating, 0);
 
-alter table public.battle_stat_events enable row level security;
-alter table public.pokemon_usage_stats enable row level security;
-alter table public.pokemon_move_usage_stats enable row level security;
+  if p_winner_user_id is not null then
+    update public.profiles
+    set
+      win_count = win_count + 1,
+      rating = greatest(0, rating + winner_delta)
+    where id = p_winner_user_id;
+  end if;
 
-drop policy if exists "Anyone can read battle stat events" on public.battle_stat_events;
-create policy "Anyone can read battle stat events"
-  on public.battle_stat_events
-  for select
-  to anon, authenticated
-  using (true);
+  if p_loser_user_id is not null then
+    update public.profiles
+    set
+      loss_count = loss_count + 1,
+      rating = greatest(0, rating + loser_delta)
+    where id = p_loser_user_id;
+  end if;
+end;
+$$;
 
-drop policy if exists "Anyone can read pokemon usage stats" on public.pokemon_usage_stats;
-create policy "Anyone can read pokemon usage stats"
-  on public.pokemon_usage_stats
-  for select
-  to anon, authenticated
-  using (true);
+create or replace function public.apply_battle_record_profile_counts()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.winner = 'host' then
+    perform public.apply_profile_rating_result(new.host_user_id, new.guest_user_id);
+  elsif new.winner = 'guest' then
+    perform public.apply_profile_rating_result(new.guest_user_id, new.host_user_id);
+  end if;
 
-drop policy if exists "Anyone can read pokemon move usage stats" on public.pokemon_move_usage_stats;
-create policy "Anyone can read pokemon move usage stats"
-  on public.pokemon_move_usage_stats
-  for select
-  to anon, authenticated
-  using (true);
+  return new;
+end;
+$$;
 
 create or replace function public.record_battle_result(
   p_battle_id text,
@@ -188,42 +213,13 @@ begin
     updated_at = now();
 
   if p_winner_side = 'player' then
-    if p_player_user_id is not null then
-      update public.profiles
-      set
-        win_count = win_count + 1,
-        rating = rating + 20
-      where id = p_player_user_id;
-    end if;
-
-    if p_opponent_user_id is not null then
-      update public.profiles
-      set
-        loss_count = loss_count + 1,
-        rating = greatest(0, rating - 20)
-      where id = p_opponent_user_id;
-    end if;
+    perform public.apply_profile_rating_result(p_player_user_id, p_opponent_user_id);
   elsif p_winner_side = 'opponent' then
-    if p_opponent_user_id is not null then
-      update public.profiles
-      set
-        win_count = win_count + 1,
-        rating = rating + 20
-      where id = p_opponent_user_id;
-    end if;
-
-    if p_player_user_id is not null then
-      update public.profiles
-      set
-        loss_count = loss_count + 1,
-        rating = greatest(0, rating - 20)
-      where id = p_player_user_id;
-    end if;
+    perform public.apply_profile_rating_result(p_opponent_user_id, p_player_user_id);
   end if;
 end;
 $$;
 
-grant select on table public.battle_stat_events to anon, authenticated;
-grant select on table public.pokemon_usage_stats to anon, authenticated;
-grant select on table public.pokemon_move_usage_stats to anon, authenticated;
+grant execute on function public.rating_delta(integer, integer, numeric) to anon, authenticated;
+grant execute on function public.apply_profile_rating_result(uuid, uuid) to anon, authenticated;
 grant execute on function public.record_battle_result(text, text, text, jsonb, jsonb, uuid, uuid) to anon, authenticated;

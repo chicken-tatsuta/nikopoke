@@ -12,6 +12,7 @@ export type SavedDeck = {
 export type Profile = {
     id: string;
     username: string;
+    rating: number;
     win_count: number;
     loss_count: number;
     current_deck: DeckPokemon[] | null;
@@ -36,6 +37,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function normalizeProfile(row: Profile): Profile {
     return {
         ...row,
+        rating: Number(row.rating ?? 1500),
         current_deck: Array.isArray(row.current_deck) ? row.current_deck : null,
         saved_decks: Array.isArray(row.saved_decks) ? row.saved_decks : [],
     };
@@ -46,7 +48,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
 
     const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, win_count, loss_count, current_deck, saved_decks')
+        .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
         .eq('id', userId)
         .maybeSingle();
 
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .upsert({
                     id: data.user.id,
                     username,
+                    rating: 1500,
                     win_count: 0,
                     loss_count: 0,
                     saved_decks: [],
@@ -150,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from('profiles')
             .update(updates)
             .eq('id', session.user.id)
-            .select('id, username, win_count, loss_count, current_deck, saved_decks')
+            .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
             .single();
 
         if (error) throw error;
