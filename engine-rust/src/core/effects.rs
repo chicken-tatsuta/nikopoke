@@ -25,6 +25,7 @@ pub struct EffectContext<'a> {
     pub ignore_ability: bool,
     pub is_sound: bool,
     pub last_damage: Option<i32>,
+    pub switch_slot: Option<usize>,
 }
 
 pub fn apply_effects(state: &BattleState, steps: &[Effect], ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
@@ -2161,6 +2162,16 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
             value: Value::Bool(true),
         });
     }
+    if let Some(slot) = ctx.switch_slot {
+        if slot < player.team.len() && slot != player.active_slot && player.team[slot].hp > 0 {
+            events.push(BattleEvent::Switch {
+                player_id: ctx.attacker_player_id.clone(),
+                slot,
+            });
+            return events;
+        }
+    }
+
     events.extend(apply_pending_switch(&ctx.attacker_player_id, ctx));
     events
 }
@@ -3208,6 +3219,7 @@ mod tests {
             ignore_ability: false,
             is_sound: false,
             last_damage: None,
+            switch_slot: None,
         }
     }
 
@@ -3299,6 +3311,29 @@ mod tests {
                 if target_id == "player" && key == "batonPass" && value.as_bool() == Some(true)
         )));
         assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::ApplyStatus { target_id, status_id, .. }
+                if target_id == "player" && status_id == "pending_switch"
+        )));
+    }
+
+    #[test]
+    fn self_switch_with_selected_slot_switches_immediately() {
+        let mut state = test_state();
+        state.players[0].team.push(test_creature("bench"));
+        let type_chart = TypeChart::new();
+        let move_data = test_move();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+        ctx.switch_slot = Some(1);
+
+        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::Switch { player_id, slot } if player_id == "player" && *slot == 1
+        )));
+        assert!(!events.iter().any(|event| matches!(
             event,
             BattleEvent::ApplyStatus { target_id, status_id, .. }
                 if target_id == "player" && status_id == "pending_switch"

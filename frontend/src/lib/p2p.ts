@@ -123,6 +123,7 @@ const PEER_OPTIONS = {
         ],
     },
 };
+const JOIN_TIMEOUT_MS = 30000;
 const ROOM_CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 export function normalizeRoomCode(code: string): string {
@@ -381,14 +382,35 @@ function setupPeerCommon(peer: Peer): void {
 
     peer.on('disconnected', () => {
         console.warn('[p2p] peer disconnected');
-        if (session.status !== 'error') {
-            session.status = 'disconnected';
+
+        if (session.peer !== peer || peer.destroyed || session.status === 'error') {
+            return;
+        }
+
+        if (!session.connection?.open) {
+            session.status = session.role === 'host'
+                ? 'hosting'
+                : session.role === 'guest'
+                  ? 'joining'
+                  : 'disconnected';
             emitSnapshot();
+        }
+
+        try {
+            peer.reconnect();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'PeerJS の再接続に失敗しました。';
+            setError(message);
         }
     });
 
     peer.on('close', () => {
         console.warn('[p2p] peer closed');
+        if (session.peer !== peer || session.connection?.open || session.status === 'error') {
+            return;
+        }
+        session.status = 'disconnected';
+        emitSnapshot();
     });
 }
 
@@ -505,7 +527,7 @@ export async function joinHostSession(
             rejectOnce(
                 new Error('接続がタイムアウトしました。部屋IDが正しいか、ホスト側の画面が開いたままか確認してください。'),
             );
-        }, 15000);
+        }, JOIN_TIMEOUT_MS);
 
         const peer = new Peer(PEER_OPTIONS);
         session.peer = peer;

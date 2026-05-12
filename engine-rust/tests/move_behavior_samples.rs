@@ -429,6 +429,7 @@ fn sampled_move_effects_match_expected_events() {
             ignore_substitute: false,
             is_sound: false,
             last_damage: None,
+            switch_slot: None,
         };
 
         let events = apply_effects(&state, &move_data.steps, &mut ctx);

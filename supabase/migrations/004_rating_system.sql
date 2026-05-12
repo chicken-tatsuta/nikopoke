@@ -1,5 +1,6 @@
 alter table public.profiles
-  add column if not exists rating integer not null default 1500;
+  add column if not exists rating integer not null default 1500,
+  add column if not exists total_match_count integer not null default 0;
 
 create index if not exists idx_profiles_rating
   on public.profiles (rating desc);
@@ -7,15 +8,16 @@ create index if not exists idx_profiles_rating
 create or replace function public.rating_delta(
   p_rating integer,
   p_opponent_rating integer,
-  p_score numeric
+  p_score numeric,
+  p_total_match_count integer default 0
 )
 returns integer
 language sql
 immutable
 as $$
   select case
-    when p_score >= 1 then greatest(1, round(40 * (1 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
-    else least(-1, round(40 * (0 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
+    when p_score >= 1 then greatest(1, round(greatest(10, 40 - p_total_match_count * 0.5) * (1 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
+    else least(-1, round(greatest(10, 40 - p_total_match_count * 0.5) * (0 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
   end
 $$;
 
@@ -31,6 +33,8 @@ as $$
 declare
   winner_rating integer;
   loser_rating integer;
+  winner_match_count integer;
+  loser_match_count integer;
   winner_delta integer;
   loser_delta integer;
 begin
@@ -39,21 +43,24 @@ begin
   end if;
 
   if p_winner_user_id is not null then
-    select rating into winner_rating from public.profiles where id = p_winner_user_id;
+    select rating, total_match_count into winner_rating, winner_match_count from public.profiles where id = p_winner_user_id;
   end if;
   if p_loser_user_id is not null then
-    select rating into loser_rating from public.profiles where id = p_loser_user_id;
+    select rating, total_match_count into loser_rating, loser_match_count from public.profiles where id = p_loser_user_id;
   end if;
 
   winner_rating := coalesce(winner_rating, 1500);
   loser_rating := coalesce(loser_rating, 1500);
-  winner_delta := public.rating_delta(winner_rating, loser_rating, 1);
-  loser_delta := public.rating_delta(loser_rating, winner_rating, 0);
+  winner_match_count := coalesce(winner_match_count, 0);
+  loser_match_count := coalesce(loser_match_count, 0);
+  winner_delta := public.rating_delta(winner_rating, loser_rating, 1, winner_match_count);
+  loser_delta := public.rating_delta(loser_rating, winner_rating, 0, loser_match_count);
 
   if p_winner_user_id is not null then
     update public.profiles
     set
       win_count = win_count + 1,
+      total_match_count = total_match_count + 1,
       rating = greatest(0, rating + winner_delta)
     where id = p_winner_user_id;
   end if;
@@ -62,6 +69,7 @@ begin
     update public.profiles
     set
       loss_count = loss_count + 1,
+      total_match_count = total_match_count + 1,
       rating = greatest(0, rating + loser_delta)
     where id = p_loser_user_id;
   end if;
@@ -220,6 +228,6 @@ begin
 end;
 $$;
 
-grant execute on function public.rating_delta(integer, integer, numeric) to anon, authenticated;
+grant execute on function public.rating_delta(integer, integer, numeric, integer) to anon, authenticated;
 grant execute on function public.apply_profile_rating_result(uuid, uuid) to anon, authenticated;
 grant execute on function public.record_battle_result(text, text, text, jsonb, jsonb, uuid, uuid) to anon, authenticated;

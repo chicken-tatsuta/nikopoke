@@ -843,6 +843,23 @@ function moveHasEffect(move: MoveData[string] | undefined, effectType: string): 
     return steps.some((step) => step.type === effectType);
 }
 
+function firstAvailableSwitchSlot(state: BattleStateWire, playerId: string): number | null {
+    const player = findPlayerInState(state, playerId);
+    if (!player) {
+        return null;
+    }
+    const slot = player.team.findIndex((creature, index) => index !== player.activeSlot && creature.hp > 0);
+    return slot >= 0 ? slot : null;
+}
+
+function withSelfSwitchSlot(action: ActionWire, state: BattleStateWire, moves: MoveData): ActionWire {
+    if (action.type !== 'move' || action.slot !== undefined || !moveHasEffect(moves[action.moveId ?? ''], 'self_switch')) {
+        return action;
+    }
+    const slot = firstAvailableSwitchSlot(state, action.playerId);
+    return slot === null ? action : { ...action, slot };
+}
+
 function moveTargetsOnlySelf(move: MoveData[string] | undefined): boolean {
     const steps = moveSteps(move);
     return steps.length > 0 && steps.every((step) => step.target === 'self' || SELF_ONLY_STEP_TYPES.has(step.type ?? ''));
@@ -1057,6 +1074,7 @@ export default function BattlePage() {
     const [waiting, setWaiting] = useState(false);    
     const [commandMode, setCommandMode] = useState<'fight' | 'pokemon'>('fight');
     const [focusedTeamSlot, setFocusedTeamSlot] = useState(0);
+    const [pendingSelfSwitchMoveId, setPendingSelfSwitchMoveId] = useState<string | null>(null);
     const [onlineSnapshot, setOnlineSnapshot] = useState(getOnlineSessionSnapshot());
     const [localPlayerId, setLocalPlayerId] = useState<string>('player');
     const [opponentPlayerId, setOpponentPlayerId] = useState<string>('ai');
@@ -1845,17 +1863,19 @@ export default function BattlePage() {
             movePp,
         });
     
-        return {
+        const action: ActionWire = {
             type: 'move',
             playerId: opponentPlayerIdRef.current,
             moveId: fallbackMoveId,
             targetId: localPlayerIdRef.current,
         };
+        return withSelfSwitchSlot(action, state, moves);
     };
 
     const getAiAction = async (state: BattleStateWire): Promise<ActionWire | null> => {
         const minimaxDepth = aiLevel === 'lv2' ? 2 : 1;
-        return await getBestMoveMinimax(state, opponentPlayerIdRef.current, minimaxDepth) ?? getFallbackAiAction(state);
+        const action = await getBestMoveMinimax(state, opponentPlayerIdRef.current, minimaxDepth) ?? getFallbackAiAction(state);
+        return action ? withSelfSwitchSlot(action, state, moves) : null;
     };
 
     const submitOnlineAction = async (action: ActionWire) => {
@@ -1889,6 +1909,14 @@ export default function BattlePage() {
         }
 
         try {
+            if (moveHasEffect(moves[moveId], 'self_switch')) {
+                setPendingSelfSwitchMoveId(moveId);
+                setCommandMode('pokemon');
+                setStatusText('交代先を選んでください。');
+                setWaiting(false);
+                return;
+            }
+
             const playerAction: ActionWire = {
                 type: 'move',
                 playerId: localPlayerIdRef.current,
@@ -1933,15 +1961,23 @@ if (!aiAction) {
         setCommandMode('fight');
 
         try {
-            const playerAction: ActionWire = {
+            const pendingMoveId = pendingSelfSwitchMoveId;
+            const playerAction: ActionWire = pendingMoveId ? {
+                type: 'move',
+                playerId: localPlayerIdRef.current,
+                moveId: pendingMoveId,
+                targetId: opponentPlayerIdRef.current,
+                slot: index,
+            } : {
                 type: 'switch',
                 playerId: localPlayerIdRef.current,
                 slot: index
             };
+            setPendingSelfSwitchMoveId(null);
             const forcedSwitch = needsForcedSwitch(battleState, localPlayerIdRef.current);
 
             if (battleMode === 'player') {
-                if (forcedSwitch) {
+                if (!pendingMoveId && forcedSwitch) {
                     if (onlineSnapshot.role === 'host') {
                         await resolveForcedSwitch(playerAction, true);
                     } else {
@@ -1955,7 +1991,7 @@ if (!aiAction) {
                 return;
             }
 
-            if (forcedSwitch) {
+            if (!pendingMoveId && forcedSwitch) {
                 const newState = replaceFaintedPokemon(battleState, localPlayerIdRef.current, index);
                 await playBattleResolution(battleState, newState, [playerAction]);
                 await finishBattle(newState);
@@ -2060,6 +2096,8 @@ const battleStatusLabel = playback.isPlaying
     ? playback.label
     : waiting
         ? (statusText || 'ターン処理中')
+        : pendingSelfSwitchMoveId
+            ? '交代先を選択中'
         : mustSwitch
             ? '交代先を選択中'
             : '行動選択中';
@@ -2202,7 +2240,10 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-2.5 sm:p-3">
                 <div className="mb-2 grid grid-cols-2 gap-2">
     <button
-        onClick={() => setCommandMode('fight')}
+        onClick={() => {
+            setPendingSelfSwitchMoveId(null);
+            setCommandMode('fight');
+        }}
         disabled={interactionLocked}
         className={cn(
             'rounded-lg p-2 text-sm font-medium transition-all',
@@ -2485,7 +2526,10 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => setCommandMode('fight')}
+                                            onClick={() => {
+                                                setPendingSelfSwitchMoveId(null);
+                                                setCommandMode('fight');
+                                            }}
                                             disabled={mustSwitch}
                                             className="rounded-lg bg-[var(--surface-3)] px-3 py-1 text-sm text-[var(--text-muted)] disabled:opacity-40"
                                         >

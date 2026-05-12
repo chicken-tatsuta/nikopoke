@@ -97,6 +97,7 @@ fn test_morning_sun_healing() {
         ignore_substitute: false,
         is_sound: false,
     last_damage: None,
+        switch_slot: None,
     };
 
     let events = apply_effects(&state, &move_data.steps, &mut ctx);
