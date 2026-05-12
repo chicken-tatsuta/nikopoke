@@ -16,8 +16,8 @@ language sql
 immutable
 as $$
   select case
-    when p_score >= 1 then greatest(1, round(greatest(10, 40 - p_total_match_count * 0.5) * (1 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
-    else least(-1, round(greatest(10, 40 - p_total_match_count * 0.5) * (0 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 400))))))::integer)
+    when p_score >= 1 then greatest(1, round(greatest(10, 40 - p_total_match_count * 0.5) * (1 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 1300))))))::integer)
+    else least(-1, round(greatest(10, 40 - p_total_match_count * 0.5) * (0 - (1 / (1 + power(10, ((p_opponent_rating - p_rating)::numeric / 1300))))))::integer)
   end
 $$;
 
