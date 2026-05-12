@@ -23,9 +23,10 @@ $$;
 
 create or replace function public.apply_profile_rating_result(
   p_winner_user_id uuid,
-  p_loser_user_id uuid
+  p_loser_user_id uuid,
+  out out_winner_delta integer,
+  out out_loser_delta integer
 )
-returns void
 language plpgsql
 security definer
 set search_path = public
@@ -38,6 +39,9 @@ declare
   winner_delta integer;
   loser_delta integer;
 begin
+  out_winner_delta := 0;
+  out_loser_delta := 0;
+
   if p_winner_user_id is null and p_loser_user_id is null then
     return;
   end if;
@@ -73,6 +77,9 @@ begin
       rating = greatest(0, rating + loser_delta)
     where id = p_loser_user_id;
   end if;
+
+  out_winner_delta := winner_delta;
+  out_loser_delta := loser_delta;
 end;
 $$;
 
@@ -100,16 +107,21 @@ create or replace function public.record_battle_result(
   p_player_team jsonb,
   p_opponent_team jsonb,
   p_player_user_id uuid default null,
-  p_opponent_user_id uuid default null
+  p_opponent_user_id uuid default null,
+  out out_winner_delta integer,
+  out out_loser_delta integer
 )
-returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   inserted_event_id text;
+  wd integer;
+  ld integer;
 begin
+  out_winner_delta := 0;
+  out_loser_delta := 0;
   insert into public.battle_stat_events (
     id,
     mode,
@@ -221,10 +233,13 @@ begin
     updated_at = now();
 
   if p_winner_side = 'player' then
-    perform public.apply_profile_rating_result(p_player_user_id, p_opponent_user_id);
+    select out_winner_delta, out_loser_delta into wd, ld from public.apply_profile_rating_result(p_player_user_id, p_opponent_user_id);
   elsif p_winner_side = 'opponent' then
-    perform public.apply_profile_rating_result(p_opponent_user_id, p_player_user_id);
+    select out_winner_delta, out_loser_delta into wd, ld from public.apply_profile_rating_result(p_opponent_user_id, p_player_user_id);
   end if;
+
+  out_winner_delta := coalesce(wd, 0);
+  out_loser_delta := coalesce(ld, 0);
 end;
 $$;
 

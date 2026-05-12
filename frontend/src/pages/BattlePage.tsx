@@ -1090,6 +1090,7 @@ export default function BattlePage() {
     const opponentDeckRef = useRef<DeckPokemon[] | null>(null);
     const battleRecordSavedRef = useRef(false);
     const battleStatsIdRef = useRef<string>(createBattleStatsId());
+    const ratingDeltaRef = useRef<{ winnerDelta: number; loserDelta: number } | null>(null);
     const onlineRoleRef = useRef<OnlineRole | null>(onlineSnapshot.role);
     const pendingLocalActionRef = useRef<ActionWire | null>(null);
     const pendingRemoteActionRef = useRef<ActionWire | null>(null);
@@ -1157,7 +1158,7 @@ export default function BattlePage() {
         }
     }, [showBattlePopup]);
 
-    const uploadOnlineBattleResult = useCallback((winnerSideForHost: 'player' | 'opponent') => {
+    const uploadOnlineBattleResult = useCallback(async (winnerSideForHost: 'player' | 'opponent') => {
         if (
             battleRecordSavedRef.current ||
             battleMode !== 'player'
@@ -1174,7 +1175,7 @@ export default function BattlePage() {
         }
 
         battleRecordSavedRef.current = true;
-        void uploadGlobalBattleRecord({
+        const result = await uploadGlobalBattleRecord({
             id: battleStatsIdRef.current,
             winner: winnerSideForHost,
             hostDeck,
@@ -1183,6 +1184,9 @@ export default function BattlePage() {
             guest_user_id: localIsHost ? onlineSnapshot.remoteUserId : (user?.id ?? null),
             mode: battleMode,
         });
+        if (result) {
+            ratingDeltaRef.current = { winnerDelta: result.winner_delta, loserDelta: result.loser_delta };
+        }
     }, [battleMode, onlineSnapshot.remoteUserId, user?.id]);
 
     const playBattleResolution = useCallback(async (
@@ -1488,7 +1492,7 @@ export default function BattlePage() {
             battleMode === 'player';
 
         if (shouldUploadStats) {
-            uploadOnlineBattleResult(winnerSideForHost);
+            await uploadOnlineBattleResult(winnerSideForHost);
         }
 
         const resultPayload = {
@@ -1502,6 +1506,7 @@ export default function BattlePage() {
                 state: {
                     battleMode,
                     result: resultPayload,
+                    ratingDelta: ratingDeltaRef.current,
                 },
             });
         }, 1500);
@@ -1657,13 +1662,14 @@ export default function BattlePage() {
                 const disconnectLog = '相手の切断により あなたの勝ちです。';
                 const logs = currentState ? [...currentState.log, disconnectLog] : [disconnectLog];
 
-                uploadOnlineBattleResult(winnerSideForHost);
+                void uploadOnlineBattleResult(winnerSideForHost);
                 setStatusText('相手が切断しました。あなたの勝ちです。');
                 setWaiting(false);
                 window.setTimeout(() => {
                     navigate('/result', {
                         state: {
                             battleMode,
+                            ratingDelta: ratingDeltaRef.current,
                             result: {
                                 winner: localPlayerIdRef.current,
                                 localPlayerId: localPlayerIdRef.current,
