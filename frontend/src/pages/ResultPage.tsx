@@ -9,9 +9,15 @@ interface BattleResult {
     localPlayerId?: string;
 }
 
+interface RatingDelta {
+    winnerDelta: number;
+    loserDelta: number;
+}
+
 interface ResultLocationState {
     battleMode?: 'ai' | 'player';
     result?: BattleResult;
+    ratingDelta?: RatingDelta | null;
 }
 
 export default function ResultPage() {
@@ -21,6 +27,7 @@ export default function ResultPage() {
         const state = location.state as ResultLocationState | null;
         return state?.result ?? null;
     });
+    const ratingDelta = ((location.state as ResultLocationState | null)?.ratingDelta ?? null) as RatingDelta | null;
     const battleMode = ((location.state as ResultLocationState | null)?.battleMode ?? 'ai') as 'ai' | 'player';
 
     useEffect(() => {
@@ -57,9 +64,15 @@ export default function ResultPage() {
                 >
                     {isVictory ? 'VICTORY!' : 'DEFEAT...'}
                 </h1>
-                <p className="text-[var(--text-secondary)] mb-8">
+                <p className="text-[var(--text-secondary)] mb-2">
                     {isVictory ? 'おめでとう！勝利しました！' : '残念、敗北しました...'}
                 </p>
+
+                {ratingDelta && (
+                    <p className={`text-xl font-bold mb-6 ${isVictory ? 'text-amber-400' : 'text-red-400'}`}>
+                        {isVictory ? `レート +${ratingDelta.winnerDelta}` : `レート ${ratingDelta.loserDelta}`}
+                    </p>
+                )}
 
                 {/* Battle Log Summary */}
                 <div className="bg-[var(--surface-3)] rounded-xl p-4 mb-6 max-h-48 overflow-y-auto text-left">

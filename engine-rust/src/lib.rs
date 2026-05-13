@@ -10,15 +10,10 @@ pub use ai::{
     run_auto_battle,
 };
 pub use core::{
-    battle::{
-        apply_initial_switch_in_effects, is_battle_over, step_battle, BattleEngine, BattleOptions,
-    },
-    factory::{calc_stat, create_creature, CreateCreatureOptions, EVStats},
+    battle::{apply_initial_switch_in_effects, is_battle_over, step_battle, BattleEngine, BattleOptions},
+    factory::{calc_stat, create_creature, CreateCreatureOptions},
     replay::replay_battle,
-    state::{
-        create_battle_state, Action, BattleHistory, BattleState, BattleTurn, CreatureState,
-        FieldState, PlayerState,
-    },
+    state::{create_battle_state, Action, BattleHistory, BattleState, BattleTurn, CreatureState, EVStats, FieldState, PlayerState},
 };
 pub use data::{
     learnsets::LearnsetDatabase,

@@ -7403,7 +7403,9 @@ power_trip:
   priority: 0
   steps:
     - accuracy: 1
+      basePower: 20
       power: 20
+      powerPerPositiveStage: 20
       type: damage
   tags:
     - contact
@@ -8726,6 +8728,12 @@ sheer_cold:
   priority: 0
   steps:
     - baseAccuracy: 0.3
+      immuneTypes:
+        - ice
+      levelScaling: true
+      nonMatchingTypeAccuracy: 0.2
+      requiredType: ice
+      respectTypeImmunity: true
       type: ohko
   tags: []
   type: ice

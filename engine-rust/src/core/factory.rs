@@ -1,25 +1,13 @@
-use crate::core::state::{CreatureState, StatStages};
+use crate::core::state::{CreatureState, EVStats, StatStages};
 use crate::data::learnsets::LearnsetDatabase;
 use crate::data::moves::MoveDatabase;
 use crate::data::species::SpeciesData;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static CREATURE_COUNTER: AtomicUsize = AtomicUsize::new(1);
 const EV_STAT_MAX: i32 = 32;
 const EV_TOTAL_MAX: i32 = 66;
-
-/// EVStats represents effort values for each stat (max 32 per stat, 66 total)
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct EVStats {
-    pub hp: i32,
-    pub atk: i32,
-    pub def: i32,
-    pub spa: i32,
-    pub spd: i32,
-    pub spe: i32,
-}
 
 impl EVStats {
     pub fn total(&self) -> i32 {
@@ -175,6 +163,7 @@ pub fn create_creature(
         moves,
         ability: Some(ability),
         item: options.item,
+        evs,
         hp: max_hp,
         max_hp,
         stages: StatStages::default(),

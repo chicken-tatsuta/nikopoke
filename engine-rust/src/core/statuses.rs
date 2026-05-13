@@ -385,14 +385,15 @@ fn match_status(
                     let active = player.team.get_mut(player.active_slot).unwrap();
                     let status = &mut active.statuses[idx];
 
-                    let elapsed = status
+                    let sleep_turn = status
                         .data
                         .get("elapsed")
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0)
                         + 1;
 
-                    if elapsed >= 3 || (elapsed >= 2 && (ctx.rng)() < (1.0 / 3.0)) {
+                    let wakes_up = sleep_turn >= 3 || (sleep_turn == 2 && (ctx.rng)() < (1.0 / 3.0));
+                    if wakes_up {
                         return StatusHookResult {
                             events: vec![
                                 BattleEvent::RemoveStatus {
@@ -409,9 +410,7 @@ fn match_status(
                         };
                     }
 
-                    status
-                        .data
-                        .insert("elapsed".to_string(), Value::Number(elapsed.into()));
+                    status.data.insert("elapsed".to_string(), Value::Number(sleep_turn.into()));
                     let name = active.name.clone();
                     if can_act_while_asleep {
                         return StatusHookResult {
@@ -427,7 +426,7 @@ fn match_status(
                         state: Some(new_state),
                         prevent_action: true,
                         events: vec![BattleEvent::Log {
-                            message: format!("{}は ぐうぐう 眠り続けている。", name),
+                            message: format!("{}は 眠っていて 技が 使えない！", name),
                             meta: Map::new(),
                         }],
                         ..Default::default()
@@ -1267,6 +1266,7 @@ fn handle_delayed(
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
     let events = apply_effects(state, &effects, &mut effect_ctx);
     let new_state = apply_events(state, &events);
@@ -1325,6 +1325,7 @@ fn handle_over_time(
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
     let events = apply_effects(state, &effects, &mut effect_ctx);
     let new_state = apply_events(state, &events);

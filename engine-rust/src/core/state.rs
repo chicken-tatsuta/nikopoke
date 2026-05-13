@@ -37,6 +37,17 @@ pub struct Status {
     pub data: HashMap<String, Value>,
 }
 
+/// EVStats represents effort values for each stat (max 32 per stat, 66 total)
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct EVStats {
+    pub hp: i32,
+    pub atk: i32,
+    pub def: i32,
+    pub spa: i32,
+    pub spd: i32,
+    pub spe: i32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreatureState {
     pub id: String,
@@ -47,6 +58,8 @@ pub struct CreatureState {
     pub moves: Vec<String>,
     pub ability: Option<String>,
     pub item: Option<String>,
+    #[serde(default)]
+    pub evs: EVStats,
     pub hp: i32,
     pub max_hp: i32,
     pub stages: StatStages,

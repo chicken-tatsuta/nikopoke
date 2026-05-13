@@ -190,25 +190,33 @@ begin
   if p_winner_side = 'player' then
     if p_player_user_id is not null then
       update public.profiles
-      set win_count = win_count + 1
+      set
+        win_count = win_count + 1,
+        rating = rating + 20
       where id = p_player_user_id;
     end if;
 
     if p_opponent_user_id is not null then
       update public.profiles
-      set loss_count = loss_count + 1
+      set
+        loss_count = loss_count + 1,
+        rating = greatest(0, rating - 20)
       where id = p_opponent_user_id;
     end if;
   elsif p_winner_side = 'opponent' then
     if p_opponent_user_id is not null then
       update public.profiles
-      set win_count = win_count + 1
+      set
+        win_count = win_count + 1,
+        rating = rating + 20
       where id = p_opponent_user_id;
     end if;
 
     if p_player_user_id is not null then
       update public.profiles
-      set loss_count = loss_count + 1
+      set
+        loss_count = loss_count + 1,
+        rating = greatest(0, rating - 20)
       where id = p_player_user_id;
     end if;
   end if;

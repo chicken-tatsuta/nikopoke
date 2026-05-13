@@ -895,6 +895,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_substitute: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
     let low_events = apply_effects(&state, &[damage_step.clone()], &mut low_ctx);
 
@@ -915,6 +916,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_substitute: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
     let high_events = apply_effects(&state, &[damage_step], &mut high_ctx);
 
@@ -1407,6 +1409,7 @@ fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
         ignore_substitute: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
     let events = apply_effects(&state, &[effect("protect", json!({}))], &mut ctx);
 
@@ -1458,6 +1461,7 @@ fn p0_spec_protect_chain_success_increments_counter() {
         ignore_substitute: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
     let events = apply_effects(&state, &[effect("protect", json!({}))], &mut ctx);
 
@@ -1848,6 +1852,7 @@ fn p0_manual_effects_must_not_be_silent_noop() {
                 ignore_substitute: false,
                 is_sound: false,
                 last_damage: None,
+                switch_slot: None,
             };
             let events = apply_effects(&state, &[manual_effect], &mut ctx);
             if events.is_empty() {

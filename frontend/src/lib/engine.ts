@@ -12,7 +12,7 @@ import init, {
     replaceFaintedPokemon as wasmReplaceFaintedPokemon,
 } from './engine-rust/engine_rust.js';
 
-import type { DeckPokemon } from '../types/pokemon';
+import type { DeckPokemon, EVStats } from '../types/pokemon';
 import { loadAllData } from './data';
 import { normalizeEvs } from './evs';
 
@@ -43,11 +43,13 @@ export interface CreatureStateWire {
     moves: string[];
     ability: string | null;
     item: string | null;
+    evs: EVStats;
     hp: number;
     maxHp: number;
     stages: { atk: number; def: number; spa: number; spd: number; spe: number; accuracy: number; evasion: number };
     statuses: { id: string; remainingTurns: number | null }[];
     movePp: { [moveId: string]: number };
+    volatileData?: Record<string, unknown>;
     attack: number;
     defense: number;
     spAttack: number;
@@ -149,9 +151,13 @@ function replaceFaintedPokemonLocally(
         return nextState;
     }
 
+    const batonPassStages = outgoing.volatileData?.batonPass === true ? { ...outgoing.stages } : null;
     outgoing.stages = { ...RESET_STAGES };
     outgoing.statuses = outgoing.statuses.filter((status) => NON_VOLATILE_STATUS_IDS.has(status.id));
     player.activeSlot = slot;
+    if (batonPassStages) {
+        incoming.stages = batonPassStages;
+    }
     incoming.statuses = incoming.statuses.filter((status) => status.id !== 'pending_switch');
     nextState.log.push(`${player.name}は ${incoming.name}を 繰り出した！`);
     return nextState;

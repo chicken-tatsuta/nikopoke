@@ -12,6 +12,7 @@ export interface BaseStats {
 export interface Species {
     id: string;
     name: string;
+    description?: string;
     type: string[];
     baseStats: BaseStats;
     abilities: string[];

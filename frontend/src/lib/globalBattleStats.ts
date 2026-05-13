@@ -67,7 +67,7 @@ export async function uploadGlobalBattleRecord(args: {
         return;
     }
 
-const { error } = await supabase.rpc('record_battle_result', {
+const { data, error } = await supabase.rpc('record_battle_result', {
   p_battle_id: args.id,
   p_mode: args.mode,
   p_winner_side: args.winner,
@@ -85,7 +85,11 @@ const { error } = await supabase.rpc('record_battle_result', {
             hint: error.hint,
             full: error,
         });
+        return null;
     }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    return row ? { winner_delta: row.out_winner_delta ?? 0, loser_delta: row.out_loser_delta ?? 0 } : null;
 }
 
 export async function loadGlobalPokemonUsageStats(): Promise<Record<string, PokemonUsageStats>> {

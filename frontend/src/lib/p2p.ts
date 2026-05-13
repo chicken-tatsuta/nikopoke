@@ -72,6 +72,7 @@ interface OnlineSessionState {
 }
 
 const listeners = new Set<(event: OnlineSessionEvent) => void>();
+const JOIN_TIMEOUT_MS = 30000;
 const ROOM_CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 // --- ICE Servers (TURN / STUN) ---
@@ -493,15 +494,36 @@ function setupPeerCommon(peer: Peer): void {
 
     peer.on('disconnected', () => {
         console.warn('[p2p] peer disconnected');
-        if (session.status !== 'error' && session.status !== 'reconnecting') {
-            session.status = 'disconnected';
+
+        if (session.peer !== peer || peer.destroyed || session.status === 'error' || session.status === 'reconnecting') {
+            return;
+        }
+
+        if (!session.connection?.open) {
+            session.status = session.role === 'host'
+                ? 'hosting'
+                : session.role === 'guest'
+                  ? 'joining'
+                  : 'disconnected';
             emitSnapshot();
             scheduleReconnect();
+        }
+
+        try {
+            peer.reconnect();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'PeerJS の再接続に失敗しました。';
+            setError(message);
         }
     });
 
     peer.on('close', () => {
         console.warn('[p2p] peer closed');
+        if (session.peer !== peer || session.connection?.open || session.status === 'error') {
+            return;
+        }
+        session.status = 'disconnected';
+        emitSnapshot();
     });
 }
 
@@ -660,7 +682,7 @@ export async function joinHostSession(
             rejectOnce(
                 new Error('接続がタイムアウトしました。部屋IDが正しいか、ホスト側の画面が開いたままか確認してください。'),
             );
-        }, 30_000);
+        }, JOIN_TIMEOUT_MS);
 
         const peer = new Peer(peerOptions);
         session.peer = peer;

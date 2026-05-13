@@ -90,6 +90,7 @@ fn substitute_initializes_hp_on_apply() {
         ignore_substitute: false,
         is_sound: false,
         last_damage: None,
+        switch_slot: None,
     };
 
     let effects = vec![

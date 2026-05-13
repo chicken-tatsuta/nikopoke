@@ -599,6 +599,7 @@ impl BattleEngine {
                 ignore_ability: false,
                 is_sound: false,
                 last_damage: None,
+                switch_slot: action.slot,
             };
             let move_name = move_data.name.as_deref().unwrap_or(&move_id);
             next.log
@@ -1748,6 +1749,7 @@ fn expand_random_moves(
                     ignore_ability: false,
                     is_sound: false,
                     last_damage: None,
+                    switch_slot: None,
                 };
                 let mut sub_events = apply_effects(state, &chosen_move.steps, &mut effect_ctx);
                 sub_events = apply_ability_event_modifiers(state, &sub_events, move_db.as_map());

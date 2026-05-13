@@ -24,6 +24,7 @@ pub struct EffectContext<'a> {
     pub ignore_ability: bool,
     pub is_sound: bool,
     pub last_damage: Option<i32>,
+    pub switch_slot: Option<usize>,
 }
 
 pub fn apply_effects(
@@ -44,16 +45,19 @@ pub fn apply_effects(
         match effect.effect_type.as_str() {
             "modify_damage" => {
                 apply_modify_damage(&mut events, effect, &working_state, ctx);
+                clamp_damage_events_to_remaining_hp(&base_state, &mut events);
                 update_last_damage_from_events(ctx, &events);
                 working_state = apply_events(&base_state, &events);
             }
             "crit" => {
                 apply_force_crit(&mut events, effect, &working_state, ctx);
+                clamp_damage_events_to_remaining_hp(&base_state, &mut events);
                 update_last_damage_from_events(ctx, &events);
                 working_state = apply_events(&base_state, &events);
             }
             _ => {
-                let effect_events = apply_effect(&working_state, effect, ctx);
+                let mut effect_events = apply_effect(&working_state, effect, ctx);
+                clamp_damage_events_to_remaining_hp(&working_state, &mut effect_events);
                 update_last_damage_from_events(ctx, &effect_events);
                 if effect.effect_type == "damage" && !damage_step_connected(&effect_events) {
                     ctx.last_damage = Some(0);
@@ -74,6 +78,50 @@ pub fn apply_events(state: &BattleState, events: &[BattleEvent]) -> BattleState 
         next = apply_event(&next, event);
     }
     next
+}
+
+fn clamp_damage_events_to_remaining_hp(state: &BattleState, events: &mut [BattleEvent]) {
+    let mut simulated_state = state.clone();
+    for event in events.iter_mut() {
+        if let BattleEvent::Damage { target_id, amount, meta } = event {
+            if *amount > 0 {
+                *amount = actual_positive_damage_amount(&simulated_state, target_id, meta, *amount);
+            }
+        }
+        simulated_state = apply_event(&simulated_state, event);
+    }
+}
+
+fn actual_positive_damage_amount(
+    state: &BattleState,
+    target_id: &str,
+    meta: &Map<String, Value>,
+    amount: i32,
+) -> i32 {
+    let Some(player) = state.players.iter().find(|player| player.id == *target_id) else {
+        return amount;
+    };
+    let Some(active) = player.team.get(player.active_slot) else {
+        return amount;
+    };
+    let source = meta.get("source").and_then(|value| value.as_str());
+    let bypass_substitute = meta
+        .get("bypassSubstitute")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let is_self = source == Some(target_id);
+    if !bypass_substitute && !is_self {
+        if let Some(substitute) = active.statuses.iter().find(|status| status.id == "substitute") {
+            let substitute_hp = substitute
+                .data
+                .get("hp")
+                .and_then(|value| value.as_i64())
+                .map(|value| value as i32)
+                .unwrap_or_else(|| ((active.max_hp as f64) * 0.25).floor().max(1.0) as i32);
+            return amount.min(substitute_hp.max(0));
+        }
+    }
+    amount.min(active.hp.max(0))
 }
 
 fn damage_step_connected(events: &[BattleEvent]) -> bool {
@@ -474,7 +522,7 @@ fn apply_damage(
     }
 
     if attacker.ability.as_deref() == Some("parental_bond") {
-        let second_power = (power as f32 * 0.5).floor() as i32;
+        let second_power = (power as f32 * 0.25).floor() as i32;
         // Pass true for is_secondary_hit, parental bond 2nd hit doesn't crit
         let (second_amount, _) = calc_damage(
             second_power,
@@ -2089,13 +2137,20 @@ fn apply_ohko(
         .get("baseAccuracy")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.3);
-    let mut accuracy = base_accuracy;
-    if effect
-        .data
-        .get("levelScaling")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true)
-    {
+    let required_type = effect.data.get("requiredType").and_then(|v| v.as_str());
+    let attacker_has_required_type = required_type
+        .map(|required| attacker.types.iter().any(|ty| ty.eq_ignore_ascii_case(required)))
+        .unwrap_or(true);
+    let mut accuracy = if attacker_has_required_type {
+        base_accuracy
+    } else {
+        effect
+            .data
+            .get("nonMatchingTypeAccuracy")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(base_accuracy)
+    };
+    if effect.data.get("levelScaling").and_then(|v| v.as_bool()).unwrap_or(true) {
         accuracy += (attacker.level as f64 - target.level as f64) / 100.0;
     }
     accuracy = accuracy.clamp(0.0, 1.0);
@@ -2642,20 +2697,35 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
         return Vec::new();
     }
 
-    let Some(slot) = player
+    let has_available_switch = player
         .team
         .iter()
         .enumerate()
-        .find(|(slot, creature)| *slot != player.active_slot && creature.hp > 0)
-        .map(|(slot, _)| slot)
-    else {
+        .any(|(slot, creature)| slot != player.active_slot && creature.hp > 0);
+    if !has_available_switch {
         return Vec::new();
-    };
+    }
 
-    vec![BattleEvent::Switch {
-        player_id: ctx.attacker_player_id.clone(),
-        slot,
-    }]
+    let mut events = Vec::new();
+    if ctx.move_data.is_some_and(|move_data| move_data.id == "baton_pass") {
+        events.push(BattleEvent::SetVolatile {
+            target_id: ctx.attacker_player_id.clone(),
+            key: "batonPass".to_string(),
+            value: Value::Bool(true),
+        });
+    }
+    if let Some(slot) = ctx.switch_slot {
+        if slot < player.team.len() && slot != player.active_slot && player.team[slot].hp > 0 {
+            events.push(BattleEvent::Switch {
+                player_id: ctx.attacker_player_id.clone(),
+                slot,
+            });
+            return events;
+        }
+    }
+
+    events.extend(apply_pending_switch(&ctx.attacker_player_id, ctx));
+    events
 }
 
 fn move_has_damage_step(move_data: &MoveData) -> bool {
@@ -3764,7 +3834,7 @@ fn stage_value(stages: &crate::core::state::StatStages, stat: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::state::{create_battle_state, CreatureState, PlayerState, StatStages};
+    use crate::core::state::{create_battle_state, CreatureState, EVStats, PlayerState, StatStages};
     use serde_json::json;
 
     fn test_creature(id: &str) -> CreatureState {
@@ -3777,6 +3847,7 @@ mod tests {
             moves: Vec::new(),
             ability: None,
             item: None,
+            evs: EVStats::default(),
             hp: 100,
             max_hp: 100,
             stages: StatStages::default(),
@@ -3852,6 +3923,7 @@ mod tests {
             ignore_ability: false,
             is_sound: false,
             last_damage: None,
+            switch_slot: None,
         }
     }
 
@@ -3902,5 +3974,77 @@ mod tests {
             .iter()
             .any(|event| matches!(event, BattleEvent::Damage { amount, .. } if *amount > 0)));
         assert!(events.iter().any(|event| matches!(event, BattleEvent::ApplyStatus { status_id, .. } if status_id == "burn")));
+    }
+
+    #[test]
+    fn damage_reference_uses_actual_hp_lost() {
+        let mut state = test_state();
+        state.players[1].team[0].hp = 10;
+        let type_chart = TypeChart::new();
+        let move_data = test_move();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+        let steps = vec![
+            effect(json!({ "type": "damage_ratio", "ratioMaxHp": 3.0 })),
+            effect(json!({ "type": "heal_last_damage", "target": "self", "ratio": 0.5 })),
+        ];
+
+        let events = apply_effects(&state, &steps, &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::Damage { target_id, amount, .. } if target_id == "opponent" && *amount == 10
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::Damage { target_id, amount, .. } if target_id == "player" && *amount == -5
+        )));
+    }
+
+    #[test]
+    fn baton_pass_self_switch_marks_next_switch_to_carry_stages() {
+        let mut state = test_state();
+        state.players[0].team.push(test_creature("bench"));
+        let type_chart = TypeChart::new();
+        let mut move_data = test_move();
+        move_data.id = "baton_pass".to_string();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+
+        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::SetVolatile { target_id, key, value }
+                if target_id == "player" && key == "batonPass" && value.as_bool() == Some(true)
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::ApplyStatus { target_id, status_id, .. }
+                if target_id == "player" && status_id == "pending_switch"
+        )));
+    }
+
+    #[test]
+    fn self_switch_with_selected_slot_switches_immediately() {
+        let mut state = test_state();
+        state.players[0].team.push(test_creature("bench"));
+        let type_chart = TypeChart::new();
+        let move_data = test_move();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+        ctx.switch_slot = Some(1);
+
+        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::Switch { player_id, slot } if player_id == "player" && *slot == 1
+        )));
+        assert!(!events.iter().any(|event| matches!(
+            event,
+            BattleEvent::ApplyStatus { target_id, status_id, .. }
+                if target_id == "player" && status_id == "pending_switch"
+        )));
     }
 }

@@ -46,7 +46,9 @@ pub fn ability_label(ability: &str) -> &str {
         "libero" => "リベロ",
         "receiver" => "レシーバー",
         "power_of_alchemy" => "かがくのちから",
+        "slow_start" => "スロースタート",
         "magic_bounce" => "マジックミラー",
+        "aroma_veil" => "アロマベール",
         "lightning_rod" => "ひらいしん",
         "soundproof" => "ぼうおん",
         "stamina" => "じきゅうりょく",
@@ -61,6 +63,13 @@ pub fn ability_label(ability: &str) -> &str {
 fn ability_activation_log(creature_name: &str, ability: &str) -> BattleEvent {
     BattleEvent::Log {
         message: format!("{}の 特性『{}』！", creature_name, ability_label(ability)),
+        meta: Map::new(),
+    }
+}
+
+pub fn slow_start_log(creature_name: &str) -> BattleEvent {
+    BattleEvent::Log {
+        message: format!("{}は 調子が 上がらない！", creature_name),
         meta: Map::new(),
     }
 }
@@ -399,6 +408,15 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
+        ("slow_start", "onSwitchIn") => AbilityHookResult {
+            state: None,
+            events: vec![
+                ability_activation_log(&active.name, ability),
+                slow_start_log(&active.name),
+            ],
+            prevent_action: false,
+            override_action: None,
+        },
         ("moody", "onTurnEnd") => {
             let stats = ["atk", "def", "spa", "spd", "spe"];
             let up_index =
@@ -538,6 +556,11 @@ pub fn apply_ability_event_modifiers(
         if let Some(target_id) = event_target_id(event) {
             if let Some(target) = get_active_creature(state, &target_id) {
                 if let Some(ability) = target.ability.as_deref() {
+                    if ability == "aroma_veil" {
+                        if let Some(replacement) = try_aroma_veil(event, state) {
+                            current_events = replacement;
+                        }
+                    }
                     if ability == "magic_bounce" {
                         if let Some(replacement) = try_magic_bounce(event, state, move_db) {
                             current_events = replacement;
@@ -745,6 +768,45 @@ fn event_meta_ref(event: &BattleEvent) -> Option<&Map<String, Value>> {
         | BattleEvent::ResetStages { meta, .. }
         | BattleEvent::CureAllStatus { meta, .. } => Some(meta),
         _ => None,
+    }
+}
+
+fn try_aroma_veil(event: &BattleEvent, state: &BattleState) -> Option<Vec<BattleEvent>> {
+    let target_id = event_target_id(event)?;
+    let source_id = event_meta_source(event)?;
+    if source_id == target_id {
+        return None;
+    }
+    if !is_aroma_veil_blocked_event(event) {
+        return None;
+    }
+
+    let target_name = get_active_creature(state, &target_id)
+        .map(|creature| creature.name.clone())
+        .unwrap_or_else(|| target_id.clone());
+
+    Some(vec![
+        ability_activation_log(&target_name, "aroma_veil"),
+        BattleEvent::Log {
+            message: format!("{}は メンタル攻撃を 受けない！", target_name),
+            meta: Map::new(),
+        },
+    ])
+}
+
+fn is_aroma_veil_blocked_event(event: &BattleEvent) -> bool {
+    match event {
+        BattleEvent::ApplyStatus { status_id, meta, .. } => {
+            matches!(
+                status_id.as_str(),
+                "torment" | "heal_block" | "disable_move" | "taunt" | "attract" | "infatuation"
+            ) || (status_id == "lock_move"
+                && meta
+                    .get("moveId")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|move_id| move_id == "encore"))
+        }
+        _ => false,
     }
 }
 

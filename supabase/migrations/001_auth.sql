@@ -1,6 +1,7 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text unique not null,
+  rating integer not null default 1500,
   win_count integer not null default 0,
   loss_count integer not null default 0,
   current_deck jsonb,
@@ -9,6 +10,9 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles enable row level security;
+
+alter table public.profiles
+  add column if not exists rating integer not null default 1500;
 
 drop policy if exists "Anyone can read profiles" on public.profiles;
 create policy "Anyone can read profiles"
@@ -82,25 +86,33 @@ begin
   if new.winner = 'host' then
     if new.host_user_id is not null then
       update public.profiles
-      set win_count = win_count + 1
+      set
+        win_count = win_count + 1,
+        rating = rating + 20
       where id = new.host_user_id;
     end if;
 
     if new.guest_user_id is not null then
       update public.profiles
-      set loss_count = loss_count + 1
+      set
+        loss_count = loss_count + 1,
+        rating = greatest(0, rating - 20)
       where id = new.guest_user_id;
     end if;
   elsif new.winner = 'guest' then
     if new.guest_user_id is not null then
       update public.profiles
-      set win_count = win_count + 1
+      set
+        win_count = win_count + 1,
+        rating = rating + 20
       where id = new.guest_user_id;
     end if;
 
     if new.host_user_id is not null then
       update public.profiles
-      set loss_count = loss_count + 1
+      set
+        loss_count = loss_count + 1,
+        rating = greatest(0, rating - 20)
       where id = new.host_user_id;
     end if;
   end if;
