@@ -11,6 +11,8 @@ export function getBestMoveMinimax(state: any, player_id: string, depth: number)
 
 export function getBestMoveVega(state: any, player_id: string, depth: number): any;
 
+export function getBestMoveVegaIterative(state: any, player_id: string, max_depth: number, node_budget: number): any;
+
 export function getBestMoveVegaWithBranch(state: any, player_id: string, depth: number, branch_limit: number): any;
 
 export function isBattleOver(state: any): boolean;
@@ -23,19 +25,23 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly createBattleState: (a: number, b: number) => void;
-  readonly createCreature: (a: number, b: number, c: number, d: number) => void;
-  readonly getBestMoveMCTS: (a: number, b: number, c: number, d: number, e: number) => void;
-  readonly getBestMoveMinimax: (a: number, b: number, c: number, d: number, e: number) => void;
-  readonly getBestMoveVega: (a: number, b: number, c: number, d: number, e: number) => void;
-  readonly getBestMoveVegaWithBranch: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-  readonly isBattleOver: (a: number, b: number) => void;
-  readonly replaceFaintedPokemon: (a: number, b: number, c: number, d: number, e: number) => void;
-  readonly stepBattle: (a: number, b: number, c: number, d: number) => void;
-  readonly __wbindgen_export: (a: number, b: number) => number;
-  readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
-  readonly __wbindgen_export3: (a: number) => void;
-  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+  readonly createBattleState: (a: any) => [number, number, number];
+  readonly createCreature: (a: number, b: number, c: any) => [number, number, number];
+  readonly getBestMoveMCTS: (a: any, b: number, c: number, d: number) => [number, number, number];
+  readonly getBestMoveMinimax: (a: any, b: number, c: number, d: number) => [number, number, number];
+  readonly getBestMoveVega: (a: any, b: number, c: number, d: number) => [number, number, number];
+  readonly getBestMoveVegaIterative: (a: any, b: number, c: number, d: number, e: number) => [number, number, number];
+  readonly getBestMoveVegaWithBranch: (a: any, b: number, c: number, d: number, e: number) => [number, number, number];
+  readonly isBattleOver: (a: any) => [number, number, number];
+  readonly replaceFaintedPokemon: (a: any, b: number, c: number, d: number) => [number, number, number];
+  readonly stepBattle: (a: any, b: any, c: any) => [number, number, number];
+  readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbindgen_exn_store: (a: number) => void;
+  readonly __externref_table_alloc: () => number;
+  readonly __wbindgen_externrefs: WebAssembly.Table;
+  readonly __externref_table_dealloc: (a: number) => void;
+  readonly __wbindgen_start: () => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

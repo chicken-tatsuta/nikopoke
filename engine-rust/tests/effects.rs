@@ -1,6 +1,6 @@
 use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
 use engine_rust::core::state::{
-    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages, Status,
 };
 use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
 use engine_rust::data::moves::Effect;
@@ -18,6 +18,8 @@ fn make_creature(id: &str, name: &str) -> CreatureState {
         moves: vec!["tackle".to_string()],
         ability: Some("none".to_string()),
         item: None,
+
+        evs: EVStats::default(),
         hp: 100,
         max_hp: 100,
         stages: StatStages::default(),
@@ -30,6 +32,8 @@ fn make_creature(id: &str, name: &str) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+
+        weight_kg: 50.0,
     }
 }
 
@@ -84,6 +88,7 @@ fn modify_damage_scales_last_damage_event() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -117,6 +122,7 @@ fn crit_scales_last_damage_event() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -163,6 +169,7 @@ fn cure_all_status_clears_statuses() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -191,6 +198,7 @@ fn lock_move_forces_specific_move() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -242,6 +250,7 @@ fn self_switch_marks_pending_switch() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -295,6 +304,7 @@ fn force_switch_randomly_switches_target() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -338,6 +348,7 @@ fn force_switch_with_only_one_pokemon_logs_failure() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,

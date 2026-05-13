@@ -1,7 +1,7 @@
 use engine_rust::core::abilities::{run_ability_hooks, AbilityHookContext};
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::{apply_event, BattleEvent};
-use engine_rust::core::state::{BattleState, CreatureState, FieldState, PlayerState, StatStages};
+use engine_rust::core::state::{BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages};
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::type_chart::TypeChart;
 use std::collections::HashMap;
@@ -22,6 +22,8 @@ fn create_test_state() -> BattleState {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+
+            evs: EVStats::default(),
             ability: None,
             volatile_data: HashMap::new(),
             ability_data: HashMap::new(),
@@ -31,6 +33,8 @@ fn create_test_state() -> BattleState {
             sp_attack: 10,
             sp_defense: 10,
             speed: 10,
+
+            weight_kg: 50.0,
         }],
         active_slot: 0,
         last_fainted_ability: None,
@@ -50,6 +54,8 @@ fn create_test_state() -> BattleState {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+
+            evs: EVStats::default(),
             ability: None,
             volatile_data: HashMap::new(),
             ability_data: HashMap::new(),
@@ -59,6 +65,8 @@ fn create_test_state() -> BattleState {
             sp_attack: 10,
             sp_defense: 10,
             speed: 10,
+
+            weight_kg: 50.0,
         }],
         active_slot: 0,
         last_fainted_ability: None,
@@ -95,6 +103,7 @@ fn test_morning_sun_healing() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,

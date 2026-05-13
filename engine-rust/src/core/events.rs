@@ -231,14 +231,29 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             }
                         }
                     }
-                    let new_hp = active.hp - *amount;
+                    let mut effective_amount = *amount;
+                    let is_move_damage =
+                        meta.and_then(|meta| meta.get("moveId")).is_some();
+                    let endured = is_move_damage
+                        && effective_amount > 0
+                        && active.hp > 0
+                        && active.hp - effective_amount <= 0
+                        && active.statuses.iter().any(|s| s.id == "endure");
+                    if endured {
+                        effective_amount = (active.hp - 1).max(0);
+                        next.log.push(format!("{}は こらえた！", active.name));
+                    } else if effective_amount > 0 {
+                        effective_amount = effective_amount.min(active.hp.max(0));
+                    }
+
+                    let new_hp = active.hp - effective_amount;
                     active.hp = new_hp.clamp(0, active.max_hp);
-                    if *amount > 0 {
+                    if effective_amount > 0 {
                         if let Some(meta) = event_meta(event) {
                             if meta.get("moveId").is_some() {
                                 active.volatile_data.insert(
                                     "lastDamageTakenAmount".to_string(),
-                                    Value::Number((*amount).into()),
+                                    Value::Number(effective_amount.into()),
                                 );
                                 if let Some(category) = meta_get_string(meta, "category") {
                                     active.volatile_data.insert(
@@ -269,11 +284,17 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         active
                             .volatile_data
                             .insert("damagedThisTurn".to_string(), Value::Bool(true));
-                        next.log
-                            .push(format!("{}は {}ダメージ 受けた！", active.name, amount));
+                        next.log.push(format!(
+                            "{}は {}ダメージ 受けた！",
+                            active.name, effective_amount
+                        ));
                     } else if *amount < 0 {
                         next.log
                             .push(format!("{}の HPが {}回復した！", active.name, -amount));
+                    } else if endured {
+                        active
+                            .volatile_data
+                            .insert("damagedThisTurn".to_string(), Value::Bool(true));
                     } else {
                         next.log
                             .push(format!("{}には 効かないようだ……", active.name));
@@ -1148,5 +1169,36 @@ mod tests {
         assert_eq!(next.players[0].team[0].stages.atk, 0);
         assert_eq!(next.players[0].team[1].stages.atk, 0);
         assert_eq!(next.players[0].team[1].stages.spe, 0);
+    }
+
+    #[test]
+    fn damage_log_and_tracking_are_capped_to_remaining_hp() {
+        let mut state = test_state();
+        state.players[0].team[0].hp = 68;
+
+        let mut meta = Map::new();
+        meta.insert("moveId".to_string(), Value::String("heavy_hit".to_string()));
+        let next = apply_event(
+            &state,
+            &BattleEvent::Damage {
+                target_id: "player".to_string(),
+                amount: 100,
+                meta,
+            },
+        );
+
+        let active = &next.players[0].team[0];
+        assert_eq!(active.hp, 0);
+        assert_eq!(
+            active
+                .volatile_data
+                .get("lastDamageTakenAmount")
+                .and_then(|value| value.as_i64()),
+            Some(68)
+        );
+        assert!(
+            next.log.iter().any(|line| line.contains("68ダメージ")),
+            "damage log should show actual HP lost, not raw incoming damage"
+        );
     }
 }

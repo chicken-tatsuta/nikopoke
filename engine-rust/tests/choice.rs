@@ -1,6 +1,6 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
 use engine_rust::core::state::{
-    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages, Status,
 };
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
@@ -25,6 +25,8 @@ fn make_creature(id: &str, name: &str, moves: Vec<String>) -> CreatureState {
         moves,
         ability: Some("none".to_string()),
         item: None,
+
+        evs: EVStats::default(),
         hp: 100,
         max_hp: 100,
         stages: StatStages::default(),
@@ -37,6 +39,8 @@ fn make_creature(id: &str, name: &str, moves: Vec<String>) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+
+        weight_kg: 50.0,
     }
 }
 

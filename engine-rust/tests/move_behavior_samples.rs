@@ -1,7 +1,7 @@
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::BattleEvent;
 use engine_rust::core::state::{
-    BattleState, CreatureState, FieldEffect, FieldState, PlayerState, StatStages, Status,
+    BattleState, CreatureState, EVStats, FieldEffect, FieldState, PlayerState, StatStages, Status,
 };
 use engine_rust::data::moves::{Effect, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
@@ -92,6 +92,8 @@ fn create_creature(id: &str, name: &str, types: Vec<String>) -> CreatureState {
         stages: StatStages::default(),
         statuses: Vec::new(),
         item: None,
+
+        evs: EVStats::default(),
         ability: None,
         volatile_data: HashMap::new(),
         ability_data: HashMap::new(),
@@ -101,6 +103,8 @@ fn create_creature(id: &str, name: &str, types: Vec<String>) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+
+        weight_kg: 50.0,
     }
 }
 
@@ -433,6 +437,7 @@ fn sampled_move_effects_match_expected_events() {
             ignore_immunity: false,
             bypass_substitute: false,
             ignore_substitute: false,
+            ignore_ability: false,
             is_sound: false,
             last_damage: None,
             switch_slot: None,

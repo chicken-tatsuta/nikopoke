@@ -365,12 +365,7 @@
     "priority": 4,
     "effects": [
       {
-        "type": "protect"
-      },
-      {
-        "type": "apply_status",
-        "statusId": "protect",
-        "target": "self"
+        "type": "endure"
       }
     ]
   },

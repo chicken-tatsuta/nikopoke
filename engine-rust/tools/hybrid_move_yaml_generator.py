@@ -371,8 +371,10 @@ def add_special_step_overrides(move_id: str, steps: list[dict[str, Any]]) -> Non
 
 
 def special_steps(move_id: str) -> list[dict[str, Any]] | None:
-    if move_id in {"protect", "detect", "endure", "baneful_bunker"}:
+    if move_id in {"protect", "detect", "baneful_bunker"}:
         return [{"type": "protect"}]
+    if move_id == "endure":
+        return [{"type": "endure"}]
 
     if move_id == "yawn":
         return [{"type": "apply_status", "statusId": "yawn", "target": "target", "data": {"turns": 1}}]

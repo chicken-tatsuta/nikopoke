@@ -443,6 +443,43 @@ fn protect_move(id: &str, priority: i32) -> MoveData {
     }
 }
 
+fn endure_move(id: &str, priority: i32) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(priority),
+        description: None,
+        steps: vec![effect("endure", json!({}))],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
+fn status_move(id: &str, status_id: &str) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "apply_status",
+            json!({ "statusId": status_id, "target": "target", "chance": 1 }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
 fn make_engine(moves: Vec<MoveData>) -> BattleEngine {
     let mut move_db = MoveDatabase::new();
     for mv in moves {
@@ -893,6 +930,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -914,6 +952,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -1407,6 +1446,7 @@ fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -1459,6 +1499,7 @@ fn p0_spec_protect_chain_success_increments_counter() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -1609,6 +1650,133 @@ fn p0_spec_failed_protect_does_not_block_incoming_damage() {
         counter,
         Some(0),
         "failed protect should reset protectSuccessCount"
+    );
+}
+
+#[test]
+fn p0_spec_endure_survives_lethal_damage_at_one_hp() {
+    let engine = make_engine(vec![
+        endure_move("endure_plus4", 4),
+        damage_move("one_shot", "physical", 400, None),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Endurer")
+                .moves(&["endure_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Attacker")
+                .moves(&["one_shot"])
+                .stats(100, 50, 50, 50, 50)
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "endure_plus4", "p2"),
+        move_action("p2", "one_shot", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 120);
+
+    assert_active_hp(&next, "p1", 1);
+    assert!(
+        next.log.iter().any(|line| line.contains("こらえた")),
+        "endure should log that the user endured lethal damage"
+    );
+    assert!(
+        !next.players[0].team[0]
+            .statuses
+            .iter()
+            .any(|status| status.id == "pending_switch"),
+        "endure should prevent fainting from lethal damage"
+    );
+}
+
+#[test]
+fn p0_spec_endure_does_not_block_non_damage_status_moves() {
+    let engine = make_engine(vec![
+        endure_move("endure_plus4", 4),
+        status_move("poison_touch", "poison"),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Endurer")
+                .moves(&["endure_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Poisoner")
+                .moves(&["poison_touch"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "endure_plus4", "p2"),
+        move_action("p2", "poison_touch", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 121);
+
+    assert_active_has_status(&next, "p1", "poison");
+}
+
+#[test]
+fn p0_spec_endure_shares_protect_chain_counter() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![{
+                let mut c = CreatureBuilder::new("c1", "Guard").moves(&["wait"]).build();
+                c.volatile_data
+                    .insert("protectSuccessCount".to_string(), Value::Number(1.into()));
+                c
+            }],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+
+    let mut rng = || 0.4;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: None,
+        rng: &mut rng,
+        turn: 0,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        switch_slot: None,
+    };
+    let events = apply_effects(&state, &[effect("endure", json!({}))], &mut ctx);
+
+    let reset_seen = events.iter().any(|event| match event {
+        BattleEvent::SetVolatile { key, value, .. } => {
+            key == "protectSuccessCount" && value == &Value::Number(0.into())
+        }
+        _ => false,
+    });
+
+    assert!(
+        has_status_log(&events, "こらえられなかった") && reset_seen,
+        "endure should use the same consecutive-use failure odds as protect"
     );
 }
 
@@ -1850,6 +2018,7 @@ fn p0_manual_effects_must_not_be_silent_noop() {
                 ignore_immunity: false,
                 bypass_substitute: false,
                 ignore_substitute: false,
+                ignore_ability: false,
                 is_sound: false,
                 last_damage: None,
                 switch_slot: None,

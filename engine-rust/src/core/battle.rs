@@ -534,7 +534,11 @@ impl BattleEngine {
                 next = apply_event(&next, &event);
             }
 
-            if !move_data.steps.iter().any(|e| e.effect_type == "protect") {
+            if !move_data
+                .steps
+                .iter()
+                .any(|e| matches!(e.effect_type.as_str(), "protect" | "endure"))
+            {
                 if let Some(active) = get_active_creature(&next, &player_id) {
                     if active.volatile_data.get("protectSuccessCount").is_some() {
                         let event = BattleEvent::SetVolatile {

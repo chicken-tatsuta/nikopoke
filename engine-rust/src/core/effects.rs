@@ -151,6 +151,7 @@ fn apply_effect(
     let effect_type = effect.effect_type.as_str();
     match effect_type {
         "protect" => apply_protect(state, effect, ctx),
+        "endure" => apply_endure(state, effect, ctx),
         "damage" => apply_damage(state, effect, ctx),
         "heal_last_damage" => apply_last_damage_ratio(state, effect, ctx, true),
         "recoil_last_damage" => apply_last_damage_ratio(state, effect, ctx, false),
@@ -293,6 +294,23 @@ fn apply_protect(
     effect: &Effect,
     ctx: &mut EffectContext<'_>,
 ) -> Vec<BattleEvent> {
+    apply_protect_family(state, effect, ctx, "protect")
+}
+
+fn apply_endure(
+    state: &BattleState,
+    effect: &Effect,
+    ctx: &mut EffectContext<'_>,
+) -> Vec<BattleEvent> {
+    apply_protect_family(state, effect, ctx, "endure")
+}
+
+fn apply_protect_family(
+    state: &BattleState,
+    effect: &Effect,
+    ctx: &mut EffectContext<'_>,
+    default_status_id: &str,
+) -> Vec<BattleEvent> {
     let Some(attacker) = get_active_creature(state, &ctx.attacker_player_id) else {
         return Vec::new();
     };
@@ -309,9 +327,14 @@ fn apply_protect(
     }
 
     if (ctx.rng)() > chance {
+        let message = if default_status_id == "endure" {
+            format!("{}は こらえられなかった！", attacker.name)
+        } else {
+            format!("{}の まもりは 失敗した！", attacker.name)
+        };
         return vec![
             BattleEvent::Log {
-                message: format!("{}の まもりは 失敗した！", attacker.name),
+                message,
                 meta: meta_with_move_source(
                     ctx.move_data.map(|m| m.id.as_str()),
                     Some(&ctx.attacker_player_id),
@@ -337,7 +360,7 @@ fn apply_protect(
                 .data
                 .get("statusId")
                 .and_then(|v| v.as_str())
-                .unwrap_or("protect")
+                .unwrap_or(default_status_id)
                 .to_string(),
             duration: Some(1),
             stack: false,
