@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function SignupPage() {
@@ -30,43 +30,49 @@ export default function SignupPage() {
     };
 
     return (
-        <div className="min-h-dvh bg-[var(--surface-1)] flex items-center justify-center px-6">
-            <main className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-7 shadow-xl shadow-black/10">
-                <div className="mb-7 text-center">
-                    <div className="mb-3 flex items-center justify-center gap-2">
-                        <Zap className="size-7 text-[var(--accent)]" />
-                        <h1 className="text-3xl font-black text-[var(--text-primary)]">Nikipoke</h1>
+        <div className="flex min-h-dvh items-center justify-center bg-white px-6 py-10 text-[#111111]">
+            <main className="grid w-full max-w-5xl overflow-hidden rounded-lg border border-[#111111] bg-white md:grid-cols-[0.95fr_1.05fr]">
+                <section className="border-b border-[#111111] bg-[#FAFAFA] p-7 md:border-b-0 md:border-r">
+                    <div className="flex items-center gap-4">
+                        <span className="h-7 w-14 rounded-t-full border border-b-0 border-[#111111]" />
+                        <span className="text-xl font-bold tracking-[0.22em]">Nikidan</span>
                     </div>
-                    <p className="text-sm text-[var(--text-muted)]">トレーナープロフィールを作成します</p>
-                </div>
+                    <h1 className="mt-12 text-4xl font-black leading-[1.35] tracking-[0.14em]">
+                        研究員証を<br />
+                        作る。
+                    </h1>
+                    <p className="mt-5 text-sm font-semibold leading-7 tracking-[0.08em] text-[#333333]">
+                        ユーザー名とデッキを紐づけて、ニキダンの対戦記録を残せるようにします。
+                    </p>
+                </section>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4 p-7">
                     <label className="block">
-                        <span className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">ユーザー名</span>
+                        <span className="mb-1.5 block text-xs font-bold tracking-[0.12em] text-[#333333]">ユーザー名</span>
                         <input
                             value={username}
                             onChange={(event) => setUsername(event.target.value)}
                             required
                             minLength={2}
                             autoComplete="username"
-                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+                            className="w-full rounded-md border border-[#111111] bg-white px-4 py-3 text-[#111111] outline-none transition-colors placeholder:text-[#777777] focus:bg-[#F5EEE4]"
                         />
                     </label>
 
                     <label className="block">
-                        <span className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">メールアドレス</span>
+                        <span className="mb-1.5 block text-xs font-bold tracking-[0.12em] text-[#333333]">メールアドレス</span>
                         <input
                             type="email"
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
                             required
                             autoComplete="email"
-                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+                            className="w-full rounded-md border border-[#111111] bg-white px-4 py-3 text-[#111111] outline-none transition-colors placeholder:text-[#777777] focus:bg-[#F5EEE4]"
                         />
                     </label>
 
                     <label className="block">
-                        <span className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">パスワード</span>
+                        <span className="mb-1.5 block text-xs font-bold tracking-[0.12em] text-[#333333]">パスワード</span>
                         <input
                             type="password"
                             value={password}
@@ -74,12 +80,12 @@ export default function SignupPage() {
                             required
                             minLength={6}
                             autoComplete="new-password"
-                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
+                            className="w-full rounded-md border border-[#111111] bg-white px-4 py-3 text-[#111111] outline-none transition-colors placeholder:text-[#777777] focus:bg-[#F5EEE4]"
                         />
                     </label>
 
                     {error && (
-                        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                        <div className="rounded-md border border-[#111111] bg-[#F5EEE4] px-4 py-3 text-sm font-semibold text-[#111111]">
                             {error}
                         </div>
                     )}
@@ -87,18 +93,19 @@ export default function SignupPage() {
                     <button
                         type="submit"
                         disabled={busy}
-                        className="w-full rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex w-full items-center justify-between rounded-md border border-[#111111] bg-[#F5EEE4] px-4 py-3 font-bold tracking-[0.08em] text-[#111111] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {busy ? '登録中...' : '新規登録'}
+                        <ArrowRight className="size-4" />
                     </button>
-                </form>
 
-                <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-                    すでにアカウントがある場合は{' '}
-                    <Link to="/login" className="font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]">
-                        ログイン
-                    </Link>
-                </p>
+                    <p className="pt-2 text-center text-sm text-[#666666]">
+                        すでにアカウントがある場合は{' '}
+                        <Link to="/login" className="font-bold text-[#111111] underline underline-offset-4">
+                            ログイン
+                        </Link>
+                    </p>
+                </form>
             </main>
         </div>
     );

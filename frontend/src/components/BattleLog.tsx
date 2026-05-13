@@ -85,21 +85,21 @@ function getLogIcon(type: LogEntry['type']) {
 function getLogStyle(type: LogEntry['type']) {
     switch (type) {
         case 'player-move':
-            return 'bg-blue-500/10 border-l-blue-500 text-blue-100';
+            return 'bg-white border-l-[#111111] text-[#111111]';
         case 'ai-move':
-            return 'bg-red-500/10 border-l-red-500 text-red-100';
+            return 'bg-white border-l-[#111111] text-[#111111]';
         case 'damage':
-            return 'bg-orange-500/10 border-l-orange-400 text-orange-100';
+            return 'bg-[#F5EEE4] border-l-[#111111] text-[#111111]';
         case 'effect':
-            return 'bg-yellow-500/10 border-l-yellow-400 text-yellow-100';
+            return 'bg-[#FAFAFA] border-l-[#111111] text-[#111111]';
         case 'status':
-            return 'bg-purple-500/10 border-l-purple-400 text-purple-100';
+            return 'bg-[#F5EEE4] border-l-[#111111] text-[#111111]';
         case 'switch':
-            return 'bg-emerald-500/10 border-l-emerald-400 text-emerald-100';
+            return 'bg-white border-l-[#111111] text-[#111111]';
         case 'ability':
-            return 'bg-cyan-500/10 border-l-cyan-300 text-cyan-100';
+            return 'bg-[#FAFAFA] border-l-[#111111] text-[#111111]';
         default:
-            return 'bg-slate-500/10 border-l-slate-400 text-slate-200';
+            return 'bg-white border-l-[#111111] text-[#333333]';
     }
 }
 
@@ -116,17 +116,17 @@ export function BattleLog({ logs, currentTurn, className, compact = false }: Bat
 
     return (
         <div className={cn(
-            'flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/30',
+            'flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#111111] bg-white',
             className
         )}>
             {/* Header */}
             <div className={cn(
-                'flex items-center justify-between border-b border-slate-700/50 bg-slate-800/50',
+                'flex items-center justify-between border-b border-[#111111] bg-[#FAFAFA]',
                 compact ? 'px-2 py-1.5' : 'px-4 py-2',
             )}>
-                <h3 className={cn('font-medium text-slate-200', compact ? 'text-xs' : 'text-sm')}>バトルログ</h3>
+                <h3 className={cn('font-bold tracking-[0.1em] text-[#111111]', compact ? 'text-xs' : 'text-sm')}>バトルログ</h3>
                 <span className={cn(
-                    'rounded-full bg-indigo-500/20 font-medium tabular-nums text-indigo-300',
+                    'rounded border border-[#111111] bg-[#F5EEE4] font-bold tabular-nums text-[#111111]',
                     compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs',
                 )}>
                     ターン {currentTurn}
@@ -136,7 +136,7 @@ export function BattleLog({ logs, currentTurn, className, compact = false }: Bat
             {/* Log entries */}
             <div ref={entriesRef} className={cn('min-h-0 flex-1 overflow-y-auto', compact ? 'space-y-1 p-1.5' : 'space-y-1 p-2')}>
                 {parsedEntries.length === 0 ? (
-                    <p className={cn('px-2 py-4 text-center text-slate-500', compact ? 'text-xs' : 'text-sm')}>
+                    <p className={cn('px-2 py-4 text-center text-[#666666]', compact ? 'text-xs' : 'text-sm')}>
                         バトル開始！
                     </p>
                 ) : (
@@ -144,7 +144,7 @@ export function BattleLog({ logs, currentTurn, className, compact = false }: Bat
                         <div
                             key={i}
                             className={cn(
-                                'flex items-start rounded-lg border-l-2',
+                                'flex items-start rounded-md border-l-2',
                                 compact ? 'gap-1 px-1.5 py-1 text-[11px] leading-snug' : 'gap-2 px-3 py-1.5 text-sm',
                                 getLogStyle(entry.type)
                             )}
@@ -172,38 +172,38 @@ export function ActionSummary({ playerMove, aiMove, getTypeColor, className }: A
 
     return (
         <div className={cn(
-            'flex items-center justify-center gap-6 rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-2',
+            'flex items-center justify-center gap-6 rounded-lg border border-[#111111] bg-white px-4 py-2',
             className
         )}>
             {/* Player action */}
             {playerMove && (
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-blue-400">🔵 あなた</span>
+                    <span className="text-xs font-bold text-[#111111]">あなた</span>
                     <span
                         className="rounded px-1.5 py-0.5 text-xs text-white"
                         style={{ backgroundColor: getTypeColor(playerMove.type) }}
                     >
                         {playerMove.type}
                     </span>
-                    <span className="font-medium text-white">{playerMove.name}</span>
+                    <span className="font-medium text-[#111111]">{playerMove.name}</span>
                 </div>
             )}
 
             {playerMove && aiMove && (
-                <span className="text-slate-600">vs</span>
+                <span className="text-[#666666]">vs</span>
             )}
 
             {/* AI action */}
             {aiMove && (
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-red-400">🔴 相手</span>
+                    <span className="text-xs font-bold text-[#111111]">相手</span>
                     <span
                         className="rounded px-1.5 py-0.5 text-xs text-white"
                         style={{ backgroundColor: getTypeColor(aiMove.type) }}
                     >
                         {aiMove.type}
                     </span>
-                    <span className="font-medium text-white">{aiMove.name}</span>
+                    <span className="font-medium text-[#111111]">{aiMove.name}</span>
                 </div>
             )}
         </div>

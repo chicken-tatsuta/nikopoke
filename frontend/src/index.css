@@ -1,31 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  /* === Surface Layers (Depth Through Layers) === */
-  --surface-0: #0c0f14;
-  /* Deepest background */
-  --surface-1: #12161d;
-  /* Primary background */
-  --surface-2: #1a1f2a;
-  /* Card background */
-  --surface-3: #242a38;
-  /* Elevated elements */
-  --surface-4: #2e3545;
-  /* Hover states */
+  /* === Nikidan Study Note Theme === */
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #fafafa;
+  --surface-4: #f5eee4;
 
   /* === Text Hierarchy === */
-  --text-primary: #f0f2f5;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --text-primary: #111111;
+  --text-secondary: #333333;
+  --text-muted: #666666;
 
   /* === Accent === */
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-muted: rgba(99, 102, 241, 0.15);
+  --accent: #111111;
+  --accent-hover: #333333;
+  --accent-muted: #f5eee4;
 
   /* === Borders === */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.12);
+  --border: #111111;
+  --border-hover: #111111;
 
   /* === Muted Type Colors (Sophisticated palette) === */
   --type-normal: #8b8d94;
@@ -51,7 +46,7 @@
 body {
   background-color: var(--surface-1);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
@@ -67,19 +62,18 @@ body {
 /* === Utility for subtle grid pattern === */
 .bg-grid-pattern {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(17, 17, 17, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.04) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
 /* === Card hover effect === */
 .card-hover {
-  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
 }
 
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
 }
 
 @keyframes battle-lunge-player {

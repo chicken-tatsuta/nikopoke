@@ -101,7 +101,7 @@ export default function HomePage() {
                             </div>
 
                             <div className="flex flex-wrap gap-3">
-                                <PrimaryLink to="#featured">図鑑を見る</PrimaryLink>
+                                <PrimaryLink to="/pokedex">図鑑を見る</PrimaryLink>
                                 <PrimaryLink to="/battle-mode">バトルをはじめる</PrimaryLink>
                             </div>
                         </div>
@@ -111,9 +111,9 @@ export default function HomePage() {
                         <div className="mb-2.5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <span className="h-6 w-3 rounded-l-full border border-r-0 border-[#111111] bg-[#F5EEE4]" />
-                                <h2 className="text-base font-bold tracking-[0.12em] sm:text-lg">注目のニキモン</h2>
+                                <h2 className="text-base font-bold tracking-[0.12em] sm:text-lg">注目のニキダン</h2>
                             </div>
-                            <Link to="/ranking" className="text-sm font-semibold tracking-[0.08em] hover:underline">
+                            <Link to="/pokedex" className="text-sm font-semibold tracking-[0.08em] hover:underline">
                                 すべて見る →
                             </Link>
                         </div>
@@ -159,7 +159,7 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
 
                 <nav className="hidden items-center gap-8 text-xs font-bold tracking-[0.16em] md:flex">
                     <Link className="border-b border-[#111111] pb-1" to="/home">トップ</Link>
-                    <Link to="#featured">図鑑</Link>
+                    <Link to="/pokedex">図鑑</Link>
                     <Link to="/battle-mode">バトル</Link>
                     <Link to="/ranking">ランキング</Link>
                     <span className="flex items-center gap-2">

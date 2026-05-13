@@ -7,6 +7,7 @@ import DeckBuilderPage from './pages/DeckBuilderPage';
 import BattlePage from './pages/BattlePage';
 import OnlineLobbyPage from './pages/OnlineLobbyPage';
 import ResultPage from './pages/ResultPage';
+import PokedexPage from './pages/PokedexPage';
 import PokemonDetailPage from './pages/PokemonDetailPage';
 import TeamPreviewPage from './pages/TeamPreviewPage';
 import LoginPage from './pages/LoginPage';
@@ -50,6 +51,7 @@ function App() {
           <Route path="/online-lobby" element={<ProtectedRoute><OnlineLobbyPage /></ProtectedRoute>} />
           <Route path="/battle" element={<ProtectedRoute><BattlePage /></ProtectedRoute>} />
           <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
+          <Route path="/pokedex" element={<ProtectedRoute><PokedexPage /></ProtectedRoute>} />
           <Route path="/pokedex/:speciesId" element={<ProtectedRoute><PokemonDetailPage /></ProtectedRoute>} />
           <Route path="*" element={<ProtectedRoute><Navigate to="/home" replace /></ProtectedRoute>} />
         </Routes>

@@ -61,12 +61,10 @@ function getEffectivenessLabel(mult: number): string | null {
 }
 
 function getEffectivenessClass(mult: number): string {
-  if (mult === 0) return 'bg-slate-800 text-white border border-slate-700';
-  if (mult >= 4) return 'bg-pink-100 text-pink-700 border border-pink-200';
-  if (mult >= 2) return 'bg-red-100 text-red-700 border border-red-200';
-  if (mult <= 0.25) return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
-  if (mult < 1) return 'bg-blue-100 text-blue-700 border border-blue-200';
-  return 'bg-slate-100 text-slate-500 border border-slate-200';
+  if (mult === 0) return 'bg-white text-[#111111] border border-[#111111]';
+  if (mult >= 2) return 'bg-[#F5EEE4] text-[#111111] border border-[#111111]';
+  if (mult < 1) return 'bg-white text-[#111111] border border-[#111111]';
+  return 'bg-[#FAFAFA] text-[#666666] border border-[#111111]';
 }
 
 export default function DeckBuilderPage() {
@@ -424,7 +422,7 @@ export default function DeckBuilderPage() {
                             />
                         ) : (
                             <div>
-                                <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">ポケモン選択</h2>
+                                <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">ニキダン選択</h2>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {speciesList.map((mon) => {
                                         const isSelected = selectedPokemon.some(p => p.speciesId === mon.id);
@@ -579,7 +577,7 @@ function SelectedPokemonCard({
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                         <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
-                        <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
+                        <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ニキダンを削除">
                             <X className="size-4 text-red-400" />
                         </button>
                     </div>
@@ -835,7 +833,7 @@ function EVEditor({
             </div>
 
             {remaining < 0 && (
-                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                <div className="mb-4 p-3 bg-[#F5EEE4] border border-[#111111] rounded-lg text-[#111111] text-sm">
                     合計が{EV_TOTAL_MAX}を超えています
                 </div>
             )}

@@ -241,7 +241,7 @@ export default function OnlineLobbyPage() {
                             <button
                                 onClick={handleCreateRoom}
                                 disabled={busy || session.role === 'host'}
-                                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                                className="mt-4 inline-flex items-center gap-2 rounded-md border border-[#111111] bg-[#F5EEE4] px-4 py-3 text-sm font-bold text-[#111111] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <Users className="size-4" />
                                 ルームを作る
@@ -293,7 +293,7 @@ export default function OnlineLobbyPage() {
                         <div className="mt-6">
                             <button
                                 onClick={handleStartBattle}
-                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-emerald-500"
+                                className="inline-flex items-center gap-2 rounded-md border border-[#111111] bg-[#F5EEE4] px-5 py-3 font-bold text-[#111111] transition-colors hover:bg-white"
                             >
                                 <Swords className="size-4" />
                                 対戦を開始する
@@ -302,7 +302,7 @@ export default function OnlineLobbyPage() {
                     )}
 
                     {error && (
-                        <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                        <p className="mt-4 rounded-md border border-[#111111] bg-[#F5EEE4] px-4 py-3 text-sm font-semibold text-[#111111]">
                             {error}
                         </p>
                     )}

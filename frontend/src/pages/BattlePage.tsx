@@ -311,26 +311,18 @@ const TYPE_EFFECTIVENESS: Record<string, Partial<Record<string, number>>> = {
   
   function getEffectivenessClass(multiplier: number | null): string {
     if (multiplier === 0) {
-      return 'bg-slate-800 text-white border border-slate-700';
-    }
-  
-    if (multiplier !== null && multiplier >= 4) {
-      return 'bg-pink-100 text-pink-700 border border-pink-200';
+      return 'bg-white text-[#111111] border border-[#111111]';
     }
   
     if (multiplier !== null && multiplier >= 2) {
-      return 'bg-red-100 text-red-700 border border-red-200';
-    }
-  
-    if (multiplier !== null && multiplier <= 0.25) {
-      return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
+      return 'bg-[#F5EEE4] text-[#111111] border border-[#111111]';
     }
   
     if (multiplier !== null && multiplier < 1) {
-      return 'bg-blue-100 text-blue-700 border border-blue-200';
+      return 'bg-white text-[#111111] border border-[#111111]';
     }
   
-    return 'bg-slate-100 text-slate-500 border border-slate-200';
+    return 'bg-[#FAFAFA] text-[#666666] border border-[#111111]';
   }
   
   function formatEffectivenessMultiplier(multiplier: number | null): string {
@@ -970,7 +962,7 @@ function getActionLabel(
 
     if (action.type === 'switch') {
         if (isForcedReplacementAction(action, state)) {
-            return `${side}が出すポケモンを選んでいます`;
+            return `${side}が出すニキダンを選んでいます`;
         }
         return `${side}が交代しています`;
     }
@@ -1603,7 +1595,7 @@ export default function BattlePage() {
             }
         } catch (error) {
             console.error('Forced switch error:', error);
-            setStatusText('ポケモンの出し直しに失敗しました。');
+            setStatusText('ニキダンの出し直しに失敗しました。');
             setWaiting(false);
         }
     }, [finishBattle, playBattleResolution]);
@@ -2036,7 +2028,7 @@ if (!aiAction) {
                     } else {
                         sendPlayerAction(playerAction);
                         setWaiting(true);
-                        setStatusText('ホストがポケモンの出し直しを処理しています...');
+                        setStatusText('ホストがニキダンの出し直しを処理しています...');
                     }
                     return;
                 }
@@ -2120,7 +2112,7 @@ if (!playerPokemon || !aiPokemon) {
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-6 py-5 text-center">
                 <p className="text-lg font-medium text-[var(--text-primary)]">対戦情報を同期中です...</p>
                 <p className="mt-2 text-sm text-[var(--text-muted)]">
-                    ポケモン情報を取得しています。
+                    ニキダン情報を取得しています。
                 </p>
             </div>
         </div>
@@ -2179,8 +2171,8 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
   <span className={cn(
     'rounded-full border px-3 py-1 text-xs font-semibold',
     interactionLocked
-      ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
-      : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+      ? 'border-[#111111] bg-[#F5EEE4] text-[#111111]'
+      : 'border-[#111111] bg-white text-[#111111]',
   )}>
     {battleStatusLabel}
   </span>
@@ -2320,7 +2312,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
             interactionLocked && 'cursor-not-allowed opacity-50'
         )}
     >
-        ニキモン
+        ニキダン
     </button>
 </div>
                     {commandMode === 'fight' ? (
@@ -2483,10 +2475,10 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
         </aside>
         {!playback.isPlaying && (commandMode === 'pokemon' || mustSwitch) && (
-    <div className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/60 p-3 sm:items-center sm:p-4">
-        <div className="grid max-h-[94dvh] w-full max-w-7xl grid-cols-1 gap-3 overflow-y-auto rounded-2xl sm:gap-4 lg:h-[80dvh] lg:grid-cols-[320px_minmax(0,1fr)_320px] lg:gap-5 lg:overflow-visible">
+    <div className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/40 p-3 sm:items-center sm:p-4">
+        <div className="grid max-h-[94dvh] w-full max-w-7xl grid-cols-1 gap-3 overflow-y-auto rounded-lg border border-[#111111] bg-white sm:gap-4 lg:h-[80dvh] lg:grid-cols-[320px_minmax(0,1fr)_320px] lg:gap-5 lg:overflow-visible">
             {/* Left column: player team list */}
-            <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-3 sm:p-4 lg:overflow-hidden">
+            <div className="flex min-h-0 flex-col space-y-2 rounded-lg bg-[var(--surface-2)] p-3 sm:p-4 lg:overflow-hidden">
                 <div className="mb-2 text-sm font-bold text-[var(--text-primary)]">
                     味方チーム
                 </div>
@@ -2525,7 +2517,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
 
             {/* Center column: focused pokemon detail */}
-            <div className="grid min-h-0 rounded-xl bg-[var(--surface-2)] p-4 sm:p-5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)] lg:p-6 lg:overflow-hidden">
+            <div className="grid min-h-0 rounded-lg bg-[var(--surface-2)] p-4 sm:p-5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)] lg:p-6 lg:overflow-hidden">
                 {(() => {
                     const mon = player.team[focusedTeamSlot] ?? player.team[player.activeSlot];
                     const monSpecies = species[mon.speciesId];
@@ -2563,9 +2555,9 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                             <div className="mt-1 text-sm text-[var(--text-muted)]">
                                                 HP {mon.hp}/{mon.maxHp}
                                             </div>
-                                            <div className="mt-2 h-2 w-full rounded-full bg-[var(--surface-3)]">
+                                                <div className="mt-2 h-2 w-full bg-[var(--surface-4)]">
                                                 <div
-                                                    className="h-full rounded-full bg-emerald-500"
+                                                    className="h-full bg-[var(--accent)]"
                                                     style={{
                                                         width: `${(mon.hp / mon.maxHp) * 100}%`,
                                                     }}
@@ -2592,7 +2584,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 </div>
 
                                 {/* 右：種族値 */}
-                                <div className="rounded-xl bg-[var(--surface-3)] p-3 sm:p-4">
+                                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-3)] p-3 sm:p-4">
                                     <div className="mb-3 text-sm font-semibold text-[var(--text-muted)]">
                                         種族値
                                     </div>
@@ -2607,15 +2599,15 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                             return (
                                                 <div className="grid grid-cols-[56px_1fr_36px] items-center gap-2 text-xs sm:grid-cols-[64px_1fr_40px]">
                                                     <span className="text-[var(--text-muted)]">{label}</span>
-                                                    <div className="relative h-2.5 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                                                    <div className="relative h-1.5 overflow-hidden bg-[var(--surface-4)]">
                                                         {ev > 0 && (
                                                             <div
-                                                                className="absolute left-0 top-0 h-full rounded-full bg-amber-400"
+                                                                className="absolute left-0 top-0 h-full bg-[#999999]"
                                                                 style={{ width: `${evPercentage}%` }}
                                                             />
                                                         )}
                                                         <div
-                                                            className="absolute left-0 top-0 h-full rounded-full bg-[var(--accent)]"
+                                                            className="absolute left-0 top-0 h-full bg-[var(--accent)]"
                                                             style={{ width: `${percentage}%` }}
                                                         />
                                                     </div>
@@ -2674,7 +2666,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 <button
                                     onClick={() => handleSwitch(focusedTeamSlot)}
                                     disabled={isActive || isFainted || interactionLocked}
-                                    className="w-full rounded-xl bg-[var(--accent)] p-3 font-bold text-white disabled:opacity-40"
+                                    className="w-full rounded-md border border-[#111111] bg-[#F5EEE4] p-3 font-bold text-[#111111] disabled:opacity-40"
                                 >
                                     {isActive ? '場に出ています' : isFainted ? 'ひんしです' : '交代する'}
                                 </button>
@@ -2685,7 +2677,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
 
             {/* Right column: opponent team list */}
-            <div className="flex min-h-0 flex-col space-y-2 rounded-xl bg-[var(--surface-2)] p-3 sm:p-4 lg:overflow-hidden">
+            <div className="flex min-h-0 flex-col space-y-2 rounded-lg bg-[var(--surface-2)] p-3 sm:p-4 lg:overflow-hidden">
                 <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="text-sm font-bold text-[var(--text-primary)]">
                         相手チーム
@@ -2714,7 +2706,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     ? isActive
                                         ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
                                         : 'border-[var(--border)] bg-[var(--surface-3)]'
-                                    : 'border-[var(--border)] bg-black/30 opacity-45',
+                                    : 'border-[var(--border)] bg-[var(--surface-3)] opacity-45',
                                 isFainted && isRevealed && 'opacity-60'
                             )}
                         >
@@ -2760,7 +2752,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 </div>
                             ) : (
                                 <div className="flex min-h-12 items-center gap-2">
-                                    <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-black/30 text-lg font-bold text-[var(--text-muted)]">
+                                    <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-3)] text-lg font-bold text-[var(--text-muted)]">
                                         ?
                                     </div>
                                     <div className="min-w-0">
@@ -2850,14 +2842,14 @@ function BattlePopupToast({ popup }: { popup: BattlePopup | null }) {
             <div className={cn(
                 'rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-md',
                 popup.tone === 'ability'
-                    ? 'border-cyan-300/40 bg-cyan-950/85 text-cyan-50 shadow-cyan-950/40'
-                    : 'border-slate-300/30 bg-slate-950/85 text-slate-50 shadow-slate-950/40',
+                    ? 'border-[#111111] bg-white text-[#111111]'
+                    : 'border-[#111111] bg-white text-[#111111]',
             )}>
-                <div className="text-xs font-semibold uppercase tracking-wide text-cyan-200/80">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[#666666]">
                     {popup.tone === 'ability' ? 'Ability' : 'Battle'}
                 </div>
                 <div className="mt-0.5 text-lg font-bold leading-tight">{popup.title}</div>
-                <div className="mt-1 text-sm text-white/75">{popup.text}</div>
+                <div className="mt-1 text-sm text-[#333333]">{popup.text}</div>
             </div>
         </div>
     );
@@ -2923,7 +2915,7 @@ function PokemonStatus({
                         )}
                         <div className={cn(
                             'absolute bottom-1 size-3 rounded-full ring-2 ring-[var(--surface-2)]',
-                            isPlayer ? 'right-1 bg-blue-400' : 'left-1 bg-red-400',
+                            isPlayer ? 'right-1 bg-[#111111]' : 'left-1 bg-[#F5EEE4] border border-[#111111]',
                         )} />
                     </div>
                     <div className={cn('min-w-0', isPlayer ? 'text-right' : '')}>
@@ -2948,7 +2940,7 @@ function PokemonStatus({
                         <span>HP</span>
                         <span className="tabular-nums">{creature.hp}/{creature.maxHp}</span>
                     </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                    <div className="h-2 overflow-hidden bg-[var(--surface-4)]">
                         <div
                             className={cn('h-full transition-all duration-1400 ease-out', hpColor)}
                             style={{ width: `${hpPercentage}%` }}
@@ -2974,8 +2966,8 @@ function PokemonStatus({
                                 <span
                                     key={label}
                                     className={cn(
-                                        'rounded px-2 py-0.5 text-xs font-medium tabular-nums text-white',
-                                        value > 0 ? 'bg-green-600' : 'bg-red-600'
+                                        'rounded border border-[#111111] px-2 py-0.5 text-xs font-medium tabular-nums',
+                                        value > 0 ? 'bg-[#F5EEE4] text-[#111111]' : 'bg-white text-[#111111]'
                                     )}
                                 >
                                     {value > 0 ? '+' : ''}{value} {label}
@@ -2989,7 +2981,7 @@ function PokemonStatus({
                 {creature.statuses && creature.statuses.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                         {visibleStatuses(creature.statuses).map((status, i) => (
-                            <span key={i} className="rounded bg-purple-600 px-2 py-0.5 text-xs text-white">
+                            <span key={i} className="rounded border border-[#111111] bg-[#F5EEE4] px-2 py-0.5 text-xs text-[#111111]">
                                 {getStatusLabel(status.id)}
                             </span>
                         ))}

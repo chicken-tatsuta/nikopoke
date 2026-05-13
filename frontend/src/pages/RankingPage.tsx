@@ -41,8 +41,8 @@ export default function RankingPage() {
     }, []);
 
     return (
-        <div className="min-h-dvh bg-[var(--surface-1)]">
-            <header className="border-b border-[var(--border)] bg-[var(--surface-2)]">
+        <div className="min-h-dvh bg-white text-[#111111]">
+            <header className="border-b border-[var(--border)] bg-white">
                 <div className="mx-auto flex max-w-5xl items-center gap-3 px-3 py-4 sm:gap-4 sm:px-6">
                     <button
                         onClick={() => navigate('/home')}
@@ -54,7 +54,7 @@ export default function RankingPage() {
                     <div>
                         <h1 className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
                             <Trophy className="size-5 text-[var(--accent)]" />
-                            ランキング
+                            プレイヤーランキング
                         </h1>
                         <p className="text-sm text-[var(--text-muted)]">レートが高いトレーナー上位50人</p>
                     </div>
@@ -62,10 +62,10 @@ export default function RankingPage() {
             </header>
 
             <main className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-8">
-                <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
+                <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-white">
                     <div className="max-h-[calc(100dvh-150px)] overflow-auto">
                         <div className="min-w-[330px]">
-                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_64px_42px_42px] gap-2 border-b border-[var(--border)] bg-[var(--surface-3)] px-3 py-3 text-xs font-semibold text-[var(--text-muted)] sm:grid-cols-[64px_1fr_92px_80px_80px] sm:gap-3 sm:px-4">
+                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_64px_42px_42px] gap-2 border-b border-[var(--border)] bg-[#FAFAFA] px-3 py-3 text-xs font-bold tracking-[0.08em] text-[var(--text-muted)] sm:grid-cols-[64px_1fr_92px_80px_80px] sm:gap-3 sm:px-4">
                                 <span>順位</span>
                                 <span>トレーナー</span>
                                 <span className="text-right">レート</span>
@@ -93,7 +93,7 @@ export default function RankingPage() {
                                                     : 'text-[var(--text-secondary)]'
                                                     }`}
                                             >
-                                                <span className="font-semibold tabular-nums">{index + 1}位</span>
+                                                <span className="font-bold tabular-nums">{String(index + 1).padStart(2, '0')}</span>
                                                 <span className="min-w-0 truncate font-medium text-[var(--text-primary)]">
                                                     {profile.username}
                                                 </span>

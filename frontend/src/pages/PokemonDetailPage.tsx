@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
-import { getTypeColor, loadAllData } from '../lib/data';
+import { loadAllData } from '../lib/data';
 import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 import type { MoveData, Species, SpeciesData } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
@@ -83,7 +83,7 @@ export default function PokemonDetailPage() {
             <PageShell>
                 <main className="max-w-7xl mx-auto px-6 py-10 space-y-6">
                     <BackLink />
-                    <p className="text-[var(--text-muted)]">ポケモンが見つかりません。</p>
+                    <p className="text-[var(--text-muted)]">ニキダンが見つかりません。</p>
                 </main>
             </PageShell>
         );
@@ -91,32 +91,35 @@ export default function PokemonDetailPage() {
 
     return (
         <PageShell>
-            <header className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+            <header className="bg-white border-b border-[var(--border)]">
                 <div className="max-w-7xl mx-auto px-6 py-5">
                     <BackLink />
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-6 py-10 space-y-12">
+            <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
                 <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6">
                     <PokemonHero species={species} rank={rank} />
                     <BaseStatsPanel species={species} />
                 </section>
 
                 <section>
-    <h2 className="text-xl font-bold text-center mb-4">
-        「{species.name}」の詳細
-    </h2>
+    <div className="mb-4 flex items-center gap-3">
+        <span className="h-7 w-3.5 rounded-l-full border border-r-0 border-[#111111] bg-[#F5EEE4]" />
+        <h2 className="text-xl font-bold tracking-[0.12em]">
+            「{species.name}」の個体レポート
+        </h2>
+    </div>
 
     {currentUsage && (
-        <div className="mb-7 flex flex-wrap items-center justify-center gap-3 text-sm text-[var(--text-secondary)]">
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm font-semibold text-[var(--text-secondary)]">
+            <span className="rounded-md border border-[var(--border)] bg-[#F5EEE4] px-3 py-1">
                 使用数 {currentUsage.used}
             </span>
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
+            <span className="rounded-md border border-[var(--border)] bg-white px-3 py-1">
                 勝率 {currentUsage.winRate.toFixed(1)}%
             </span>
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
+            <span className="rounded-md border border-[var(--border)] bg-white px-3 py-1">
                 {currentUsage.wins}勝 {currentUsage.losses}敗
             </span>
         </div>
@@ -125,12 +128,12 @@ export default function PokemonDetailPage() {
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
     <UsageCard
     title="わざ"
-    icon="◉"
+    icon="MV"
     items={currentUsageMoves?.length ? currentUsageMoves : mockMovesFor(species)}
 />
-        <UsageCard title="とくせい" icon="🧬" items={mockAbilitiesFor(species)} />
-        <UsageCard title="せいかく" icon="🎀" items={mockNatures} />
-        <UsageCard title="もちもの" icon="🍯" items={mockItems} />
+        <UsageCard title="とくせい" icon="AB" items={mockAbilitiesFor(species)} />
+        <UsageCard title="せいかく" icon="NT" items={mockNatures} />
+        <UsageCard title="もちもの" icon="IT" items={mockItems} />
     </div>
 </section>
             </main>
@@ -139,14 +142,14 @@ export default function PokemonDetailPage() {
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-    return <div className="min-h-dvh bg-[var(--surface-1)] text-[var(--text-primary)]">{children}</div>;
+    return <div className="min-h-dvh bg-white text-[var(--text-primary)]">{children}</div>;
 }
 
 function BackLink() {
     return (
         <Link
             to="/home"
-            className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
         >
             <ArrowLeft className="size-4" />
             図鑑へ戻る
@@ -158,9 +161,9 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
     const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
 
     return (
-        <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+        <div className="bg-white border border-[var(--border)] rounded-lg p-5">
             <div className="flex items-start gap-5">
-                <div className="size-24 shrink-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-3)]">
+                <div className="size-32 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
                     <img
                         src={portraitSrc}
                         alt={species.name}
@@ -171,9 +174,9 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                 <div className="flex-1 min-w-0 space-y-4">
                     <div>
                         <div className="flex flex-wrap items-center gap-3">
-                            <h1 className="text-2xl font-bold">{species.name}</h1>
+                            <h1 className="text-3xl font-bold tracking-[0.1em]">{species.name}</h1>
                             {rank > 0 && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-muted)] px-2.5 py-1 text-sm font-semibold text-[var(--accent)]">
+                                <span className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--accent-muted)] px-2.5 py-1 text-sm font-semibold text-[var(--accent)]">
                                     <BarChart3 className="size-4" />
                                     {rank}位
                                 </span>
@@ -184,8 +187,7 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                             {species.type.map((type) => (
                                 <span
                                     key={type}
-                                    className="px-3 py-1 text-sm font-medium text-white rounded-md"
-                                    style={{ backgroundColor: getTypeColor(type) }}
+                                    className="px-3 py-1 text-sm font-bold text-[#111111] rounded-md border border-[#111111] bg-white"
                                 >
                                     {TYPE_LABELS[type] ?? type}
                                 </span>
@@ -193,7 +195,7 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                         </div>
                     </div>
 
-                    <div className="whitespace-pre-line rounded-xl bg-[var(--surface-3)] border border-[var(--border)] p-4 text-sm text-[var(--text-secondary)] leading-relaxed">
+                    <div className="whitespace-pre-line rounded-md bg-[var(--surface-3)] border border-dashed border-[var(--border)] p-4 text-sm text-[var(--text-secondary)] leading-relaxed">
                         {species.description || '説明文はまだありません。'}
                     </div>
                 </div>
@@ -207,8 +209,8 @@ function BaseStatsPanel({ species }: { species: Species }) {
     const total = stats.hp + stats.atk + stats.def + stats.spa + stats.spd + stats.spe;
 
     return (
-        <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">種族値</h2>
+        <div className="bg-white border border-[var(--border)] rounded-lg p-5">
+            <h2 className="text-lg font-bold mb-4 tracking-[0.12em]">種族値</h2>
             <div className="space-y-3">
                 <BaseStatBar label="HP" value={stats.hp} max={180} />
                 <BaseStatBar label="こうげき" value={stats.atk} max={180} />
@@ -228,8 +230,8 @@ function BaseStatBar({ label, value, max }: { label: string; value: number; max:
     return (
         <div className="grid grid-cols-[76px_1fr_44px] items-center gap-3 text-sm">
             <span className="text-[var(--text-muted)]">{label}</span>
-            <div className="h-3 rounded-full bg-[var(--surface-4)] overflow-hidden">
-                <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} />
+            <div className="h-1.5 bg-[var(--surface-4)] overflow-hidden">
+                <div className="h-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} />
             </div>
             <span className="text-right tabular-nums font-semibold">{value}</span>
         </div>
@@ -238,10 +240,10 @@ function BaseStatBar({ label, value, max }: { label: string; value: number; max:
 
 function UsageCard({ title, icon, items }: { title: string; icon: string; items: UsageItem[] }) {
     return (
-        <article className="h-full min-h-[360px] bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 shadow-sm flex flex-col">
-            <div className="flex items-center justify-center gap-2 mb-6">
-                <span className="text-xl leading-none">{icon}</span>
-                <h3 className="text-lg font-bold text-[var(--text-primary)]">{title}</h3>
+        <article className="h-full min-h-[320px] bg-white border border-[var(--border)] rounded-lg p-5 flex flex-col">
+            <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-3 mb-5">
+                <h3 className="text-lg font-bold text-[var(--text-primary)] tracking-[0.12em]">{title}</h3>
+                <span className="rounded border border-[var(--border)] bg-[#F5EEE4] px-2 py-1 text-[10px] font-bold leading-none">{icon}</span>
             </div>
 
             <div className="flex-1 space-y-4">
@@ -252,8 +254,8 @@ function UsageCard({ title, icon, items }: { title: string; icon: string; items:
 
             <button
                 type="button"
-                className="mt-6 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]
-                    hover:bg-[var(--surface-3)] hover:border-[var(--border-hover)] transition-colors"
+                className="mt-6 w-full rounded-md border border-[var(--border)] bg-white px-4 py-3 text-sm font-bold text-[var(--text-primary)]
+                    hover:bg-[#F5EEE4] hover:border-[var(--border-hover)] transition-colors"
             >
                 リスト表示
             </button>
@@ -271,8 +273,8 @@ function UsageRow({ item }: { item: UsageItem }) {
                 <span className="shrink-0 tabular-nums text-[var(--text-secondary)]">{item.rate.toFixed(1)}%</span>
             </div>
 
-            <div className="h-2.5 rounded-full bg-[var(--surface-4)] overflow-hidden">
-                <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} />
+            <div className="h-1.5 bg-[var(--surface-4)] overflow-hidden">
+                <div className="h-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} />
             </div>
         </div>
     );
