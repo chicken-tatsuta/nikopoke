@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, X, ArrowLeft, Swords, Sliders, FolderOpen, Save } from 'lucide-react';
 import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
-import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
+import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats, BaseStats } from '../types/pokemon';
 import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
 import { useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -432,13 +432,14 @@ export default function DeckBuilderPage() {
                                                 key={mon.id}
                                                 onClick={() => handleSelectPokemon(mon)}
                                                 disabled={isSelected || selectedPokemon.length >= DECK_SIZE}
-                                                className={`p-4 rounded-xl border text-left transition-all ${isSelected
+                                                className={`group relative p-4 rounded-xl border text-left transition-all ${isSelected
                                                     ? 'bg-[var(--accent-muted)] border-[var(--accent)]/50'
                                                     : selectedPokemon.length >= DECK_SIZE
                                                         ? 'bg-[var(--surface-2)] border-[var(--border)] opacity-50 cursor-not-allowed'
                                                         : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)] card-hover'
                                                     }`}
                                             >
+                                                <StatHoverPanel stats={mon.baseStats} className="left-3 right-3 top-3" />
                                                 <div className="mb-3 aspect-square overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
                                                     <img
                                                         src={portraitSrc}
@@ -543,6 +544,36 @@ function sanitizeDeckPokemon(
     };
 }
 
+const STAT_ROWS: Array<{ key: keyof BaseStats; label: string }> = [
+    { key: 'hp', label: 'H' },
+    { key: 'atk', label: 'A' },
+    { key: 'def', label: 'B' },
+    { key: 'spa', label: 'C' },
+    { key: 'spd', label: 'D' },
+    { key: 'spe', label: 'S' },
+];
+
+function StatHoverPanel({ stats, className = '' }: { stats: BaseStats; className?: string }) {
+    return (
+        <div
+            className={`pointer-events-none absolute z-30 rounded-lg border border-[#111111] bg-white/95 p-2 opacity-0 shadow-[0_8px_24px_rgba(17,17,17,0.12)] backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${className}`}
+        >
+            <div className="mb-1 flex items-center justify-between border-b border-[#111111] pb-1 text-[10px] font-bold tracking-[0.12em] text-[#111111]">
+                <span>HABCDS</span>
+                <span className="tabular-nums">{STAT_ROWS.reduce((sum, row) => sum + stats[row.key], 0)}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1">
+                {STAT_ROWS.map(({ key, label }) => (
+                    <div key={key} className="grid grid-cols-[auto_1fr] items-center gap-1 text-[10px] font-bold text-[#111111]">
+                        <span>{label}</span>
+                        <span className="text-right tabular-nums">{stats[key]}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function SelectedPokemonCard({
     pokemon,
     species,
@@ -564,7 +595,8 @@ function SelectedPokemonCard({
     const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
 
     return (
-        <div className="flex h-full min-w-0 flex-col">
+        <div className="group relative flex h-full min-w-0 flex-col">
+            <StatHoverPanel stats={species.baseStats} className="left-2 right-2 top-2" />
             <div className="mb-3 flex items-start gap-3">
                 <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
                     <img

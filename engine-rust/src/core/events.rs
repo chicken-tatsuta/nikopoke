@@ -571,6 +571,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
                 if *slot < player.team.len() {
                     let mut baton_pass_stages = None;
+                    let mut shed_tail_substitute = None;
                     if let Some(outgoing) = player.team.get_mut(player.active_slot) {
                         if outgoing
                             .volatile_data
@@ -579,6 +580,18 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             .unwrap_or(false)
                         {
                             baton_pass_stages = Some(outgoing.stages.clone());
+                        }
+                        if outgoing
+                            .volatile_data
+                            .get("shedTail")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
+                            shed_tail_substitute = outgoing
+                                .statuses
+                                .iter()
+                                .find(|status| status.id == "substitute")
+                                .cloned();
                         }
                         outgoing.stages = StatStages::default();
                         // Non-volatile statuses that persist on switch.
@@ -609,6 +622,10 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             incoming.stages = stages;
                         }
                         incoming.statuses.retain(|s| s.id != "pending_switch");
+                        if let Some(substitute) = shed_tail_substitute {
+                            incoming.statuses.retain(|s| s.id != "substitute");
+                            incoming.statuses.push(substitute);
+                        }
                         incoming.volatile_data.insert(
                             "turnEntered".to_string(),
                             Value::Number((next.turn as i64).into()),
@@ -1116,7 +1133,7 @@ fn update_unburden_after_item_change(creature: &mut CreatureState, had_item: boo
 mod tests {
     use super::*;
     use crate::core::state::{
-        BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+        BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages, Status,
     };
     use std::collections::HashMap;
 
@@ -1190,6 +1207,38 @@ mod tests {
         assert_eq!(incoming.stages.atk, 2);
         assert_eq!(incoming.stages.def, -1);
         assert_eq!(incoming.stages.spe, 3);
+    }
+
+    #[test]
+    fn shed_tail_switch_carries_substitute_to_incoming_creature() {
+        let mut state = test_state();
+        state.players[0].team[0].statuses.push(Status {
+            id: "substitute".to_string(),
+            remaining_turns: None,
+            data: HashMap::from([("hp".to_string(), Value::Number(25.into()))]),
+        });
+        state.players[0].team[0]
+            .volatile_data
+            .insert("shedTail".to_string(), Value::Bool(true));
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        let outgoing = &next.players[0].team[0];
+        let incoming = &next.players[0].team[1];
+        assert!(!outgoing
+            .statuses
+            .iter()
+            .any(|status| status.id == "substitute"));
+        assert!(incoming.statuses.iter().any(|status| {
+            status.id == "substitute"
+                && status.data.get("hp").and_then(|value| value.as_i64()) == Some(25)
+        }));
     }
 
     #[test]

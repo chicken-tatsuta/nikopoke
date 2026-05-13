@@ -2759,6 +2759,16 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
             value: Value::Bool(true),
         });
     }
+    if ctx
+        .move_data
+        .is_some_and(|move_data| move_data.id == "shed_tail")
+    {
+        events.push(BattleEvent::SetVolatile {
+            target_id: ctx.attacker_player_id.clone(),
+            key: "shedTail".to_string(),
+            value: Value::Bool(true),
+        });
+    }
     if let Some(slot) = ctx.switch_slot {
         if slot < player.team.len() && slot != player.active_slot && player.team[slot].hp > 0 {
             events.push(BattleEvent::Switch {
@@ -4074,6 +4084,34 @@ mod tests {
             event,
             BattleEvent::SetVolatile { target_id, key, value }
                 if target_id == "player" && key == "batonPass" && value.as_bool() == Some(true)
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::ApplyStatus { target_id, status_id, .. }
+                if target_id == "player" && status_id == "pending_switch"
+        )));
+    }
+
+    #[test]
+    fn shed_tail_self_switch_marks_next_switch_to_carry_substitute() {
+        let mut state = test_state();
+        state.players[0].team.push(test_creature("bench"));
+        let type_chart = TypeChart::new();
+        let mut move_data = test_move();
+        move_data.id = "shed_tail".to_string();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+
+        let events = apply_effects(
+            &state,
+            &[effect(json!({ "type": "self_switch" }))],
+            &mut ctx,
+        );
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::SetVolatile { target_id, key, value }
+                if target_id == "player" && key == "shedTail" && value.as_bool() == Some(true)
         )));
         assert!(events.iter().any(|event| matches!(
             event,
