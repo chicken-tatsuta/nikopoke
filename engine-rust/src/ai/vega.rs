@@ -1,8 +1,11 @@
 use crate::core::battle::{is_battle_over, step_battle, BattleOptions};
 use crate::core::state::{Action, ActionType, BattleState, CreatureState, PlayerState};
 use crate::core::utils::get_active_creature;
-use crate::data::moves::{MoveData, MoveDatabase};
+use crate::data::moves::{Effect, MoveData, MoveDatabase};
 use serde::Serialize;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
@@ -97,16 +100,136 @@ pub struct VegaStats {
     pub ordered_actions_returned: u64,
     pub step_battle_calls: u64,
     pub alpha_cutoffs: u64,
+    pub completed_depth: u64,
+    pub aborted: bool,
 }
 
 struct VegaContext<'a> {
     move_db: &'a MoveDatabase,
     params: VegaParams,
     branch_limit: usize,
+    node_budget: u64,
+    tt: Option<&'a RefCell<TranspositionTable>>,
 }
 
 struct TacticalContext {
     incoming_to_active: DamageSummary,
+}
+
+// --- Transposition Table ---
+
+#[derive(Clone, Copy, Debug)]
+enum TTFlag {
+    Exact,
+}
+
+#[derive(Clone, Debug)]
+struct TTEntry {
+    hash: u64,
+    depth: usize,
+    score: f32,
+    flag: TTFlag,
+}
+
+pub struct TranspositionTable {
+    entries: Vec<Option<TTEntry>>,
+    mask: usize,
+}
+
+const TT_DEFAULT_SIZE: usize = 1 << 16; // 65536 entries
+
+impl TranspositionTable {
+    pub fn new() -> Self {
+        Self::with_size(TT_DEFAULT_SIZE)
+    }
+
+    pub fn with_size(size: usize) -> Self {
+        let size = size.next_power_of_two();
+        Self {
+            entries: vec![None; size],
+            mask: size - 1,
+        }
+    }
+
+    fn probe(&self, hash: u64) -> Option<&TTEntry> {
+        let idx = (hash as usize) & self.mask;
+        self.entries[idx]
+            .as_ref()
+            .filter(|entry| entry.hash == hash)
+    }
+
+    fn store(&mut self, hash: u64, depth: usize, score: f32, flag: TTFlag) {
+        let idx = (hash as usize) & self.mask;
+        // Always replace: deeper or newer entries are preferred
+        let should_replace = self.entries[idx]
+            .as_ref()
+            .map_or(true, |existing| existing.depth <= depth || existing.hash != hash);
+        if should_replace {
+            self.entries[idx] = Some(TTEntry {
+                hash,
+                depth,
+                score,
+                flag,
+            });
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.entries.fill(None);
+    }
+}
+
+fn hash_battle_state(state: &BattleState, player_id: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    // Hash each player
+    for player in &state.players {
+        // player identity relative to us
+        let is_self = player.id == player_id;
+        is_self.hash(&mut hasher);
+        player.active_slot.hash(&mut hasher);
+        for creature in &player.team {
+            creature.id.hash(&mut hasher);
+            creature.hp.hash(&mut hasher);
+            // stages
+            creature.stages.atk.hash(&mut hasher);
+            creature.stages.def.hash(&mut hasher);
+            creature.stages.spa.hash(&mut hasher);
+            creature.stages.spd.hash(&mut hasher);
+            creature.stages.spe.hash(&mut hasher);
+            // statuses (sorted for consistency)
+            let mut status_ids: Vec<&str> = creature.statuses.iter().map(|s| s.id.as_str()).collect();
+            status_ids.sort_unstable();
+            for sid in &status_ids {
+                sid.hash(&mut hasher);
+            }
+            // PP matters for search
+            let mut pp_pairs: Vec<(&str, i32)> = creature
+                .move_pp
+                .iter()
+                .map(|(k, v)| (k.as_str(), *v))
+                .collect();
+            pp_pairs.sort_unstable_by_key(|(k, _)| *k);
+            for (k, v) in &pp_pairs {
+                k.hash(&mut hasher);
+                v.hash(&mut hasher);
+            }
+        }
+    }
+    // Field state
+    let mut global_ids: Vec<&str> = state.field.global.iter().map(|e| e.id.as_str()).collect();
+    global_ids.sort_unstable();
+    for gid in &global_ids {
+        gid.hash(&mut hasher);
+    }
+    for (side_id, effects) in &state.field.sides {
+        side_id.hash(&mut hasher);
+        let mut eids: Vec<&str> = effects.iter().map(|e| e.id.as_str()).collect();
+        eids.sort_unstable();
+        for eid in &eids {
+            eid.hash(&mut hasher);
+        }
+    }
+    hasher.finish()
 }
 
 pub fn get_best_move_vega(state: &BattleState, player_id: &str, depth: usize) -> Option<Action> {
@@ -193,6 +316,8 @@ pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
         move_db,
         params,
         branch_limit: branch_limit.max(1),
+        node_budget: u64::MAX,
+        tt: None,
     };
     let actions = ordered_actions(state, player_id, &ctx, stats);
     stats.root_actions += actions.len() as u64;
@@ -222,11 +347,104 @@ pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
             alpha,
             stats,
         );
+        if stats.aborted {
+            break;
+        }
         if score > best_score {
             best_score = score;
             best_action = Some(action.clone());
         }
         alpha = alpha.max(best_score);
+    }
+
+    record_search_elapsed(stats, &started_at);
+    best_action
+}
+
+/// Iterative deepening search: starts at depth 1 and goes deeper until
+/// the node budget is exhausted. Returns the best action from the deepest
+/// fully completed iteration.
+pub fn get_best_move_vega_iterative(
+    state: &BattleState,
+    player_id: &str,
+    max_depth: usize,
+    node_budget: u64,
+    params: VegaParams,
+    branch_limit: usize,
+    move_db: &MoveDatabase,
+    stats: &mut VegaStats,
+) -> Option<Action> {
+    stats.searches += 1;
+    let started_at = start_search_timer();
+    let max_depth = max_depth.max(1);
+    let mut best_action: Option<Action> = None;
+    let tt = RefCell::new(TranspositionTable::new());
+
+    for depth in 1..=max_depth {
+        let mut iter_stats = VegaStats::default();
+        let remaining = node_budget.saturating_sub(stats.nodes_entered);
+        if remaining < 100 {
+            break;
+        }
+        let ctx = VegaContext {
+            move_db,
+            params,
+            branch_limit: branch_limit.max(1),
+            node_budget: remaining,
+            tt: Some(&tt),
+        };
+        let actions = ordered_actions(state, player_id, &ctx, &mut iter_stats);
+        if actions.is_empty() {
+            break;
+        }
+        let Some(opp_id) = opponent_id(state, player_id) else {
+            best_action = actions.first().cloned();
+            break;
+        };
+
+        let mut depth_best: Option<Action> = actions.first().cloned();
+        let mut depth_best_score = f32::NEG_INFINITY;
+        let mut alpha = f32::NEG_INFINITY;
+        let mut aborted = false;
+
+        for action in actions.iter().take(ctx.branch_limit) {
+            let score = worst_opponent_reply(
+                state,
+                player_id,
+                opp_id.as_str(),
+                action,
+                &ctx,
+                depth.saturating_sub(1),
+                alpha,
+                &mut iter_stats,
+            );
+            if iter_stats.aborted {
+                aborted = true;
+                break;
+            }
+            if score > depth_best_score {
+                depth_best_score = score;
+                depth_best = Some(action.clone());
+            }
+            alpha = alpha.max(depth_best_score);
+        }
+
+        // Merge iter_stats into main stats
+        stats.nodes_entered += iter_stats.nodes_entered;
+        stats.leaf_evals += iter_stats.leaf_evals;
+        stats.step_battle_calls += iter_stats.step_battle_calls;
+        stats.alpha_cutoffs += iter_stats.alpha_cutoffs;
+        stats.ordered_actions_calls += iter_stats.ordered_actions_calls;
+        stats.ordered_actions_scored += iter_stats.ordered_actions_scored;
+        stats.ordered_actions_returned += iter_stats.ordered_actions_returned;
+
+        if !aborted {
+            best_action = depth_best;
+            stats.completed_depth = depth as u64;
+        } else {
+            stats.aborted = true;
+            break;
+        }
     }
 
     record_search_elapsed(stats, &started_at);
@@ -244,6 +462,11 @@ fn worst_opponent_reply(
     stats: &mut VegaStats,
 ) -> f32 {
     stats.nodes_entered += 1;
+    if stats.nodes_entered >= ctx.node_budget {
+        stats.aborted = true;
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
     let opponent_actions = ordered_actions(state, opponent_id, ctx, stats);
     if opponent_actions.is_empty() {
         stats.leaf_evals += 1;
@@ -264,11 +487,169 @@ fn worst_opponent_reply(
             },
         );
         let score = if depth_left == 0 {
-            stats.leaf_evals += 1;
-            evaluate_state_vega(&next, player_id, ctx)
+            quiescence_eval(&next, player_id, ctx, 2, stats)
         } else {
             best_continuation(&next, player_id, ctx, depth_left, stats)
         };
+        if stats.aborted {
+            break;
+        }
+
+        worst = worst.min(score);
+        if worst <= alpha {
+            stats.alpha_cutoffs += 1;
+            break;
+        }
+    }
+
+    worst
+}
+
+/// Quiescence search: if the position is tactically unstable (someone can KO
+/// or a forced switch is needed), extend the search up to `qs_depth` extra plies.
+/// Otherwise return the static evaluation immediately.
+fn quiescence_eval(
+    state: &BattleState,
+    player_id: &str,
+    ctx: &VegaContext,
+    qs_depth: usize,
+    stats: &mut VegaStats,
+) -> f32 {
+    if stats.nodes_entered >= ctx.node_budget {
+        stats.aborted = true;
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+    if qs_depth == 0 || is_battle_over(state) {
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+
+    // Check if the position is tactically unstable
+    let player = get_player(state, player_id);
+    let opponent = get_opponent(state, player_id);
+    let is_unstable = match (player, opponent) {
+        (Some(p), Some(o)) => {
+            let p_active = p.team.get(p.active_slot);
+            let o_active = o.team.get(o.active_slot);
+            match (p_active, o_active) {
+                (Some(pa), Some(oa)) => {
+                    // Someone is dead → forced switch, keep searching
+                    pa.hp <= 0
+                        || oa.hp <= 0
+                        // Either side can KO this turn
+                        || max_expected_damage(pa, oa, ctx.move_db).damage >= oa.hp as f32
+                        || max_expected_damage(oa, pa, ctx.move_db).damage >= pa.hp as f32
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    };
+
+    if !is_unstable {
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+
+    // Position is unstable — search one more ply
+    best_continuation_qs(state, player_id, ctx, qs_depth, stats)
+}
+
+/// Like best_continuation but for quiescence: narrower search (top 2 moves only).
+fn best_continuation_qs(
+    state: &BattleState,
+    player_id: &str,
+    ctx: &VegaContext,
+    qs_depth: usize,
+    stats: &mut VegaStats,
+) -> f32 {
+    stats.nodes_entered += 1;
+    if stats.nodes_entered >= ctx.node_budget {
+        stats.aborted = true;
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+    if is_battle_over(state) {
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+
+    let Some(opp_id) = opponent_id(state, player_id) else {
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    };
+    let actions = ordered_actions(state, player_id, ctx, stats);
+    if actions.is_empty() {
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+
+    // Narrower search in quiescence: only top 2 moves
+    let qs_branch = ctx.branch_limit.min(2);
+    let mut best = f32::NEG_INFINITY;
+    let mut alpha = f32::NEG_INFINITY;
+    for action in actions.iter().take(qs_branch) {
+        let score = worst_opponent_reply_qs(
+            state,
+            player_id,
+            opp_id.as_str(),
+            action,
+            ctx,
+            qs_depth,
+            alpha,
+            stats,
+        );
+        if stats.aborted {
+            break;
+        }
+        best = best.max(score);
+        alpha = alpha.max(best);
+    }
+
+    best
+}
+
+fn worst_opponent_reply_qs(
+    state: &BattleState,
+    player_id: &str,
+    opponent_id: &str,
+    action: &Action,
+    ctx: &VegaContext,
+    qs_depth: usize,
+    alpha: f32,
+    stats: &mut VegaStats,
+) -> f32 {
+    stats.nodes_entered += 1;
+    if stats.nodes_entered >= ctx.node_budget {
+        stats.aborted = true;
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+    let opponent_actions = ordered_actions(state, opponent_id, ctx, stats);
+    if opponent_actions.is_empty() {
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
+
+    let qs_branch = ctx.branch_limit.min(2);
+    let mut worst = f32::INFINITY;
+    for opponent_action in opponent_actions.iter().take(qs_branch) {
+        let actions = vec![action.clone(), opponent_action.clone()];
+        let mut rng = || 0.42;
+        stats.step_battle_calls += 1;
+        let next = step_battle(
+            state,
+            &actions,
+            &mut rng,
+            BattleOptions {
+                record_history: false,
+            },
+        );
+        let score = quiescence_eval(&next, player_id, ctx, qs_depth - 1, stats);
+        if stats.aborted {
+            break;
+        }
 
         worst = worst.min(score);
         if worst <= alpha {
@@ -288,10 +669,32 @@ fn best_continuation(
     stats: &mut VegaStats,
 ) -> f32 {
     stats.nodes_entered += 1;
+    if stats.nodes_entered >= ctx.node_budget {
+        stats.aborted = true;
+        stats.leaf_evals += 1;
+        return evaluate_state_vega(state, player_id, ctx);
+    }
     if is_battle_over(state) {
         stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
+
+    // TT probe
+    let hash = if ctx.tt.is_some() {
+        let h = hash_battle_state(state, player_id);
+        if let Some(tt_ref) = ctx.tt {
+            if let Ok(tt) = tt_ref.try_borrow() {
+                if let Some(entry) = tt.probe(h) {
+                    if entry.depth >= depth_left {
+                        return entry.score;
+                    }
+                }
+            }
+        }
+        h
+    } else {
+        0
+    };
 
     let Some(opp_id) = opponent_id(state, player_id) else {
         stats.leaf_evals += 1;
@@ -316,8 +719,20 @@ fn best_continuation(
             alpha,
             stats,
         );
+        if stats.aborted {
+            break;
+        }
         best = best.max(score);
         alpha = alpha.max(best);
+    }
+
+    // TT store
+    if !stats.aborted {
+        if let Some(tt_ref) = ctx.tt {
+            if let Ok(mut tt) = tt_ref.try_borrow_mut() {
+                tt.store(hash, depth_left, best, TTFlag::Exact);
+            }
+        }
     }
 
     best
@@ -461,6 +876,9 @@ fn action_ordering_score(
             let Some(move_data) = ctx.move_db.get(move_id) else {
                 return 0.0;
             };
+            if move_data.category.as_deref() == Some("status") {
+                return status_move_ordering_score(state, player_id, active, target, move_data, ctx);
+            }
             let damage = expected_move_damage(
                 active,
                 target,
@@ -484,6 +902,292 @@ fn action_ordering_score(
         }
         ActionType::UseItem => 0.0,
     }
+}
+
+fn status_move_ordering_score(
+    state: &BattleState,
+    player_id: &str,
+    active: &CreatureState,
+    target: &CreatureState,
+    move_data: &MoveData,
+    ctx: &VegaContext,
+) -> f32 {
+    let mut score = accuracy(move_data) * ctx.params.action_accuracy;
+
+    for step in &move_data.steps {
+        score += match step.effect_type.as_str() {
+            "modify_stage" => score_stage_change_step(active, target, step, ctx),
+            "apply_status" => score_apply_status_step(target, step, ctx),
+            "apply_field_status" => score_field_status_step(state, player_id, step),
+            "remove_field_status" => score_remove_field_step(state, player_id, step),
+            "damage_ratio" => score_healing_step(active, step),
+            "protect" => 40.0,
+            "self_switch" => 30.0,
+            _ => 0.0,
+        };
+    }
+
+    score
+}
+
+fn score_stage_change_step(
+    active: &CreatureState,
+    target: &CreatureState,
+    step: &Effect,
+    ctx: &VegaContext,
+) -> f32 {
+    let target_str = step
+        .data
+        .get("target")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let Some(stages) = step.data.get("stages").and_then(|v| v.as_object()) else {
+        return 0.0;
+    };
+
+    let is_self = target_str == "self";
+    let creature = if is_self { active } else { target };
+    let mut score = 0.0;
+
+    for (stat, val) in stages {
+        let amount = val.as_i64().unwrap_or(0) as i32;
+        let current = match stat.as_str() {
+            "atk" => creature.stages.atk,
+            "def" => creature.stages.def,
+            "spa" => creature.stages.spa,
+            "spd" => creature.stages.spd,
+            "spe" => creature.stages.spe,
+            "accuracy" => creature.stages.accuracy,
+            "evasion" => creature.stages.evasion,
+            _ => 0,
+        };
+
+        let effective = if is_self {
+            let new_stage = (current + amount).clamp(-6, 6);
+            (new_stage - current) as f32
+        } else {
+            let new_stage = (current + amount).clamp(-6, 6);
+            (current - new_stage) as f32
+        };
+        if effective <= 0.0 {
+            continue;
+        }
+
+        let base = match stat.as_str() {
+            "atk" => {
+                if is_self {
+                    if uses_category(active, ctx.move_db, "physical") {
+                        75.0
+                    } else {
+                        15.0
+                    }
+                } else if uses_category(target, ctx.move_db, "physical") {
+                    55.0
+                } else {
+                    15.0
+                }
+            }
+            "spa" => {
+                if is_self {
+                    if uses_category(active, ctx.move_db, "special") {
+                        75.0
+                    } else {
+                        15.0
+                    }
+                } else if uses_category(target, ctx.move_db, "special") {
+                    55.0
+                } else {
+                    15.0
+                }
+            }
+            "spe" => 55.0,
+            "def" | "spd" => 35.0,
+            "evasion" => 30.0,
+            "accuracy" => 25.0,
+            _ => 15.0,
+        };
+
+        score += effective * base;
+    }
+
+    score
+}
+
+fn score_apply_status_step(
+    target: &CreatureState,
+    step: &Effect,
+    ctx: &VegaContext,
+) -> f32 {
+    let target_str = step
+        .data
+        .get("target")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if target_str != "target" {
+        return 0.0;
+    }
+
+    let status_id = step
+        .data
+        .get("statusId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // Check type immunity
+    if let Some(immune_types) = step.data.get("immuneTypes").and_then(|v| v.as_array()) {
+        for immune_type in immune_types.iter().filter_map(|v| v.as_str()) {
+            if target
+                .types
+                .iter()
+                .any(|t| t.eq_ignore_ascii_case(immune_type))
+            {
+                return -100.0;
+            }
+        }
+    }
+
+    // Already has a major status
+    let has_major = target.statuses.iter().any(|s| {
+        matches!(
+            s.id.as_str(),
+            "sleep"
+                | "freeze"
+                | "frozen"
+                | "paralysis"
+                | "paralyze"
+                | "burn"
+                | "burned"
+                | "poison"
+                | "poisoned"
+                | "toxic"
+                | "badly_poison"
+                | "badly_poisoned"
+        )
+    });
+    let is_major = matches!(
+        status_id,
+        "sleep"
+            | "freeze"
+            | "paralysis"
+            | "paralyze"
+            | "burn"
+            | "toxic"
+            | "poison"
+            | "badly_poison"
+    );
+    if has_major && is_major {
+        return -50.0;
+    }
+
+    match status_id {
+        "sleep" => 130.0,
+        "freeze" | "frozen" => 140.0,
+        "paralysis" | "paralyze" => 95.0,
+        "burn" | "burned" => {
+            if uses_category(target, ctx.move_db, "physical") {
+                110.0
+            } else {
+                55.0
+            }
+        }
+        "poison" | "poisoned" => 65.0,
+        "toxic" | "badly_poison" | "badly_poisoned" => 115.0,
+        "confusion" | "confused" => 45.0,
+        "leech_seed" => {
+            if target.statuses.iter().any(|s| s.id == "leech_seed") {
+                -50.0
+            } else {
+                75.0
+            }
+        }
+        _ => 25.0,
+    }
+}
+
+fn score_field_status_step(state: &BattleState, player_id: &str, step: &Effect) -> f32 {
+    let status_id = step
+        .data
+        .get("statusId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // Check if hazard already exists on opponent's side
+    let opp_id = opponent_id(state, player_id);
+    let already_set = opp_id.as_deref().map_or(false, |oid| {
+        state
+            .field
+            .sides
+            .get(oid)
+            .map_or(false, |effects| effects.iter().any(|e| e.id == status_id))
+    });
+    // Check if screen already exists on our side
+    let self_already = state
+        .field
+        .sides
+        .get(player_id)
+        .map_or(false, |effects| effects.iter().any(|e| e.id == status_id));
+
+    if already_set || self_already {
+        return -30.0;
+    }
+
+    match status_id {
+        "stealth_rock" => 85.0,
+        "spikes" | "toxic_spikes" => 65.0,
+        "sticky_web" => 55.0,
+        "reflect" | "light_screen" | "aurora_veil" => 75.0,
+        _ => 25.0,
+    }
+}
+
+fn score_remove_field_step(state: &BattleState, player_id: &str, step: &Effect) -> f32 {
+    let status_id = step
+        .data
+        .get("statusId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // Value removing hazards from our side
+    let our_side = state
+        .field
+        .sides
+        .get(player_id)
+        .map_or(false, |effects| effects.iter().any(|e| e.id == status_id));
+    if our_side {
+        return match status_id {
+            "stealth_rock" => 40.0,
+            "spikes" | "toxic_spikes" => 30.0,
+            "sticky_web" => 25.0,
+            _ => 10.0,
+        };
+    }
+    0.0
+}
+
+fn score_healing_step(active: &CreatureState, step: &Effect) -> f32 {
+    let target_str = step
+        .data
+        .get("target")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if target_str != "self" {
+        return 0.0;
+    }
+
+    let ratio = step
+        .data
+        .get("ratioMaxHp")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    if ratio >= 0.0 {
+        return 0.0; // Self-damage, not healing
+    }
+
+    let heal_ratio = -ratio as f32;
+    let missing = 1.0 - hp_ratio(active);
+    let effective = heal_ratio.min(missing);
+    effective * 140.0
 }
 
 fn tactical_action_score(

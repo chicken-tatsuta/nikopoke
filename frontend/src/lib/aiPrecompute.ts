@@ -48,14 +48,10 @@ function resetWorker(): void {
 export function makeAiStateKey(
     state: BattleStateWire,
     playerId: string,
-    depth: number,
-    branchLimit: number,
 ): string {
     return JSON.stringify({
-        v: 1,
+        v: 2,
         playerId,
-        depth,
-        branchLimit,
         turn: state.turn,
         players: state.players.map((player) => ({
             id: player.id,
@@ -87,10 +83,10 @@ export function makeAiStateKey(
 export function precomputeAiAction(
     state: BattleStateWire,
     playerId: string,
-    depth: number,
-    branchLimit: number,
+    maxDepth: number,
+    nodeBudget: number,
 ): string {
-    const key = makeAiStateKey(state, playerId, depth, branchLimit);
+    const key = makeAiStateKey(state, playerId);
     if (completed.has(key) || pending?.key === key) return key;
     if (pending && pending.key !== key) {
         pending.resolve(null);
@@ -108,11 +104,11 @@ export function precomputeAiAction(
 
     getWorker().postMessage({
         id,
-        kind: 'vega',
+        kind: 'vega-iterative',
         state,
         playerId,
-        depth,
-        branchLimit,
+        maxDepth,
+        nodeBudget,
     });
     return key;
 }

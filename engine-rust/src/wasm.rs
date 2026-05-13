@@ -1,4 +1,6 @@
-use crate::ai::vega::{get_best_move_vega_with_options_and_db_ref, DEFAULT_PARAMS};
+use crate::ai::vega::{
+    get_best_move_vega_iterative, get_best_move_vega_with_options_and_db_ref, DEFAULT_PARAMS,
+};
 use crate::ai::{get_best_move_mcts, get_best_move_minimax};
 use crate::core::battle::{
     apply_initial_switch_in_effects, is_battle_over, replace_fainted_pokemon, step_battle,
@@ -669,6 +671,30 @@ pub fn get_best_move_vega_with_branch_wasm(
         DEFAULT_PARAMS,
         branch_limit,
         &MOVE_DB,
+    );
+    serde_wasm_bindgen::to_value(&action.map(ActionWire::from)).map_err(js_err)
+}
+
+#[wasm_bindgen(js_name = getBestMoveVegaIterative)]
+pub fn get_best_move_vega_iterative_wasm(
+    state: JsValue,
+    player_id: String,
+    max_depth: usize,
+    node_budget: u32,
+) -> Result<JsValue, JsValue> {
+    let state_wire: BattleStateWire = serde_wasm_bindgen::from_value(state).map_err(js_err)?;
+    let state = BattleState::try_from(state_wire).map_err(js_err)?;
+    let mut stats = crate::ai::vega::VegaStats::default();
+    let branch_limit = 4;
+    let action = get_best_move_vega_iterative(
+        &state,
+        player_id.as_str(),
+        max_depth,
+        node_budget as u64,
+        DEFAULT_PARAMS,
+        branch_limit,
+        &MOVE_DB,
+        &mut stats,
     );
     serde_wasm_bindgen::to_value(&action.map(ActionWire::from)).map_err(js_err)
 }

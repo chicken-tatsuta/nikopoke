@@ -1,15 +1,15 @@
 import init, {
-    getBestMoveVegaWithBranch as wasmGetBestMoveVegaWithBranch,
+    getBestMoveVegaIterative as wasmGetBestMoveVegaIterative,
 } from './engine-rust/engine_rust.js';
 import type { ActionWire, BattleStateWire } from './engine';
 
 type AiWorkerRequest = {
     id: number;
-    kind: 'vega';
+    kind: 'vega-iterative';
     state: BattleStateWire;
     playerId: string;
-    depth: number;
-    branchLimit: number;
+    maxDepth: number;
+    nodeBudget: number;
 };
 
 type AiWorkerResponse = {
@@ -32,11 +32,11 @@ self.onmessage = (event: MessageEvent<AiWorkerRequest>) => {
         const startedAt = performance.now();
         try {
             await ensureInit();
-            const action = wasmGetBestMoveVegaWithBranch(
+            const action = wasmGetBestMoveVegaIterative(
                 request.state,
                 request.playerId,
-                request.depth,
-                request.branchLimit,
+                request.maxDepth,
+                request.nodeBudget,
             ) as ActionWire | null;
             const response: AiWorkerResponse = {
                 id: request.id,

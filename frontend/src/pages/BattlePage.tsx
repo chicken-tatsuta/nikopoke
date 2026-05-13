@@ -15,7 +15,7 @@ import {
     stepBattle,
     getFirstAvailableSwitchSlot,
     getBestMoveMinimax,
-    getBestMoveVega,
+    getBestMoveVegaIterative,
     isBattleOver,
     getWinner,
     needsForcedSwitch,
@@ -558,9 +558,10 @@ const IDLE_PLAYBACK_STATE: BattlePlaybackState = {
 const PLAYBACK_STEP_MS = 800;
 const PLAYBACK_HIT_MS = 1300;
 const PLAYBACK_FAINT_MS = 2000;
-const VEGA_DEPTH = 3;
-const VEGA_PRECOMPUTE_BRANCH_LIMIT = 3;
-const VEGA_PRECOMPUTE_MAX_WAIT_MS = 3000;
+const VEGA_ITERATIVE_MAX_DEPTH = 10;
+const VEGA_ITERATIVE_NODE_BUDGET = 500_000;
+const VEGA_PONDERING_NODE_BUDGET = 2_000_000;
+const VEGA_PRECOMPUTE_MAX_WAIT_MS = 5000;
 const BATTLE_POPUP_MS = 1400;
 const HIDDEN_BATTLE_STATUS_IDS = new Set(['pending_switch']);
 const STATUS_FLASH_COLORS: Record<BattleStatusFlashType, string> = {
@@ -1154,8 +1155,8 @@ export default function BattlePage() {
         precomputedAiKeyRef.current = precomputeAiAction(
             battleState,
             opponentPlayerIdRef.current,
-            VEGA_DEPTH,
-            VEGA_PRECOMPUTE_BRANCH_LIMIT,
+            VEGA_ITERATIVE_MAX_DEPTH,
+            VEGA_PONDERING_NODE_BUDGET,
         );
     }, [aiLevel, battleMode, battleState, playback.isPlaying, waiting]);
 
@@ -1656,8 +1657,11 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'peer_left') {
-                setStatusText('相手との接続が切れました。');
-                setWaiting(false);
+                setStatusText('相手との接続が切れました。自動で再接続を試みます...');
+                return;
+            }
+            if (event.type === 'reconnected') {
+                setStatusText('再接続できました。');
                 return;
             }
             if (event.type === 'error') {
@@ -1862,15 +1866,13 @@ export default function BattlePage() {
             const key = makeAiStateKey(
                 state,
                 opponentPlayerIdRef.current,
-                VEGA_DEPTH,
-                VEGA_PRECOMPUTE_BRANCH_LIMIT,
             );
             if (precomputedAiKeyRef.current !== key) {
                 precomputedAiKeyRef.current = precomputeAiAction(
                     state,
                     opponentPlayerIdRef.current,
-                    VEGA_DEPTH,
-                    VEGA_PRECOMPUTE_BRANCH_LIMIT,
+                    VEGA_ITERATIVE_MAX_DEPTH,
+                    VEGA_PONDERING_NODE_BUDGET,
                 );
             }
 
@@ -1882,8 +1884,12 @@ export default function BattlePage() {
                 return precomputedAction ?? getFallbackAiAction(state);
             }
 
-            return await getBestMoveVega(state, opponentPlayerIdRef.current, VEGA_DEPTH)
-                ?? getFallbackAiAction(state);
+            return await getBestMoveVegaIterative(
+                state,
+                opponentPlayerIdRef.current,
+                VEGA_ITERATIVE_MAX_DEPTH,
+                VEGA_ITERATIVE_NODE_BUDGET,
+            ) ?? getFallbackAiAction(state);
         }
         return await getBestMoveMinimax(state, opponentPlayerIdRef.current, 1) ?? getFallbackAiAction(state);
     };
@@ -2128,7 +2134,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     {battleMode === 'player'
       ? 'VS Player (PeerJS)'
       : aiLevel === 'lv2'
-        ? 'VS AI Vega (深さ3)'
+        ? 'Vega'
         : 'VS AI (Minimax 深さ1)'}
   </span>
 </div>
