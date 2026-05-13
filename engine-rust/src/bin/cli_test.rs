@@ -1,11 +1,13 @@
 //! Debug CLI for Pokémon Battle Engine
-//! 
+//!
 //! A comprehensive debugging tool with full visualization of stats, damage calculations,
 //! abilities, and battle mechanics.
 
 use engine_rust::core::battle::{is_battle_over, BattleEngine, BattleOptions};
 use engine_rust::core::factory::{calc_stat, create_creature, CreateCreatureOptions};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState,
+};
 use engine_rust::data::learnsets::LearnsetDatabase;
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::species::SpeciesDatabase;
@@ -13,8 +15,6 @@ use engine_rust::data::type_chart::TypeChart;
 use inquire::{Select, Text};
 use std::collections::HashMap;
 use wana_kana::ConvertJapanese;
-
-
 
 fn main() {
     println!("\n╔══════════════════════════════════════════════════════════╗");
@@ -66,40 +66,83 @@ fn main() {
 // Pokemon Info Display
 // ============================================================================
 
-fn print_species_info(species_id: &str, species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset_db: &LearnsetDatabase) {
+fn print_species_info(
+    species_id: &str,
+    species_db: &SpeciesDatabase,
+    move_db: &MoveDatabase,
+    learnset_db: &LearnsetDatabase,
+) {
     let Some(species) = species_db.get(species_id) else {
         println!("❌ 種族 '{}' が見つかりません", species_id);
         return;
     };
 
     println!("\n┌─────────────────────────────────────────────────────────┐");
-    println!("│ 📖 {} (ID: {})                           ", species.name, species.id);
+    println!(
+        "│ 📖 {} (ID: {})                           ",
+        species.name, species.id
+    );
     println!("├─────────────────────────────────────────────────────────┤");
-    
+
     // Types
-    let types_str = species.types.iter()
+    let types_str = species
+        .types
+        .iter()
         .map(|t| format_type(t))
         .collect::<Vec<_>>()
         .join(" ");
-    println!("│ タイプ: {}                                          ", types_str);
+    println!(
+        "│ タイプ: {}                                          ",
+        types_str
+    );
 
     // Base Stats
     let bs = &species.base_stats;
     let total = bs.hp + bs.atk + bs.def + bs.spa + bs.spd + bs.spe;
     println!("├─────────────────────────────────────────────────────────┤");
     println!("│ 種族値                                                  │");
-    println!("│   HP:     {:>3} {}                          ", bs.hp, stat_bar(bs.hp, 255));
-    println!("│   攻撃:   {:>3} {}                          ", bs.atk, stat_bar(bs.atk, 180));
-    println!("│   防御:   {:>3} {}                          ", bs.def, stat_bar(bs.def, 180));
-    println!("│   特攻:   {:>3} {}                          ", bs.spa, stat_bar(bs.spa, 180));
-    println!("│   特防:   {:>3} {}                          ", bs.spd, stat_bar(bs.spd, 180));
-    println!("│   素早さ: {:>3} {}                          ", bs.spe, stat_bar(bs.spe, 180));
-    println!("│   合計:   {:>3}                                        ", total);
+    println!(
+        "│   HP:     {:>3} {}                          ",
+        bs.hp,
+        stat_bar(bs.hp, 255)
+    );
+    println!(
+        "│   攻撃:   {:>3} {}                          ",
+        bs.atk,
+        stat_bar(bs.atk, 180)
+    );
+    println!(
+        "│   防御:   {:>3} {}                          ",
+        bs.def,
+        stat_bar(bs.def, 180)
+    );
+    println!(
+        "│   特攻:   {:>3} {}                          ",
+        bs.spa,
+        stat_bar(bs.spa, 180)
+    );
+    println!(
+        "│   特防:   {:>3} {}                          ",
+        bs.spd,
+        stat_bar(bs.spd, 180)
+    );
+    println!(
+        "│   素早さ: {:>3} {}                          ",
+        bs.spe,
+        stat_bar(bs.spe, 180)
+    );
+    println!(
+        "│   合計:   {:>3}                                        ",
+        total
+    );
 
     // Abilities
     if !species.abilities.is_empty() {
         println!("├─────────────────────────────────────────────────────────┤");
-        println!("│ 特性: {}                                      ", species.abilities.join(", "));
+        println!(
+            "│ 特性: {}                                      ",
+            species.abilities.join(", ")
+        );
     }
 
     // Actual stats at level 50
@@ -111,19 +154,26 @@ fn print_species_info(species_id: &str, species_db: &SpeciesDatabase, move_db: &
     let spa = calc_stat(bs.spa, false, 50, 31, 0);
     let spd = calc_stat(bs.spd, false, 50, 31, 0);
     let spe = calc_stat(bs.spe, false, 50, 31, 0);
-    println!("│   HP: {} / 攻: {} / 防: {} / 特攻: {} / 特防: {} / 素早: {} ", hp, atk, def, spa, spd, spe);
+    println!(
+        "│   HP: {} / 攻: {} / 防: {} / 特攻: {} / 特防: {} / 素早: {} ",
+        hp, atk, def, spa, spd, spe
+    );
 
     // Learnable moves
     if let Some(moves) = learnset_db.get(species_id) {
         println!("├─────────────────────────────────────────────────────────┤");
-        println!("│ 覚える技 ({} 種類)                                    ", moves.len());
+        println!(
+            "│ 覚える技 ({} 種類)                                    ",
+            moves.len()
+        );
         for move_id in moves.iter().take(20) {
             if let Some(m) = move_db.get(move_id) {
                 let name = m.name.as_deref().unwrap_or(move_id);
                 let mtype = m.move_type.as_deref().unwrap_or("???");
                 let cat = m.category.as_deref().unwrap_or("???");
                 let power = m.power.map(|p| p.to_string()).unwrap_or("-".to_string());
-                println!("│   {} {} {} 威力:{}          ", 
+                println!(
+                    "│   {} {} {} 威力:{}          ",
                     format!("{:<12}", name),
                     format_type(mtype),
                     format_category(cat),
@@ -134,7 +184,10 @@ fn print_species_info(species_id: &str, species_db: &SpeciesDatabase, move_db: &
             }
         }
         if moves.len() > 20 {
-            println!("│   ... 他 {} 種類                                      ", moves.len() - 20);
+            println!(
+                "│   ... 他 {} 種類                                      ",
+                moves.len() - 20
+            );
         }
     }
 
@@ -170,7 +223,8 @@ fn format_type(type_name: &str) -> String {
         "steel" => "⚙️はがね",
         "fairy" => "🧚フェアリー",
         _ => type_name,
-    }.to_string()
+    }
+    .to_string()
 }
 
 fn format_category(cat: &str) -> String {
@@ -179,14 +233,20 @@ fn format_category(cat: &str) -> String {
         "special" => "✨特殊",
         "status" => "📊変化",
         _ => cat,
-    }.to_string()
+    }
+    .to_string()
 }
 
 // ============================================================================
 // Interactive Pokemon Selection
 // ============================================================================
 
-fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset_db: &LearnsetDatabase, prompt: &str) -> Option<CreatureState> {
+fn select_pokemon(
+    species_db: &SpeciesDatabase,
+    move_db: &MoveDatabase,
+    learnset_db: &LearnsetDatabase,
+    prompt: &str,
+) -> Option<CreatureState> {
     // Get species list
     let species_list: Vec<_> = species_db.as_map().values().collect();
     if species_list.is_empty() {
@@ -195,7 +255,8 @@ fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset
     }
 
     // Create selection options with romaji for searchability
-    let options: Vec<String> = species_list.iter()
+    let options: Vec<String> = species_list
+        .iter()
         .map(|s| {
             let romaji = s.name.to_romaji();
             format!("{} ({}) | {}", s.name, s.id, romaji)
@@ -203,7 +264,7 @@ fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset
         .collect();
 
     println!("\n📝 ひらがな/カタカナで検索可能 (例: 'ぴかちゅう' → 'pikachu')");
-    
+
     let selection = Select::new(prompt, options.clone())
         .with_page_size(15)
         .prompt()
@@ -221,26 +282,29 @@ fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset
         None
     } else {
         let ability_options: Vec<&str> = species.abilities.iter().map(|s| s.as_str()).collect();
-        let selected = Select::new("特性を選択", ability_options)
-            .prompt()
-            .ok();
+        let selected = Select::new("特性を選択", ability_options).prompt().ok();
         selected.map(|s| s.to_string())
     };
 
     // Select moves (one by one with Enter key)
     let moves = if let Some(learnable) = learnset_db.get(&species.id) {
-        let move_options: Vec<String> = learnable.iter()
+        let move_options: Vec<String> = learnable
+            .iter()
             .filter_map(|id| {
                 let m = move_db.get(id)?;
                 let name = m.name.as_deref().unwrap_or(id);
                 let mtype = m.move_type.as_deref().unwrap_or("???");
                 let power = m.power.map(|p| p.to_string()).unwrap_or("-".to_string());
                 let romaji = name.to_romaji();
-                Some(format!("{} | {} | 威力:{} | {} | ID:{}", name, mtype, power, romaji, id))
+                Some(format!(
+                    "{} | {} | 威力:{} | {} | ID:{}",
+                    name, mtype, power, romaji, id
+                ))
             })
             .collect();
-        
-        let move_ids: Vec<String> = learnable.iter()
+
+        let move_ids: Vec<String> = learnable
+            .iter()
             .filter(|id| move_db.get(id).is_some())
             .cloned()
             .collect();
@@ -250,45 +314,47 @@ fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset
         } else {
             // 1つずつ選択（最大4つまで）
             let mut selected_moves = Vec::new();
-            
+
             for i in 1..=4 {
                 if selected_moves.len() >= 4 {
                     break;
                 }
-                
+
                 // 既に選択した技を除外
-                let available_options: Vec<String> = move_options.iter().enumerate()
+                let available_options: Vec<String> = move_options
+                    .iter()
+                    .enumerate()
                     .filter(|(idx, _)| !selected_moves.contains(&move_ids[*idx]))
                     .map(|(_, opt)| opt.clone())
                     .collect();
-                
+
                 if available_options.is_empty() {
                     break;
                 }
-                
+
                 // 「選択完了」オプションを追加
                 let mut selection_options = available_options.clone();
                 if i > 1 {
                     selection_options.push("✅ 選択完了（これ以上選ばない）".to_string());
                 }
-                
+
                 let prompt = format!("技を選択 [{}/4] (Enterで選択):", i);
-                
+
                 let ans = Select::new(&prompt, selection_options)
                     .with_page_size(15)
                     .prompt();
-                
+
                 match ans {
                     Ok(choice) => {
                         if choice == "✅ 選択完了（これ以上選ばない）" {
                             break;
                         }
-                        
+
                         // 選択された技のIDを取得
                         if let Some(move_id) = choice.split(" | ID:").last() {
                             selected_moves.push(move_id.to_string());
                         }
-                    },
+                    }
                     Err(_) => {
                         println!("選択がキャンセルされました。");
                         if selected_moves.is_empty() {
@@ -298,7 +364,7 @@ fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset
                     }
                 }
             }
-            
+
             selected_moves
         }
     } else {
@@ -335,33 +401,68 @@ fn select_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset
 
 fn print_creature_details(creature: &CreatureState, move_db: &MoveDatabase) {
     println!("\n╔═══════════════════════════════════════════════════════════╗");
-    println!("║  {} (ID: {})                              ", creature.name, creature.id);
+    println!(
+        "║  {} (ID: {})                              ",
+        creature.name, creature.id
+    );
     println!("╠═══════════════════════════════════════════════════════════╣");
-    
+
     // Types
-    let types_str = creature.types.iter()
+    let types_str = creature
+        .types
+        .iter()
         .map(|t| format_type(t))
         .collect::<Vec<_>>()
         .join(" ");
-    println!("║  タイプ: {}                                           ", types_str);
-    
+    println!(
+        "║  タイプ: {}                                           ",
+        types_str
+    );
+
     // Ability & Item
     if let Some(ref ability) = creature.ability {
-        println!("║  特性: {}                                              ", ability);
+        println!(
+            "║  特性: {}                                              ",
+            ability
+        );
     }
     if let Some(ref item) = creature.item {
-        println!("║  持ち物: {}                                            ", item);
+        println!(
+            "║  持ち物: {}                                            ",
+            item
+        );
     }
 
     // Stats
     println!("╠═══════════════════════════════════════════════════════════╣");
-    println!("║  実数値 (Lv.{})                                          ", creature.level);
-    println!("║    HP:     {}/{}                                 ", creature.hp, creature.max_hp);
-    println!("║    攻撃:   {}                                          ", creature.attack);
-    println!("║    防御:   {}                                          ", creature.defense);
-    println!("║    特攻:   {}                                          ", creature.sp_attack);
-    println!("║    特防:   {}                                          ", creature.sp_defense);
-    println!("║    素早さ: {}                                          ", creature.speed);
+    println!(
+        "║  実数値 (Lv.{})                                          ",
+        creature.level
+    );
+    println!(
+        "║    HP:     {}/{}                                 ",
+        creature.hp, creature.max_hp
+    );
+    println!(
+        "║    攻撃:   {}                                          ",
+        creature.attack
+    );
+    println!(
+        "║    防御:   {}                                          ",
+        creature.defense
+    );
+    println!(
+        "║    特攻:   {}                                          ",
+        creature.sp_attack
+    );
+    println!(
+        "║    特防:   {}                                          ",
+        creature.sp_defense
+    );
+    println!(
+        "║    素早さ: {}                                          ",
+        creature.speed
+    );
 
     // Moves
     println!("╠═══════════════════════════════════════════════════════════╣");
@@ -373,7 +474,14 @@ fn print_creature_details(creature: &CreatureState, move_db: &MoveDatabase) {
             let cat = m.category.as_deref().unwrap_or("???");
             let power = m.power.map(|p| p.to_string()).unwrap_or("-".to_string());
             let pp = m.pp.unwrap_or(0);
-            println!("║    {} | {} | {} | 威力:{} | PP:{}  ", name, format_type(mtype), format_category(cat), power, pp);
+            println!(
+                "║    {} | {} | {} | 威力:{} | PP:{}  ",
+                name,
+                format_type(mtype),
+                format_category(cat),
+                power,
+                pp
+            );
         }
     }
 
@@ -385,62 +493,115 @@ fn print_creature_details(creature: &CreatureState, move_db: &MoveDatabase) {
 // ============================================================================
 
 fn print_battle_state(state: &BattleState, move_db: &MoveDatabase) {
-    println!("\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━ ターン {} ━━━━━━━━━━━━━━━━━━━━━━━━━━┓", state.turn);
-    
+    println!(
+        "\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━ ターン {} ━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+        state.turn
+    );
+
     for (i, player) in state.players.iter().enumerate() {
         let active = &player.team[player.active_slot];
         let hp_bar = hp_bar_string(active.hp, active.max_hp);
         let hp_pct = (active.hp as f32 / active.max_hp as f32 * 100.0) as i32;
 
         println!("┃                                                              ┃");
-        let side_label = if i == 0 { "【自分】" } else { "【相手】" };
-        println!("┃  {} {}                                   ", side_label, active.name);
-        
+        let side_label = if i == 0 {
+            "【自分】"
+        } else {
+            "【相手】"
+        };
+        println!(
+            "┃  {} {}                                   ",
+            side_label, active.name
+        );
+
         // Types
-        let types_str = active.types.iter()
+        let types_str = active
+            .types
+            .iter()
             .map(|t| format_type(t))
             .collect::<Vec<_>>()
             .join(" ");
-        println!("┃    タイプ: {}                                          ", types_str);
-        
+        println!(
+            "┃    タイプ: {}                                          ",
+            types_str
+        );
+
         // Ability & Item
         if let Some(ref ability) = active.ability {
-            println!("┃    特性: {}                                             ", ability);
+            println!(
+                "┃    特性: {}                                             ",
+                ability
+            );
         }
         if let Some(ref item) = active.item {
-            println!("┃    持ち物: {}                                           ", item);
+            println!(
+                "┃    持ち物: {}                                           ",
+                item
+            );
         }
 
         // HP
-        println!("┃    HP: {} ({}%)                           ", hp_bar, hp_pct);
-        println!("┃        {}/{}                                        ", active.hp, active.max_hp);
+        println!(
+            "┃    HP: {} ({}%)                           ",
+            hp_bar, hp_pct
+        );
+        println!(
+            "┃        {}/{}                                        ",
+            active.hp, active.max_hp
+        );
 
         // Stats
-        println!("┃    実数値: 攻:{} 防:{} 特攻:{} 特防:{} 素早:{}        ", 
-            active.attack, active.defense, active.sp_attack, active.sp_defense, active.speed);
+        println!(
+            "┃    実数値: 攻:{} 防:{} 特攻:{} 特防:{} 素早:{}        ",
+            active.attack, active.defense, active.sp_attack, active.sp_defense, active.speed
+        );
 
         // Stage changes
         let stages = &active.stages;
         let mut stage_strs = Vec::new();
-        if stages.atk != 0 { stage_strs.push(format!("攻撃{:+}", stages.atk)); }
-        if stages.def != 0 { stage_strs.push(format!("防御{:+}", stages.def)); }
-        if stages.spa != 0 { stage_strs.push(format!("特攻{:+}", stages.spa)); }
-        if stages.spd != 0 { stage_strs.push(format!("特防{:+}", stages.spd)); }
-        if stages.spe != 0 { stage_strs.push(format!("素早{:+}", stages.spe)); }
-        if stages.accuracy != 0 { stage_strs.push(format!("命中{:+}", stages.accuracy)); }
-        if stages.evasion != 0 { stage_strs.push(format!("回避{:+}", stages.evasion)); }
-        if stages.crit != 0 { stage_strs.push(format!("急所{:+}", stages.crit)); }
-        
+        if stages.atk != 0 {
+            stage_strs.push(format!("攻撃{:+}", stages.atk));
+        }
+        if stages.def != 0 {
+            stage_strs.push(format!("防御{:+}", stages.def));
+        }
+        if stages.spa != 0 {
+            stage_strs.push(format!("特攻{:+}", stages.spa));
+        }
+        if stages.spd != 0 {
+            stage_strs.push(format!("特防{:+}", stages.spd));
+        }
+        if stages.spe != 0 {
+            stage_strs.push(format!("素早{:+}", stages.spe));
+        }
+        if stages.accuracy != 0 {
+            stage_strs.push(format!("命中{:+}", stages.accuracy));
+        }
+        if stages.evasion != 0 {
+            stage_strs.push(format!("回避{:+}", stages.evasion));
+        }
+        if stages.crit != 0 {
+            stage_strs.push(format!("急所{:+}", stages.crit));
+        }
+
         if !stage_strs.is_empty() {
-            println!("┃    ランク変化: {}                              ", stage_strs.join(" "));
+            println!(
+                "┃    ランク変化: {}                              ",
+                stage_strs.join(" ")
+            );
         }
 
         // Status conditions
         if !active.statuses.is_empty() {
-            let status_strs: Vec<String> = active.statuses.iter()
+            let status_strs: Vec<String> = active
+                .statuses
+                .iter()
                 .map(|s| format_status(&s.id, s.remaining_turns))
                 .collect();
-            println!("┃    状態: {}                                     ", status_strs.join(" "));
+            println!(
+                "┃    状態: {}                                     ",
+                status_strs.join(" ")
+            );
         }
 
         // Moves with PP
@@ -452,7 +613,10 @@ fn print_battle_state(state: &BattleState, move_db: &MoveDatabase) {
                 let current_pp = active.move_pp.get(move_id).copied().unwrap_or(max_pp);
                 let power = m.power.map(|p| p.to_string()).unwrap_or("-".to_string());
                 let mtype = m.move_type.as_deref().unwrap_or("???");
-                println!("┃      {} ({}) 威力:{} PP:{}/{}          ", name, mtype, power, current_pp, max_pp);
+                println!(
+                    "┃      {} ({}) 威力:{} PP:{}/{}          ",
+                    name, mtype, power, current_pp, max_pp
+                );
             }
         }
 
@@ -463,8 +627,14 @@ fn print_battle_state(state: &BattleState, move_db: &MoveDatabase) {
     if !state.field.global.is_empty() {
         println!("┃  フィールド効果:                                            ┃");
         for effect in &state.field.global {
-            let turns = effect.remaining_turns.map(|t| format!(" (残り{}ターン)", t)).unwrap_or_default();
-            println!("┃    {}{}                                          ", effect.id, turns);
+            let turns = effect
+                .remaining_turns
+                .map(|t| format!(" (残り{}ターン)", t))
+                .unwrap_or_default();
+            println!(
+                "┃    {}{}                                          ",
+                effect.id, turns
+            );
         }
     }
 
@@ -474,7 +644,13 @@ fn print_battle_state(state: &BattleState, move_db: &MoveDatabase) {
 fn hp_bar_string(hp: i32, max_hp: i32) -> String {
     let pct = (hp as f32 / max_hp as f32).max(0.0).min(1.0);
     let bar_len = (pct * 20.0) as usize;
-    let color = if pct > 0.5 { "🟩" } else if pct > 0.25 { "🟨" } else { "🟥" };
+    let color = if pct > 0.5 {
+        "🟩"
+    } else if pct > 0.25 {
+        "🟨"
+    } else {
+        "🟥"
+    };
     let bar = color.repeat(bar_len);
     let empty = "⬜".repeat(20 - bar_len);
     format!("[{}{}]", bar, empty)
@@ -501,13 +677,19 @@ fn format_status(status_id: &str, remaining: Option<i32>) -> String {
 // Battle Simulation
 // ============================================================================
 
-fn run_battle_simulation(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset_db: &LearnsetDatabase, engine: &BattleEngine) {
+fn run_battle_simulation(
+    species_db: &SpeciesDatabase,
+    move_db: &MoveDatabase,
+    learnset_db: &LearnsetDatabase,
+    engine: &BattleEngine,
+) {
     println!("\n🎮 バトルシミュレーション開始");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
     // Select player's pokemon
     println!("【自分のポケモンを選択】");
-    let player_pokemon = match select_pokemon(species_db, move_db, learnset_db, "自分のポケモン") {
+    let player_pokemon = match select_pokemon(species_db, move_db, learnset_db, "自分のポケモン")
+    {
         Some(p) => p,
         None => {
             println!("❌ ポケモン選択がキャンセルされました");
@@ -517,7 +699,8 @@ fn run_battle_simulation(species_db: &SpeciesDatabase, move_db: &MoveDatabase, l
 
     // Select opponent's pokemon
     println!("\n【相手のポケモンを選択】");
-    let opponent_pokemon = match select_pokemon(species_db, move_db, learnset_db, "相手のポケモン") {
+    let opponent_pokemon = match select_pokemon(species_db, move_db, learnset_db, "相手のポケモン")
+    {
         Some(p) => p,
         None => {
             println!("❌ ポケモン選択がキャンセルされました");
@@ -570,7 +753,8 @@ fn run_battle_simulation(species_db: &SpeciesDatabase, move_db: &MoveDatabase, l
             "⚔️  技を使う" => {
                 if let Some(actions) = select_battle_actions(&state, move_db, engine) {
                     let mut rng = rand_f64;
-                    state = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+                    state =
+                        engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
                 }
             }
             "🔄 ポケモン交代" => {
@@ -620,12 +804,18 @@ fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Ba
     }
 }
 
-fn select_battle_actions(state: &BattleState, move_db: &MoveDatabase, _engine: &BattleEngine) -> Option<Vec<Action>> {
+fn select_battle_actions(
+    state: &BattleState,
+    move_db: &MoveDatabase,
+    _engine: &BattleEngine,
+) -> Option<Vec<Action>> {
     let player = &state.players[0];
     let active = &player.team[player.active_slot];
 
     // Player selects move
-    let move_options: Vec<String> = active.moves.iter()
+    let move_options: Vec<String> = active
+        .moves
+        .iter()
         .filter_map(|id| {
             let m = move_db.get(id)?;
             let name = m.name.as_deref().unwrap_or(id);
@@ -634,7 +824,10 @@ fn select_battle_actions(state: &BattleState, move_db: &MoveDatabase, _engine: &
             let max_pp = m.pp.unwrap_or(0);
             let current_pp = active.move_pp.get(id).copied().unwrap_or(max_pp);
             let romaji = name.to_romaji();
-            Some(format!("{} | {} | 威力:{} | PP:{}/{} | {} | ID:{}", name, mtype, power, current_pp, max_pp, romaji, id))
+            Some(format!(
+                "{} | {} | 威力:{} | PP:{}/{} | {} | ID:{}",
+                name, mtype, power, current_pp, max_pp, romaji, id
+            ))
         })
         .collect();
 
@@ -643,9 +836,7 @@ fn select_battle_actions(state: &BattleState, move_db: &MoveDatabase, _engine: &
         return None;
     }
 
-    let selected = Select::new("技を選択", move_options)
-        .prompt()
-        .ok()?;
+    let selected = Select::new("技を選択", move_options).prompt().ok()?;
 
     let move_id = selected.split(" | ID:").last()?.to_string();
 
@@ -700,7 +891,7 @@ fn predict_damage(state: &BattleState, move_db: &MoveDatabase, _engine: &BattleE
     for move_id in &active.moves {
         if let Some(m) = move_db.get(move_id) {
             let name = m.name.as_deref().unwrap_or(move_id);
-            
+
             // Skip status moves
             if m.category.as_deref() == Some("status") || m.power.unwrap_or(0) == 0 {
                 println!("  {} (変化技 - ダメージなし)", name);
@@ -709,20 +900,25 @@ fn predict_damage(state: &BattleState, move_db: &MoveDatabase, _engine: &BattleE
 
             let damage_info = calc_damage_breakdown(active, opp_active, m);
             println!("  【{}】", name);
-            println!("    タイプ: {} | カテゴリ: {} | 威力: {}", 
+            println!(
+                "    タイプ: {} | カテゴリ: {} | 威力: {}",
                 format_type(m.move_type.as_deref().unwrap_or("???")),
                 format_category(m.category.as_deref().unwrap_or("???")),
                 m.power.unwrap_or(0)
             );
             println!("    タイプ相性: {}x", damage_info.type_effectiveness);
-            println!("    攻撃実数値: {} → 防御実数値: {}", damage_info.atk_stat, damage_info.def_stat);
-            println!("    ダメージ範囲: {} ~ {} (HP {}% ~ {}%)", 
-                damage_info.min_damage, 
+            println!(
+                "    攻撃実数値: {} → 防御実数値: {}",
+                damage_info.atk_stat, damage_info.def_stat
+            );
+            println!(
+                "    ダメージ範囲: {} ~ {} (HP {}% ~ {}%)",
+                damage_info.min_damage,
                 damage_info.max_damage,
                 (damage_info.min_damage as f32 / opp_active.max_hp as f32 * 100.0) as i32,
                 (damage_info.max_damage as f32 / opp_active.max_hp as f32 * 100.0) as i32
             );
-            
+
             // OHKO check
             if damage_info.min_damage >= opp_active.hp {
                 println!("    ⚡ 確定1発！");
@@ -743,20 +939,36 @@ struct DamageBreakdown {
     ohko_chance: f32,
 }
 
-fn calc_damage_breakdown(attacker: &CreatureState, defender: &CreatureState, move_data: &engine_rust::data::moves::MoveData) -> DamageBreakdown {
+fn calc_damage_breakdown(
+    attacker: &CreatureState,
+    defender: &CreatureState,
+    move_data: &engine_rust::data::moves::MoveData,
+) -> DamageBreakdown {
     let level = attacker.level as i32;
     let power = move_data.power.unwrap_or(0);
-    
+
     let is_special = move_data.category.as_deref() == Some("special");
-    let atk_stat = if is_special { attacker.sp_attack } else { attacker.attack };
-    let def_stat = if is_special { defender.sp_defense } else { defender.defense };
+    let atk_stat = if is_special {
+        attacker.sp_attack
+    } else {
+        attacker.attack
+    };
+    let def_stat = if is_special {
+        defender.sp_defense
+    } else {
+        defender.defense
+    };
 
     // Type effectiveness (simplified - would need full type chart)
     let move_type = move_data.move_type.as_deref().unwrap_or("normal");
     let type_effectiveness = calc_type_effectiveness(move_type, &defender.types);
 
     // STAB
-    let stab = if attacker.types.iter().any(|t| t.to_lowercase() == move_type.to_lowercase()) {
+    let stab = if attacker
+        .types
+        .iter()
+        .any(|t| t.to_lowercase() == move_type.to_lowercase())
+    {
         1.5
     } else {
         1.0
@@ -793,17 +1005,28 @@ fn calc_damage_breakdown(attacker: &CreatureState, defender: &CreatureState, mov
 fn calc_type_effectiveness(move_type: &str, defender_types: &[String]) -> f32 {
     // Simplified type chart - would use actual TypeChart in real implementation
     let mut effectiveness = 1.0;
-    
+
     for def_type in defender_types {
-        let mult = match (move_type.to_lowercase().as_str(), def_type.to_lowercase().as_str()) {
+        let mult = match (
+            move_type.to_lowercase().as_str(),
+            def_type.to_lowercase().as_str(),
+        ) {
             // Super effective
             ("fire", "grass") | ("fire", "ice") | ("fire", "bug") | ("fire", "steel") => 2.0,
             ("water", "fire") | ("water", "ground") | ("water", "rock") => 2.0,
             ("grass", "water") | ("grass", "ground") | ("grass", "rock") => 2.0,
             ("electric", "water") | ("electric", "flying") => 2.0,
             ("ice", "grass") | ("ice", "ground") | ("ice", "flying") | ("ice", "dragon") => 2.0,
-            ("fighting", "normal") | ("fighting", "ice") | ("fighting", "rock") | ("fighting", "dark") | ("fighting", "steel") => 2.0,
-            ("ground", "fire") | ("ground", "electric") | ("ground", "poison") | ("ground", "rock") | ("ground", "steel") => 2.0,
+            ("fighting", "normal")
+            | ("fighting", "ice")
+            | ("fighting", "rock")
+            | ("fighting", "dark")
+            | ("fighting", "steel") => 2.0,
+            ("ground", "fire")
+            | ("ground", "electric")
+            | ("ground", "poison")
+            | ("ground", "rock")
+            | ("ground", "steel") => 2.0,
             ("flying", "grass") | ("flying", "fighting") | ("flying", "bug") => 2.0,
             ("psychic", "fighting") | ("psychic", "poison") => 2.0,
             ("bug", "grass") | ("bug", "psychic") | ("bug", "dark") => 2.0,
@@ -813,23 +1036,44 @@ fn calc_type_effectiveness(move_type: &str, defender_types: &[String]) -> f32 {
             ("dark", "psychic") | ("dark", "ghost") => 2.0,
             ("steel", "ice") | ("steel", "rock") | ("steel", "fairy") => 2.0,
             ("fairy", "fighting") | ("fairy", "dragon") | ("fairy", "dark") => 2.0,
-            
+
             // Not very effective
             ("fire", "fire") | ("fire", "water") | ("fire", "rock") | ("fire", "dragon") => 0.5,
             ("water", "water") | ("water", "grass") | ("water", "dragon") => 0.5,
-            ("grass", "fire") | ("grass", "grass") | ("grass", "poison") | ("grass", "flying") | ("grass", "bug") | ("grass", "dragon") | ("grass", "steel") => 0.5,
+            ("grass", "fire")
+            | ("grass", "grass")
+            | ("grass", "poison")
+            | ("grass", "flying")
+            | ("grass", "bug")
+            | ("grass", "dragon")
+            | ("grass", "steel") => 0.5,
             ("electric", "electric") | ("electric", "grass") | ("electric", "dragon") => 0.5,
-            ("fighting", "poison") | ("fighting", "flying") | ("fighting", "psychic") | ("fighting", "bug") | ("fighting", "fairy") => 0.5,
-            ("poison", "poison") | ("poison", "ground") | ("poison", "rock") | ("poison", "ghost") => 0.5,
+            ("fighting", "poison")
+            | ("fighting", "flying")
+            | ("fighting", "psychic")
+            | ("fighting", "bug")
+            | ("fighting", "fairy") => 0.5,
+            ("poison", "poison")
+            | ("poison", "ground")
+            | ("poison", "rock")
+            | ("poison", "ghost") => 0.5,
             ("ground", "grass") | ("ground", "bug") => 0.5,
             ("flying", "electric") | ("flying", "rock") | ("flying", "steel") => 0.5,
             ("psychic", "psychic") | ("psychic", "steel") => 0.5,
-            ("bug", "fire") | ("bug", "fighting") | ("bug", "poison") | ("bug", "flying") | ("bug", "ghost") | ("bug", "steel") | ("bug", "fairy") => 0.5,
+            ("bug", "fire")
+            | ("bug", "fighting")
+            | ("bug", "poison")
+            | ("bug", "flying")
+            | ("bug", "ghost")
+            | ("bug", "steel")
+            | ("bug", "fairy") => 0.5,
             ("rock", "fighting") | ("rock", "ground") | ("rock", "steel") => 0.5,
             ("ghost", "dark") => 0.5,
             ("dragon", "steel") => 0.5,
             ("dark", "fighting") | ("dark", "dark") | ("dark", "fairy") => 0.5,
-            ("steel", "fire") | ("steel", "water") | ("steel", "electric") | ("steel", "steel") => 0.5,
+            ("steel", "fire") | ("steel", "water") | ("steel", "electric") | ("steel", "steel") => {
+                0.5
+            }
             ("fairy", "fire") | ("fairy", "poison") | ("fairy", "steel") => 0.5,
 
             // Immunities
@@ -839,16 +1083,21 @@ fn calc_type_effectiveness(move_type: &str, defender_types: &[String]) -> f32 {
             ("ground", "flying") => 0.0,
             ("psychic", "dark") => 0.0,
             ("dragon", "fairy") => 0.0,
-            
+
             _ => 1.0,
         };
         effectiveness *= mult;
     }
-    
+
     effectiveness
 }
 
-fn damage_calculator(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset_db: &LearnsetDatabase, engine: &BattleEngine) {
+fn damage_calculator(
+    species_db: &SpeciesDatabase,
+    move_db: &MoveDatabase,
+    learnset_db: &LearnsetDatabase,
+    engine: &BattleEngine,
+) {
     println!("\n🧮 ダメージ計算機");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
@@ -873,9 +1122,14 @@ fn damage_calculator(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learn
 // Inspection Tools
 // ============================================================================
 
-fn inspect_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnset_db: &LearnsetDatabase) {
+fn inspect_pokemon(
+    species_db: &SpeciesDatabase,
+    move_db: &MoveDatabase,
+    learnset_db: &LearnsetDatabase,
+) {
     let species_list: Vec<_> = species_db.as_map().values().collect();
-    let options: Vec<String> = species_list.iter()
+    let options: Vec<String> = species_list
+        .iter()
         .map(|s| {
             let romaji = s.name.to_romaji();
             format!("{} ({}) | {}", s.name, s.id, romaji)
@@ -896,7 +1150,8 @@ fn inspect_pokemon(species_db: &SpeciesDatabase, move_db: &MoveDatabase, learnse
 
 fn inspect_move(move_db: &MoveDatabase) {
     let moves: Vec<_> = move_db.as_map().values().collect();
-    let options: Vec<String> = moves.iter()
+    let options: Vec<String> = moves
+        .iter()
         .map(|m| {
             let name = m.name.as_deref().unwrap_or(&m.id);
             let romaji = name.to_romaji();
@@ -915,23 +1170,52 @@ fn inspect_move(move_db: &MoveDatabase) {
             let name = m.name.as_deref().unwrap_or(&m.id);
             println!("│ 📖 {} (ID: {})                           ", name, m.id);
             println!("├─────────────────────────────────────────────────────────┤");
-            println!("│ タイプ: {}                                          ", format_type(m.move_type.as_deref().unwrap_or("???")));
-            println!("│ 分類: {}                                            ", format_category(m.category.as_deref().unwrap_or("???")));
-            println!("│ 威力: {}                                             ", m.power.map(|p| p.to_string()).unwrap_or("-".to_string()));
-            println!("│ 命中: {}                                             ", m.accuracy.map(|a| format!("{:.0}%", a * 100.0)).unwrap_or("-".to_string()));
-            println!("│ PP: {}                                               ", m.pp.map(|p| p.to_string()).unwrap_or("-".to_string()));
-            println!("│ 優先度: {}                                           ", m.priority.unwrap_or(0));
+            println!(
+                "│ タイプ: {}                                          ",
+                format_type(m.move_type.as_deref().unwrap_or("???"))
+            );
+            println!(
+                "│ 分類: {}                                            ",
+                format_category(m.category.as_deref().unwrap_or("???"))
+            );
+            println!(
+                "│ 威力: {}                                             ",
+                m.power.map(|p| p.to_string()).unwrap_or("-".to_string())
+            );
+            println!(
+                "│ 命中: {}                                             ",
+                m.accuracy
+                    .map(|a| format!("{:.0}%", a * 100.0))
+                    .unwrap_or("-".to_string())
+            );
+            println!(
+                "│ PP: {}                                               ",
+                m.pp.map(|p| p.to_string()).unwrap_or("-".to_string())
+            );
+            println!(
+                "│ 優先度: {}                                           ",
+                m.priority.unwrap_or(0)
+            );
             if m.crit_rate.is_some() {
-                println!("│ 急所+: {}                                          ", m.crit_rate.unwrap());
+                println!(
+                    "│ 急所+: {}                                          ",
+                    m.crit_rate.unwrap()
+                );
             }
             if !m.tags.is_empty() {
-                println!("│ タグ: {}                                          ", m.tags.join(", "));
+                println!(
+                    "│ タグ: {}                                          ",
+                    m.tags.join(", ")
+                );
             }
             if !m.steps.is_empty() {
                 println!("├─────────────────────────────────────────────────────────┤");
                 println!("│ 効果:                                                   ");
                 for effect in &m.steps {
-                    println!("│   {}: {:?}                             ", effect.effect_type, effect.data);
+                    println!(
+                        "│   {}: {:?}                             ",
+                        effect.effect_type, effect.data
+                    );
                 }
             }
             println!("└─────────────────────────────────────────────────────────┘\n");

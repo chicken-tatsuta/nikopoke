@@ -2,9 +2,41 @@ use crate::core::battle::{is_battle_over, step_battle, BattleOptions};
 use crate::core::state::{Action, ActionType, BattleState, CreatureState, PlayerState};
 use crate::core::utils::get_active_creature;
 use crate::data::moves::{MoveData, MoveDatabase};
+use serde::Serialize;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
+#[cfg(not(target_arch = "wasm32"))]
+type SearchTimer = Instant;
+
+#[cfg(target_arch = "wasm32")]
+struct SearchTimer;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn start_search_timer() -> SearchTimer {
+    Instant::now()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn start_search_timer() -> SearchTimer {
+    SearchTimer
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn record_search_elapsed(stats: &mut VegaStats, timer: &SearchTimer) {
+    stats.elapsed_ns += timer.elapsed().as_nanos();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn record_search_elapsed(_stats: &mut VegaStats, _timer: &SearchTimer) {}
 
 const WIN_SCORE: f32 = 1_000_000.0;
 const DEFAULT_BRANCH_LIMIT: usize = 4;
+const TACTICAL_CONFIRMED_KO_BONUS: f32 = 5_000.0;
+const TACTICAL_FAST_KO_BONUS: f32 = 2_500.0;
+const TACTICAL_SELF_DEATH_PENALTY: f32 = -3_500.0;
+const TACTICAL_DEAD_SWITCH_PENALTY: f32 = -5_000.0;
+const TACTICAL_SAFE_SWITCH_BONUS: f32 = 1_200.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct VegaParams {
@@ -31,32 +63,50 @@ pub struct VegaParams {
 }
 
 pub const DEFAULT_PARAMS: VegaParams = VegaParams {
-    alive: 379.0,
+    alive: 520.0,
     hp: 1.0,
-    hp_ratio: 206.0,
-    active_hp: 70.0,
-    outgoing: 195.0,
-    incoming: 156.0,
-    ko_fast: 230.0,
-    ko_slow: 121.0,
-    risk_fast: 217.0,
-    risk_slow: 144.0,
-    speed: 28.5,
-    bench: 56.0,
-    stage: 1.05,
-    status: 0.93,
-    switch_pressure: 148.0,
-    switch_danger: 114.0,
-    switch_hp: 35.0,
-    action_damage: 202.0,
-    action_priority_ko: 128.0,
+    hp_ratio: 278.94696,
+    active_hp: 61.97765,
+    outgoing: 264.4011,
+    incoming: 129.00804,
+    ko_fast: 327.92148,
+    ko_slow: 54.109386,
+    risk_fast: 163.9226,
+    risk_slow: 231.91446,
+    speed: 21.1501,
+    bench: 12.346732,
+    stage: 1.0882639,
+    status: 1.1856047,
+    switch_pressure: 77.31166,
+    switch_danger: 199.47752,
+    switch_hp: 96.20694,
+    action_damage: 185.30957,
+    action_priority_ko: 114.034775,
     action_accuracy: 20.0,
 };
 
-struct VegaContext {
-    move_db: MoveDatabase,
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct VegaStats {
+    pub searches: u64,
+    pub elapsed_ns: u128,
+    pub root_actions: u64,
+    pub nodes_entered: u64,
+    pub leaf_evals: u64,
+    pub ordered_actions_calls: u64,
+    pub ordered_actions_scored: u64,
+    pub ordered_actions_returned: u64,
+    pub step_battle_calls: u64,
+    pub alpha_cutoffs: u64,
+}
+
+struct VegaContext<'a> {
+    move_db: &'a MoveDatabase,
     params: VegaParams,
     branch_limit: usize,
+}
+
+struct TacticalContext {
+    incoming_to_active: DamageSummary,
 }
 
 pub fn get_best_move_vega(state: &BattleState, player_id: &str, depth: usize) -> Option<Action> {
@@ -80,7 +130,14 @@ pub fn get_best_move_vega_with_options(
     branch_limit: usize,
 ) -> Option<Action> {
     let move_db = MoveDatabase::default();
-    get_best_move_vega_with_options_and_db(state, player_id, depth, params, branch_limit, move_db)
+    get_best_move_vega_with_options_and_db_ref(
+        state,
+        player_id,
+        depth,
+        params,
+        branch_limit,
+        &move_db,
+    )
 }
 
 pub fn get_best_move_vega_with_options_and_db(
@@ -91,17 +148,61 @@ pub fn get_best_move_vega_with_options_and_db(
     branch_limit: usize,
     move_db: MoveDatabase,
 ) -> Option<Action> {
+    get_best_move_vega_with_options_and_db_ref(
+        state,
+        player_id,
+        depth,
+        params,
+        branch_limit,
+        &move_db,
+    )
+}
+
+pub fn get_best_move_vega_with_options_and_db_ref(
+    state: &BattleState,
+    player_id: &str,
+    depth: usize,
+    params: VegaParams,
+    branch_limit: usize,
+    move_db: &MoveDatabase,
+) -> Option<Action> {
+    let mut stats = VegaStats::default();
+    get_best_move_vega_with_options_and_db_ref_and_stats(
+        state,
+        player_id,
+        depth,
+        params,
+        branch_limit,
+        move_db,
+        &mut stats,
+    )
+}
+
+pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
+    state: &BattleState,
+    player_id: &str,
+    depth: usize,
+    params: VegaParams,
+    branch_limit: usize,
+    move_db: &MoveDatabase,
+    stats: &mut VegaStats,
+) -> Option<Action> {
+    stats.searches += 1;
+    let started_at = start_search_timer();
     let ctx = VegaContext {
         move_db,
         params,
         branch_limit: branch_limit.max(1),
     };
-    let actions = ordered_actions(state, player_id, &ctx);
+    let actions = ordered_actions(state, player_id, &ctx, stats);
+    stats.root_actions += actions.len() as u64;
     if actions.is_empty() {
+        record_search_elapsed(stats, &started_at);
         return None;
     }
 
     let Some(opp_id) = opponent_id(state, player_id) else {
+        record_search_elapsed(stats, &started_at);
         return actions.first().cloned();
     };
 
@@ -119,6 +220,7 @@ pub fn get_best_move_vega_with_options_and_db(
             &ctx,
             search_depth - 1,
             alpha,
+            stats,
         );
         if score > best_score {
             best_score = score;
@@ -127,6 +229,7 @@ pub fn get_best_move_vega_with_options_and_db(
         alpha = alpha.max(best_score);
     }
 
+    record_search_elapsed(stats, &started_at);
     best_action
 }
 
@@ -138,16 +241,20 @@ fn worst_opponent_reply(
     ctx: &VegaContext,
     depth_left: usize,
     alpha: f32,
+    stats: &mut VegaStats,
 ) -> f32 {
-    let opponent_actions = ordered_actions(state, opponent_id, ctx);
+    stats.nodes_entered += 1;
+    let opponent_actions = ordered_actions(state, opponent_id, ctx, stats);
     if opponent_actions.is_empty() {
+        stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
 
     let mut worst = f32::INFINITY;
-    for opponent_action in opponent_actions.iter().take(ctx.branch_limit) {
+    for opponent_action in opponent_actions.iter() {
         let actions = vec![action.clone(), opponent_action.clone()];
         let mut rng = || 0.42;
+        stats.step_battle_calls += 1;
         let next = step_battle(
             state,
             &actions,
@@ -157,13 +264,15 @@ fn worst_opponent_reply(
             },
         );
         let score = if depth_left == 0 {
+            stats.leaf_evals += 1;
             evaluate_state_vega(&next, player_id, ctx)
         } else {
-            best_continuation(&next, player_id, ctx, depth_left)
+            best_continuation(&next, player_id, ctx, depth_left, stats)
         };
 
         worst = worst.min(score);
         if worst <= alpha {
+            stats.alpha_cutoffs += 1;
             break;
         }
     }
@@ -176,16 +285,21 @@ fn best_continuation(
     player_id: &str,
     ctx: &VegaContext,
     depth_left: usize,
+    stats: &mut VegaStats,
 ) -> f32 {
+    stats.nodes_entered += 1;
     if is_battle_over(state) {
+        stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
 
     let Some(opp_id) = opponent_id(state, player_id) else {
+        stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     };
-    let actions = ordered_actions(state, player_id, ctx);
+    let actions = ordered_actions(state, player_id, ctx, stats);
     if actions.is_empty() {
+        stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
 
@@ -200,6 +314,7 @@ fn best_continuation(
             ctx,
             depth_left.saturating_sub(1),
             alpha,
+            stats,
         );
         best = best.max(score);
         alpha = alpha.max(best);
@@ -208,14 +323,48 @@ fn best_continuation(
     best
 }
 
-fn ordered_actions(state: &BattleState, player_id: &str, ctx: &VegaContext) -> Vec<Action> {
-    let mut actions = available_actions(state, player_id, &ctx.move_db);
-    actions.sort_by(|a, b| {
-        action_ordering_score(state, player_id, b, ctx)
-            .partial_cmp(&action_ordering_score(state, player_id, a, ctx))
+fn ordered_actions(
+    state: &BattleState,
+    player_id: &str,
+    ctx: &VegaContext,
+    stats: &mut VegaStats,
+) -> Vec<Action> {
+    stats.ordered_actions_calls += 1;
+    let actions = available_actions(state, player_id, ctx.move_db);
+    stats.ordered_actions_scored += actions.len() as u64;
+    let tactical_context = tactical_context(state, player_id, ctx);
+
+    let mut scored: Vec<(Action, f32)> = actions
+        .into_iter()
+        .map(|action| {
+            let score =
+                tactical_action_score(state, player_id, &action, ctx, tactical_context.as_ref())
+                    + action_ordering_score(state, player_id, &action, ctx);
+            (action, score)
+        })
+        .collect();
+
+    let limit = ctx.branch_limit.min(scored.len());
+    if limit == 0 {
+        return Vec::new();
+    }
+
+    if scored.len() > limit {
+        scored.select_nth_unstable_by(limit, |(_, score_a), (_, score_b)| {
+            score_b
+                .partial_cmp(score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        scored.truncate(limit);
+    }
+
+    scored.sort_by(|(_, score_a), (_, score_b)| {
+        score_b
+            .partial_cmp(score_a)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    actions
+    stats.ordered_actions_returned += scored.len() as u64;
+    scored.into_iter().map(|(action, _)| action).collect()
 }
 
 fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabase) -> Vec<Action> {
@@ -335,6 +484,144 @@ fn action_ordering_score(
         }
         ActionType::UseItem => 0.0,
     }
+}
+
+fn tactical_action_score(
+    state: &BattleState,
+    player_id: &str,
+    action: &Action,
+    ctx: &VegaContext,
+    tactical_context: Option<&TacticalContext>,
+) -> f32 {
+    let Some(player) = get_player(state, player_id) else {
+        return 0.0;
+    };
+    let Some(opponent) = get_opponent(state, player_id) else {
+        return 0.0;
+    };
+    let Some(active) = player.team.get(player.active_slot) else {
+        return 0.0;
+    };
+    let Some(target) = opponent.team.get(opponent.active_slot) else {
+        return 0.0;
+    };
+
+    match action.action_type {
+        ActionType::Move => tactical_move_score(
+            state,
+            opponent,
+            active,
+            target,
+            action,
+            ctx,
+            tactical_context,
+        ),
+        ActionType::Switch => tactical_switch_score(player, target, action, ctx, tactical_context),
+        ActionType::UseItem => 0.0,
+    }
+}
+
+fn tactical_context(
+    state: &BattleState,
+    player_id: &str,
+    ctx: &VegaContext,
+) -> Option<TacticalContext> {
+    let player = get_player(state, player_id)?;
+    let opponent = get_opponent(state, player_id)?;
+    let active = player.team.get(player.active_slot)?;
+    let opponent_active = opponent.team.get(opponent.active_slot)?;
+    Some(TacticalContext {
+        incoming_to_active: max_expected_damage(opponent_active, active, ctx.move_db),
+    })
+}
+
+fn tactical_move_score(
+    state: &BattleState,
+    opponent: &PlayerState,
+    active: &CreatureState,
+    target: &CreatureState,
+    action: &Action,
+    ctx: &VegaContext,
+    tactical_context: Option<&TacticalContext>,
+) -> f32 {
+    let Some(move_id) = action.move_id.as_deref() else {
+        return 0.0;
+    };
+    let Some(move_data) = ctx.move_db.get(move_id) else {
+        return 0.0;
+    };
+
+    let damage = expected_move_damage(
+        active,
+        target,
+        move_data,
+        Some(state),
+        Some(opponent.id.as_str()),
+    );
+    let can_ko = target.hp > 0 && damage >= target.hp as f32;
+    let moves_first = moves_before(active, target, move_data);
+    let mut score = 0.0;
+    if can_ko {
+        score += TACTICAL_CONFIRMED_KO_BONUS;
+        if moves_first {
+            score += TACTICAL_FAST_KO_BONUS;
+        }
+    }
+
+    if tactical_context
+        .map(|context| context.incoming_to_active.damage >= active.hp as f32)
+        .unwrap_or(false)
+        && !(can_ko && moves_first)
+    {
+        score += TACTICAL_SELF_DEATH_PENALTY;
+    }
+
+    score
+}
+
+fn tactical_switch_score(
+    player: &PlayerState,
+    opponent_active: &CreatureState,
+    action: &Action,
+    ctx: &VegaContext,
+    tactical_context: Option<&TacticalContext>,
+) -> f32 {
+    let Some(slot) = action.slot else {
+        return 0.0;
+    };
+    let Some(candidate) = player.team.get(slot) else {
+        return 0.0;
+    };
+
+    let incoming_to_candidate = max_expected_damage(opponent_active, candidate, ctx.move_db);
+    if incoming_to_candidate.damage >= candidate.hp as f32 {
+        return TACTICAL_DEAD_SWITCH_PENALTY;
+    }
+
+    if tactical_context
+        .map(|context| context.incoming_to_active.damage >= context_active_hp(player) as f32)
+        .unwrap_or(false)
+    {
+        return TACTICAL_SAFE_SWITCH_BONUS;
+    }
+
+    0.0
+}
+
+fn context_active_hp(player: &PlayerState) -> i32 {
+    player
+        .team
+        .get(player.active_slot)
+        .map(|active| active.hp)
+        .unwrap_or(0)
+}
+
+fn moves_before(attacker: &CreatureState, defender: &CreatureState, move_data: &MoveData) -> bool {
+    let priority = move_data.priority.unwrap_or(0);
+    if priority != 0 {
+        return priority > 0;
+    }
+    attacker.speed >= defender.speed
 }
 
 fn evaluate_state_vega(state: &BattleState, player_id: &str, ctx: &VegaContext) -> f32 {

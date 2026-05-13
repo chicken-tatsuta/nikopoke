@@ -1,5 +1,4 @@
 use engine_rust::ai::get_best_move_minimax;
-use inquire::Select;
 use engine_rust::core::battle::{is_battle_over, BattleEngine, BattleOptions};
 use engine_rust::core::factory::{create_creature, CreateCreatureOptions};
 use engine_rust::core::state::{create_battle_state, Action, ActionType, BattleState, PlayerState};
@@ -7,6 +6,7 @@ use engine_rust::core::utils::get_active_creature;
 use engine_rust::data::learnsets::LearnsetDatabase;
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::species::SpeciesDatabase;
+use inquire::Select;
 
 use std::io::{self, Write};
 use wana_kana::ConvertJapanese;
@@ -28,17 +28,28 @@ fn main() {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     let species_list: Vec<_> = species_db.as_map().values().collect();
     for (i, species) in species_list.iter().enumerate() {
-        let total = species.base_stats.hp + species.base_stats.atk + species.base_stats.def
-            + species.base_stats.spa + species.base_stats.spd + species.base_stats.spe;
+        let total = species.base_stats.hp
+            + species.base_stats.atk
+            + species.base_stats.def
+            + species.base_stats.spa
+            + species.base_stats.spd
+            + species.base_stats.spe;
         let types_str = species.types.join(" / ");
         let abilities_str = species.abilities.join(" / ");
         let romaji = species.name.to_romaji();
         println!("  {}. {} ({})", i + 1, species.name, romaji);
         println!("     タイプ: {}", types_str);
         println!("     特性: {}", abilities_str);
-        println!("     種族値: H{} A{} B{} C{} D{} S{} (計{})",
-            species.base_stats.hp, species.base_stats.atk, species.base_stats.def,
-            species.base_stats.spa, species.base_stats.spd, species.base_stats.spe, total);
+        println!(
+            "     種族値: H{} A{} B{} C{} D{} S{} (計{})",
+            species.base_stats.hp,
+            species.base_stats.atk,
+            species.base_stats.def,
+            species.base_stats.spa,
+            species.base_stats.spd,
+            species.base_stats.spe,
+            total
+        );
         println!();
     }
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -71,7 +82,7 @@ fn main() {
     println!();
     println!("🎮 チームに入れる3匹を選んでください（番号をスペース区切りで入力）:");
     let player_indices = read_numbers(3, species_list.len());
-    
+
     // プレイヤーの技選択モード
     let detailed_mode = if !is_simulation {
         println!();
@@ -86,25 +97,39 @@ fn main() {
     } else {
         false
     };
-    
+
     let mut player_team = Vec::new();
     for idx in &player_indices {
         let species = species_list[*idx];
-        let learnable: Vec<String> = learnset_db.get(&species.id).cloned().unwrap_or_default()
+        let learnable: Vec<String> = learnset_db
+            .get(&species.id)
+            .cloned()
+            .unwrap_or_default()
             .into_iter()
             .filter(|m_id| move_db.get(m_id).is_some())
             .collect();
-        
+
         let moves: Vec<String> = if detailed_mode {
             // 詳細モード: 技を1つずつ選択させる
             let mut options = Vec::new();
             let mut move_ids = Vec::new();
-            
+
             for move_id in &learnable {
                 if let Some(move_data) = move_db.get(move_id) {
-                    let name = move_data.name.as_ref().map(|s| s.as_str()).unwrap_or(move_id);
-                    let move_type = move_data.move_type.as_ref().map(|s| s.as_str()).unwrap_or("???");
-                    let power = move_data.power.map(|p| p.to_string()).unwrap_or("-".to_string());
+                    let name = move_data
+                        .name
+                        .as_ref()
+                        .map(|s| s.as_str())
+                        .unwrap_or(move_id);
+                    let move_type = move_data
+                        .move_type
+                        .as_ref()
+                        .map(|s| s.as_str())
+                        .unwrap_or("???");
+                    let power = move_data
+                        .power
+                        .map(|p| p.to_string())
+                        .unwrap_or("-".to_string());
                     let category = match move_data.category.as_deref() {
                         Some("physical") => "物理",
                         Some("special") => "特殊",
@@ -112,12 +137,19 @@ fn main() {
                         _ => "???",
                     };
                     let priority = move_data.priority.unwrap_or(0);
-                    let priority_str = if priority != 0 { format!(" 優先度:{:+}", priority) } else { String::new() };
-                    
+                    let priority_str = if priority != 0 {
+                        format!(" 優先度:{:+}", priority)
+                    } else {
+                        String::new()
+                    };
+
                     // Searchable metadata
                     let romaji = name.to_romaji();
-                    
-                    let display = format!("{} [{}] {} 威力:{}{} | {} {}", name, move_type, category, power, priority_str, move_id, romaji);
+
+                    let display = format!(
+                        "{} [{}] {} 威力:{}{} | {} {}",
+                        name, move_type, category, power, priority_str, move_id, romaji
+                    );
                     options.push(display);
                     move_ids.push(move_id.clone());
                 } else {
@@ -131,49 +163,56 @@ fn main() {
             } else {
                 // 1つずつ選択（最大4つまで）
                 let mut selected_moves = Vec::new();
-                
+
                 for i in 1..=4 {
                     if selected_moves.len() >= 4 {
                         break;
                     }
-                    
+
                     // 既に選択した技を除外
-                    let available_options: Vec<String> = options.iter().enumerate()
+                    let available_options: Vec<String> = options
+                        .iter()
+                        .enumerate()
                         .filter(|(idx, _)| !selected_moves.contains(&move_ids[*idx]))
                         .map(|(_, opt)| opt.clone())
                         .collect();
-                    
+
                     if available_options.is_empty() {
                         break;
                     }
-                    
+
                     // 「選択完了」オプションを追加
                     let mut selection_options = available_options.clone();
                     if i > 1 {
                         selection_options.push("✅ 選択完了（これ以上選ばない）".to_string());
                     }
-                    
+
                     let prompt = if i == 1 {
-                        format!("{}の技を選んでください [{}/4] (Enterで選択):", species.name, i)
+                        format!(
+                            "{}の技を選んでください [{}/4] (Enterで選択):",
+                            species.name, i
+                        )
                     } else {
                         format!("技を選んでください [{}/4] (Enterで選択):", i)
                     };
-                    
+
                     let ans = Select::new(&prompt, selection_options.clone())
                         .with_page_size(10)
                         .prompt();
-                    
+
                     match ans {
                         Ok(choice) => {
                             if choice == "✅ 選択完了（これ以上選ばない）" {
                                 break;
                             }
-                            
+
                             // 選択された技のIDを取得
-                            if let Some(original_idx) = options.iter().position(|opt| opt == &choice) {
+                            if let Some(original_idx) =
+                                options.iter().position(|opt| opt == &choice)
+                            {
                                 selected_moves.push(move_ids[original_idx].clone());
                             }
-                        },
+                        }
                         Err(_) => {
                             println!("選択がキャンセルされました。");
                             if selected_moves.is_empty() {
@@ -184,16 +223,20 @@ fn main() {
                         }
                     }
                 }
-                
+
                 selected_moves
             }
         } else {
             // 通常モード: ランダム選択
             take_random_moves(learnable, 4)
         };
-        
+
         if moves.len() < 4 {
-            println!("⚠️  警告: {} の技が不足しています（{}個のみロードされました）", species.name, moves.len());
+            println!(
+                "⚠️  警告: {} の技が不足しています（{}個のみロードされました）",
+                species.name,
+                moves.len()
+            );
         }
 
         let creature = create_creature(
@@ -218,10 +261,13 @@ fn main() {
         .map(|(i, _)| i)
         .take(3)
         .collect();
-    
+
     for idx in &ai_indices {
         let species = species_list[*idx];
-        let learnable: Vec<String> = learnset_db.get(&species.id).cloned().unwrap_or_default()
+        let learnable: Vec<String> = learnset_db
+            .get(&species.id)
+            .cloned()
+            .unwrap_or_default()
             .into_iter()
             .filter(|m_id| move_db.get(m_id).is_some())
             .collect();
@@ -231,10 +277,14 @@ fn main() {
         } else {
             learnable.into_iter().take(4).collect()
         };
-        
+
         if moves.len() < 4 && moves.len() > 0 {
             // learnset_db.get 可能でも move_db にない場合があるので再度チェック
-            println!("⚠️  警告: 相手の {} の技が不足しています（{}個のみロードされました）", species.name, moves.len());
+            println!(
+                "⚠️  警告: 相手の {} の技が不足しています（{}個のみロードされました）",
+                species.name,
+                moves.len()
+            );
         }
 
         let creature = create_creature(
@@ -251,8 +301,22 @@ fn main() {
     }
 
     println!();
-    println!("✅ あなたのチーム: {}", player_team.iter().map(|c| c.name.as_str()).collect::<Vec<_>>().join(", "));
-    println!("🤖 相手のチーム: {}", ai_team.iter().map(|c| c.name.as_str()).collect::<Vec<_>>().join(", "));
+    println!(
+        "✅ あなたのチーム: {}",
+        player_team
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!(
+        "🤖 相手のチーム: {}",
+        ai_team
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     println!();
 
     // バトル状態作成
@@ -317,7 +381,8 @@ fn main() {
                 // シミュレーション時はMinimaxを使用
                 if let Some(action) = get_best_move_minimax(&state, "player", 2) {
                     actions.push(action);
-                } else if let Some(action) = ai_choose_action_for_player(&state, &move_db, "player") {
+                } else if let Some(action) = ai_choose_action_for_player(&state, &move_db, "player")
+                {
                     actions.push(action);
                 }
             } else {
@@ -373,13 +438,13 @@ fn main() {
             }
             let player_switch_needed = needs_switch(&state, "player");
             let ai_switch_needed = needs_switch(&state, "ai");
-            
+
             if !player_switch_needed && !ai_switch_needed {
                 break;
             }
 
             let mut switch_actions = Vec::new();
-            
+
             if player_switch_needed {
                 if is_simulation {
                     if let Some(action) = ai_switch_for_player(&state, "player") {
@@ -402,7 +467,7 @@ fn main() {
                     }
                 }
             }
-            
+
             if ai_switch_needed {
                 if ai_is_random {
                     if let Some(action) = ai_switch(&state) {
@@ -447,7 +512,7 @@ fn print_battle_status(state: &BattleState, _move_db: &MoveDatabase) {
     println!("─────────────────────────────────────────");
     println!("  ターン {}", state.turn + 1);
     println!("─────────────────────────────────────────");
-    
+
     if let Some(ai_mon) = ai_active {
         let types_str = ai_mon.types.join("/");
         let ability = ai_mon.ability.as_deref().unwrap_or("なし");
@@ -458,7 +523,7 @@ fn print_battle_status(state: &BattleState, _move_db: &MoveDatabase) {
         print_stage_changes(&ai_mon.stages);
         print_status_effects(&ai_mon.statuses);
     }
-    
+
     if let Some(player_mon) = player_active {
         let types_str = player_mon.types.join("/");
         let ability = player_mon.ability.as_deref().unwrap_or("なし");
@@ -482,18 +547,29 @@ fn hp_bar_string(hp: i32, max_hp: i32) -> String {
 
 fn print_stage_changes(stages: &engine_rust::core::state::StatStages) {
     let mut changes = Vec::new();
-    if stages.atk != 0 { changes.push(format!("攻撃 {:+}", stages.atk)); }
-    if stages.def != 0 { changes.push(format!("防御 {:+}", stages.def)); }
-    if stages.spa != 0 { changes.push(format!("特攻 {:+}", stages.spa)); }
-    if stages.spd != 0 { changes.push(format!("特防 {:+}", stages.spd)); }
-    if stages.spe != 0 { changes.push(format!("素早 {:+}", stages.spe)); }
+    if stages.atk != 0 {
+        changes.push(format!("攻撃 {:+}", stages.atk));
+    }
+    if stages.def != 0 {
+        changes.push(format!("防御 {:+}", stages.def));
+    }
+    if stages.spa != 0 {
+        changes.push(format!("特攻 {:+}", stages.spa));
+    }
+    if stages.spd != 0 {
+        changes.push(format!("特防 {:+}", stages.spd));
+    }
+    if stages.spe != 0 {
+        changes.push(format!("素早 {:+}", stages.spe));
+    }
     if !changes.is_empty() {
         println!("         ランク変化: {}", changes.join(", "));
     }
 }
 
 fn print_status_effects(statuses: &[engine_rust::core::state::Status]) {
-    let status_names: Vec<&str> = statuses.iter()
+    let status_names: Vec<&str> = statuses
+        .iter()
         .filter(|s| s.id != "pending_switch")
         .map(|s| match s.id.as_str() {
             "burn" => "やけど",
@@ -510,7 +586,7 @@ fn print_status_effects(statuses: &[engine_rust::core::state::Status]) {
             other => other,
         })
         .collect();
-    
+
     if !status_names.is_empty() {
         println!("         状態: {}", status_names.join(", "));
     }
@@ -523,12 +599,17 @@ fn print_enriched_logs(state: &BattleState, move_db: &MoveDatabase, last_idx: &m
 
         // 技の使用ログであれば詳細を追記する
         // 形式: "ポケモン名の 技名！"
-        if log.ends_with('！') && !log.contains("ダメージ") && !log.contains("回復") && !log.contains("たおれた") && !log.contains("守った") {
+        if log.ends_with('！')
+            && !log.contains("ダメージ")
+            && !log.contains("回復")
+            && !log.contains("たおれた")
+            && !log.contains("守った")
+        {
             if let Some(pos) = log.find("の ") {
                 let move_part = &log[pos + 3..].trim_end_matches('！');
                 // 技名部分にスペースが含まれている場合は、最初の部分を技名とする（一撃必殺などが続く場合のため）
                 let move_name = move_part.split_whitespace().next().unwrap_or(move_part);
-                
+
                 // データベースから技を検索
                 if let Some(move_data) = find_move_by_name(move_db, move_name) {
                     let move_type = move_data.move_type.as_deref().unwrap_or("???");
@@ -538,8 +619,14 @@ fn print_enriched_logs(state: &BattleState, move_db: &MoveDatabase, last_idx: &m
                         Some("status") => "変化",
                         _ => "???",
                     };
-                    let power = move_data.power.map(|p| p.to_string()).unwrap_or_else(|| "-".to_string());
-                    print!(" [タイプ: {}, 威力: {}, 分類: {}]", move_type, power, category);
+                    let power = move_data
+                        .power
+                        .map(|p| p.to_string())
+                        .unwrap_or_else(|| "-".to_string());
+                    print!(
+                        " [タイプ: {}, 威力: {}, 分類: {}]",
+                        move_type, power, category
+                    );
                 }
             }
         }
@@ -548,7 +635,10 @@ fn print_enriched_logs(state: &BattleState, move_db: &MoveDatabase, last_idx: &m
     *last_idx = state.log.len();
 }
 
-fn find_move_by_name<'a>(move_db: &'a MoveDatabase, name: &str) -> Option<&'a engine_rust::data::moves::MoveData> {
+fn find_move_by_name<'a>(
+    move_db: &'a MoveDatabase,
+    name: &str,
+) -> Option<&'a engine_rust::data::moves::MoveData> {
     for m in move_db.as_map().values() {
         if let Some(n) = &m.name {
             if n == name {
@@ -608,7 +698,8 @@ fn handle_command(cmd: &str, state: &BattleState, move_db: &MoveDatabase) {
                     println!("  特防: {} ({:+})", active.sp_defense, active.stages.spd);
                     println!("  素早さ: {} ({:+})", active.speed, active.stages.spe);
                     if !active.statuses.is_empty() {
-                        let status_names: Vec<_> = active.statuses.iter().map(|s| s.id.as_str()).collect();
+                        let status_names: Vec<_> =
+                            active.statuses.iter().map(|s| s.id.as_str()).collect();
                         println!("  状態異常: {}", status_names.join(", "));
                     }
                     println!();
@@ -621,15 +712,39 @@ fn handle_command(cmd: &str, state: &BattleState, move_db: &MoveDatabase) {
             if let Some(active) = get_active_creature(state, "player") {
                 for (i, move_id) in active.moves.iter().enumerate() {
                     if let Some(move_data) = move_db.get(move_id) {
-                        let name = move_data.name.as_ref().map(|s| s.as_str()).unwrap_or(move_id);
-                        let move_type = move_data.move_type.as_ref().map(|s| s.as_str()).unwrap_or("???");
-                        let power = move_data.power.map(|p| p.to_string()).unwrap_or("-".to_string());
+                        let name = move_data
+                            .name
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or(move_id);
+                        let move_type = move_data
+                            .move_type
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or("???");
+                        let power = move_data
+                            .power
+                            .map(|p| p.to_string())
+                            .unwrap_or("-".to_string());
                         let pp = move_data.pp.unwrap_or(0);
                         let current_pp = active.move_pp.get(move_id).copied().unwrap_or(pp);
-                        let category = move_data.category.as_ref().map(|s| s.as_str()).unwrap_or("???");
+                        let category = move_data
+                            .category
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or("???");
                         let priority = move_data.priority.unwrap_or(0);
-                        println!("  {}. {} [{}] - {} | 威力: {} | PP: {}/{} | 優先度: {:+}",
-                            i + 1, name, move_type, category, power, current_pp, pp, priority);
+                        println!(
+                            "  {}. {} [{}] - {} | 威力: {} | PP: {}/{} | 優先度: {:+}",
+                            i + 1,
+                            name,
+                            move_type,
+                            category,
+                            power,
+                            current_pp,
+                            pp,
+                            priority
+                        );
                     }
                 }
             }
@@ -640,9 +755,21 @@ fn handle_command(cmd: &str, state: &BattleState, move_db: &MoveDatabase) {
             println!("══════ あなたのチーム ══════");
             let player = &state.players[0];
             for (i, mon) in player.team.iter().enumerate() {
-                let active = if i == player.active_slot { " (場に出ている)" } else { "" };
+                let active = if i == player.active_slot {
+                    " (場に出ている)"
+                } else {
+                    ""
+                };
                 let status = if mon.hp <= 0 { " 💀" } else { "" };
-                println!("  {}. {} HP: {}/{}{}{}", i + 1, mon.name, mon.hp, mon.max_hp, active, status);
+                println!(
+                    "  {}. {} HP: {}/{}{}{}",
+                    i + 1,
+                    mon.name,
+                    mon.hp,
+                    mon.max_hp,
+                    active,
+                    status
+                );
             }
             println!();
         }
@@ -672,25 +799,42 @@ fn handle_command(cmd: &str, state: &BattleState, move_db: &MoveDatabase) {
 
 fn prompt_move(state: &BattleState, move_db: &MoveDatabase) -> Option<Action> {
     let active = get_active_creature(state, "player")?;
-    
+
     let mut options = Vec::new();
     let mut move_ids = Vec::new();
 
     for move_id in &active.moves {
         if let Some(move_data) = move_db.get(move_id) {
-            let name = move_data.name.as_ref().map(|s| s.as_str()).unwrap_or(move_id);
-            let move_type = move_data.move_type.as_ref().map(|s| s.as_str()).unwrap_or("???");
-            let power = move_data.power.map(|p| p.to_string()).unwrap_or("-".to_string());
+            let name = move_data
+                .name
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(move_id);
+            let move_type = move_data
+                .move_type
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or("???");
+            let power = move_data
+                .power
+                .map(|p| p.to_string())
+                .unwrap_or("-".to_string());
             let pp = move_data.pp.unwrap_or(0);
             let current_pp = active.move_pp.get(move_id).copied().unwrap_or(pp);
-            
+
             // Searchable metadata: Romaji of the name + English ID
             let romaji = name.to_romaji();
-            
+
             let display = if current_pp == 0 {
-                format!("{} [{}] 威力:{} (PP切れ) | {} {}", name, move_type, power, move_id, romaji)
+                format!(
+                    "{} [{}] 威力:{} (PP切れ) | {} {}",
+                    name, move_type, power, move_id, romaji
+                )
             } else {
-                format!("{} [{}] 威力:{} PP:{}/{} | {} {}", name, move_type, power, current_pp, pp, move_id, romaji)
+                format!(
+                    "{} [{}] 威力:{} PP:{}/{} | {} {}",
+                    name, move_type, power, current_pp, pp, move_id, romaji
+                )
             };
             options.push(display);
             move_ids.push(move_id.clone());
@@ -717,10 +861,10 @@ fn prompt_move(state: &BattleState, move_db: &MoveDatabase) -> Option<Action> {
             if choice == "戻る" {
                 return None;
             }
-            
+
             // 表示文字列のリストから選択されたもののインデックスを見つける
             let mut found_idx = None;
-            
+
             for (i, opt) in options.iter().enumerate() {
                 if opt == &choice {
                     found_idx = Some(i);
@@ -732,9 +876,9 @@ fn prompt_move(state: &BattleState, move_db: &MoveDatabase) -> Option<Action> {
                 if idx >= move_ids.len() {
                     return None; // "戻る" was selected (double check)
                 }
-                
+
                 let selected_move_id = &move_ids[idx];
-                
+
                 // PP check
                 if let Some(move_data) = move_db.get(selected_move_id) {
                     let pp = move_data.pp.unwrap_or(0);
@@ -757,19 +901,21 @@ fn prompt_move(state: &BattleState, move_db: &MoveDatabase) -> Option<Action> {
             } else {
                 None
             }
-        },
+        }
         Err(_) => {
             println!("選択がキャンセルされました。");
             None
-        },
+        }
     }
 }
 
 fn prompt_switch(state: &BattleState, player_id: &str) -> Option<Action> {
     let player_idx = state.players.iter().position(|p| p.id == player_id)?;
     let player = &state.players[player_idx];
-    
-    let available: Vec<(usize, &engine_rust::core::state::CreatureState)> = player.team.iter()
+
+    let available: Vec<(usize, &engine_rust::core::state::CreatureState)> = player
+        .team
+        .iter()
         .enumerate()
         .filter(|(i, c)| *i != player.active_slot && c.hp > 0)
         .collect();
@@ -782,7 +928,13 @@ fn prompt_switch(state: &BattleState, player_id: &str) -> Option<Action> {
     println!();
     println!("交代するポケモンを選んでください:");
     for (display_idx, (_slot, mon)) in available.iter().enumerate() {
-        println!("  {}. {} HP: {}/{}", display_idx + 1, mon.name, mon.hp, mon.max_hp);
+        println!(
+            "  {}. {} HP: {}/{}",
+            display_idx + 1,
+            mon.name,
+            mon.hp,
+            mon.max_hp
+        );
     }
     print!("> ");
     io::stdout().flush().ok();
@@ -790,7 +942,7 @@ fn prompt_switch(state: &BattleState, player_id: &str) -> Option<Action> {
     let mut input = String::new();
     io::stdin().read_line(&mut input).ok()?;
     let choice: usize = input.trim().parse().ok()?;
-    
+
     if choice == 0 || choice > available.len() {
         println!("無効な選択です。");
         return None;
@@ -817,16 +969,18 @@ fn needs_switch(state: &BattleState, player_id: &str) -> bool {
 
 fn ai_switch(state: &BattleState) -> Option<Action> {
     let ai = state.players.iter().find(|p| p.id == "ai")?;
-    let available: Vec<usize> = ai.team.iter()
+    let available: Vec<usize> = ai
+        .team
+        .iter()
         .enumerate()
         .filter(|(i, c)| *i != ai.active_slot && c.hp > 0)
         .map(|(i, _)| i)
         .collect();
-    
+
     if available.is_empty() {
         return None;
     }
-    
+
     Some(Action {
         player_id: "ai".to_string(),
         action_type: ActionType::Switch,
@@ -840,13 +994,19 @@ fn ai_switch(state: &BattleState) -> Option<Action> {
 fn ai_random_move(state: &BattleState, move_db: &MoveDatabase, player_id: &str) -> Option<Action> {
     let player = state.players.iter().find(|p| p.id == player_id)?;
     let active = player.team.get(player.active_slot)?;
-    let opponent_id = if player_id == "player" { "ai" } else { "player" };
-    
+    let opponent_id = if player_id == "player" {
+        "ai"
+    } else {
+        "player"
+    };
+
     if active.hp <= 0 {
         return None;
     }
 
-    let usable_moves: Vec<&String> = active.moves.iter()
+    let usable_moves: Vec<&String> = active
+        .moves
+        .iter()
         .filter(|move_id| {
             if let Some(move_data) = move_db.get(*move_id) {
                 let pp = move_data.pp.unwrap_or(10);
@@ -884,16 +1044,18 @@ fn ai_random_move(state: &BattleState, move_db: &MoveDatabase, player_id: &str) 
 
 fn ai_switch_for_player(state: &BattleState, player_id: &str) -> Option<Action> {
     let player = state.players.iter().find(|p| p.id == player_id)?;
-    let available: Vec<usize> = player.team.iter()
+    let available: Vec<usize> = player
+        .team
+        .iter()
         .enumerate()
         .filter(|(i, c)| *i != player.active_slot && c.hp > 0)
         .map(|(i, _)| i)
         .collect();
-    
+
     if available.is_empty() {
         return None;
     }
-    
+
     Some(Action {
         player_id: player_id.to_string(),
         action_type: ActionType::Switch,
@@ -904,11 +1066,19 @@ fn ai_switch_for_player(state: &BattleState, player_id: &str) -> Option<Action> 
     })
 }
 
-fn ai_choose_action_for_player(state: &BattleState, move_db: &MoveDatabase, player_id: &str) -> Option<Action> {
+fn ai_choose_action_for_player(
+    state: &BattleState,
+    move_db: &MoveDatabase,
+    player_id: &str,
+) -> Option<Action> {
     let player = state.players.iter().find(|p| p.id == player_id)?;
     let active = player.team.get(player.active_slot)?;
-    let opponent_id = if player_id == "player" { "ai" } else { "player" };
-    
+    let opponent_id = if player_id == "player" {
+        "ai"
+    } else {
+        "player"
+    };
+
     if active.hp <= 0 {
         return ai_switch_for_player(state, player_id);
     }
@@ -917,7 +1087,9 @@ fn ai_choose_action_for_player(state: &BattleState, move_db: &MoveDatabase, play
         return None;
     }
 
-    let usable_moves: Vec<&String> = active.moves.iter()
+    let usable_moves: Vec<&String> = active
+        .moves
+        .iter()
         .filter(|move_id| {
             if let Some(move_data) = move_db.get(*move_id) {
                 let pp = move_data.pp.unwrap_or(10);
@@ -943,7 +1115,7 @@ fn ai_choose_action_for_player(state: &BattleState, move_db: &MoveDatabase, play
     // シンプルAI: 威力が高い技を選ぶ（プレイヤー自動対戦用）
     let mut best_move = usable_moves.first().map(|s| (*s).clone()).unwrap();
     let mut best_power = 0;
-    
+
     for move_id in &usable_moves {
         if let Some(move_data) = move_db.get(*move_id) {
             let power = move_data.power.unwrap_or(0);
@@ -967,7 +1139,7 @@ fn ai_choose_action_for_player(state: &BattleState, move_db: &MoveDatabase, play
 fn ai_choose_action(state: &BattleState, move_db: &MoveDatabase) -> Option<Action> {
     let ai = state.players.iter().find(|p| p.id == "ai")?;
     let active = ai.team.get(ai.active_slot)?;
-    
+
     if active.hp <= 0 {
         return ai_switch(state);
     }
@@ -978,14 +1150,16 @@ fn ai_choose_action(state: &BattleState, move_db: &MoveDatabase) -> Option<Actio
     }
 
     // PPが残っている技から選択
-    let usable_moves: Vec<&String> = active.moves.iter()
+    let usable_moves: Vec<&String> = active
+        .moves
+        .iter()
         .filter(|move_id| {
             if let Some(move_data) = move_db.get(*move_id) {
                 let pp = move_data.pp.unwrap_or(10);
                 let current_pp = active.move_pp.get(*move_id).copied().unwrap_or(pp);
                 current_pp > 0
             } else {
-                true  // データがない技はとりあえず使える扱い
+                true // データがない技はとりあえず使える扱い
             }
         })
         .collect();
@@ -1005,7 +1179,7 @@ fn ai_choose_action(state: &BattleState, move_db: &MoveDatabase) -> Option<Actio
     // シンプルAI: 威力が高い技を選ぶ
     let mut best_move = usable_moves.first().map(|s| (*s).clone())?;
     let mut best_power = 0;
-    
+
     for move_id in &usable_moves {
         if let Some(move_data) = move_db.get(*move_id) {
             let power = move_data.power.unwrap_or(0);
@@ -1030,12 +1204,12 @@ fn read_numbers(count: usize, max: usize) -> Vec<usize> {
     loop {
         print!("> ");
         io::stdout().flush().ok();
-        
+
         let mut input = String::new();
         if io::stdin().read_line(&mut input).is_err() {
             continue;
         }
-        
+
         let numbers: Vec<usize> = input
             .split_whitespace()
             .filter_map(|s| s.parse::<usize>().ok())
@@ -1043,11 +1217,11 @@ fn read_numbers(count: usize, max: usize) -> Vec<usize> {
             .map(|n| n - 1)
             .take(count)
             .collect();
-        
+
         if numbers.len() == count {
             return numbers;
         }
-        
+
         println!("{}個の有効な番号を入力してください（1-{}）。", count, max);
     }
 }
@@ -1069,23 +1243,31 @@ fn take_random_moves(mut moves: Vec<String>, count: usize) -> Vec<String> {
 }
 
 fn rand_f64() -> f64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
     use std::sync::atomic::{AtomicU64, Ordering};
-    
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     static SEED: AtomicU64 = AtomicU64::new(0);
-    
+
     // Initialize seed from time if not yet initialized
     let mut seed = SEED.load(Ordering::Relaxed);
     if seed == 0 {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64;
         seed = now;
         SEED.store(seed, Ordering::Relaxed);
     }
-    
+
     // LCG random number generator with time-based perturbation
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
-    seed = seed.wrapping_mul(6364136223846793005).wrapping_add(now % 1000);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    seed = seed
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(now % 1000);
     SEED.store(seed, Ordering::Relaxed);
-    
+
     (seed as f64) / (u64::MAX as f64)
 }

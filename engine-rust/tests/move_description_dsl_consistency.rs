@@ -122,7 +122,12 @@ fn collect_effect_summary(effects: &[Effect], summary: &mut EffectSummary) {
                 collect_effect_summary(&nested_else, summary);
             }
             "repeat" => {
-                let nested = collect_effects_from_value(effect.data.get("steps").or_else(|| effect.data.get("effects")));
+                let nested = collect_effects_from_value(
+                    effect
+                        .data
+                        .get("steps")
+                        .or_else(|| effect.data.get("effects")),
+                );
                 collect_effect_summary(&nested, summary);
             }
             "conditional" => {
@@ -132,7 +137,12 @@ fn collect_effect_summary(effects: &[Effect], summary: &mut EffectSummary) {
                 collect_effect_summary(&nested_else, summary);
             }
             "delay" | "over_time" => {
-                let nested = collect_effects_from_value(effect.data.get("steps").or_else(|| effect.data.get("effects")));
+                let nested = collect_effects_from_value(
+                    effect
+                        .data
+                        .get("steps")
+                        .or_else(|| effect.data.get("effects")),
+                );
                 collect_effect_summary(&nested, summary);
             }
             _ => {}
@@ -249,12 +259,12 @@ fn has_stage_change(text: &str, stat: &str) -> bool {
 
 #[test]
 fn sampled_description_matches_dsl_effects() {
-    let move_db = MoveDatabase::load_from_yaml_file("data/moves.yaml".as_ref())
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file("data/moves.yaml".as_ref()).expect("load moves.yaml");
     let name_to_id = build_name_to_id_map(&move_db);
 
-    let mut reader = csv::Reader::from_path("data/2期生男子種族値 - 技一覧.csv")
-        .expect("open move csv");
+    let mut reader =
+        csv::Reader::from_path("data/2期生男子種族値 - 技一覧.csv").expect("open move csv");
     let mut csv_records: Vec<(String, String)> = reader
         .records()
         .filter_map(|record| record.ok())
@@ -332,8 +342,7 @@ fn sampled_description_matches_dsl_effects() {
             assert!(
                 summary.has_item_change,
                 "expected item change in DSL for move {} ({})",
-                name,
-                move_id
+                name, move_id
             );
         }
 
@@ -341,8 +350,7 @@ fn sampled_description_matches_dsl_effects() {
             assert!(
                 summary.has_heal,
                 "expected heal in DSL for move {} ({})",
-                name,
-                move_id
+                name, move_id
             );
         }
 
@@ -350,8 +358,7 @@ fn sampled_description_matches_dsl_effects() {
             assert!(
                 summary.has_switch,
                 "expected switch in DSL for move {} ({})",
-                name,
-                move_id
+                name, move_id
             );
         }
     }

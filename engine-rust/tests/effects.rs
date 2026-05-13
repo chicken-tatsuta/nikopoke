@@ -1,5 +1,7 @@
 use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+};
 use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
 use engine_rust::data::moves::Effect;
 use engine_rust::data::type_chart::TypeChart;
@@ -83,7 +85,7 @@ fn modify_damage_scales_last_damage_event() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![
@@ -115,7 +117,7 @@ fn crit_scales_last_damage_event() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![
@@ -160,7 +162,7 @@ fn cure_all_status_clears_statuses() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![effect("cure_all_status", json!({ "target": "target" }))];
@@ -187,7 +189,7 @@ fn lock_move_forces_specific_move() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![effect(
@@ -237,7 +239,7 @@ fn self_switch_marks_pending_switch() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![effect("self_switch", json!({}))];
@@ -289,26 +291,34 @@ fn force_switch_randomly_switches_target() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![effect("force_switch", json!({ "target": "target" }))];
     let events = apply_effects(&state, &effects, &mut ctx);
-    
+
     // Should emit Switch event directly (not pending_switch)
-    let switch_event = events.iter().find(|e| matches!(e, engine_rust::core::events::BattleEvent::Switch { .. }));
-    assert!(switch_event.is_some(), "Expected Switch event to be emitted");
-    
+    let switch_event = events
+        .iter()
+        .find(|e| matches!(e, engine_rust::core::events::BattleEvent::Switch { .. }));
+    assert!(
+        switch_event.is_some(),
+        "Expected Switch event to be emitted"
+    );
+
     // Apply and check active slot changed
     let next_state = apply_events(&state, &events);
-    assert_eq!(next_state.players[1].active_slot, 1, "Target should switch to slot 1");
+    assert_eq!(
+        next_state.players[1].active_slot, 1,
+        "Target should switch to slot 1"
+    );
 }
 
 #[test]
 fn force_switch_with_only_one_pokemon_logs_failure() {
     // State with only 1 Pokémon on target team
     let state = make_state();
-    
+
     let mut rng = || 0.0;
     let type_chart = TypeChart::new();
     let mut ctx = EffectContext {
@@ -323,13 +333,18 @@ fn force_switch_with_only_one_pokemon_logs_failure() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![effect("force_switch", json!({ "target": "target" }))];
     let events = apply_effects(&state, &effects, &mut ctx);
-    
+
     // Should emit Log event since no valid switch target
-    let log_event = events.iter().find(|e| matches!(e, engine_rust::core::events::BattleEvent::Log { .. }));
-    assert!(log_event.is_some(), "Expected Log event when no switch available");
+    let log_event = events
+        .iter()
+        .find(|e| matches!(e, engine_rust::core::events::BattleEvent::Log { .. }));
+    assert!(
+        log_event.is_some(),
+        "Expected Log event when no switch available"
+    );
 }

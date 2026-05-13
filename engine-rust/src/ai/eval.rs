@@ -89,7 +89,11 @@ fn score_active_creature(creature: &CreatureState) -> f32 {
 }
 
 fn alive_count(player: &PlayerState) -> usize {
-    player.team.iter().filter(|creature| creature.hp > 0).count()
+    player
+        .team
+        .iter()
+        .filter(|creature| creature.hp > 0)
+        .count()
 }
 
 fn score_stages(creature: &CreatureState) -> f32 {

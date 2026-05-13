@@ -254,7 +254,10 @@ fn yaml_to_json(yaml: serde_yaml::Value) -> serde_json::Value {
     }
 }
 
-fn collect_yaml_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+fn collect_yaml_files(
+    dir: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();

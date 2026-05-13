@@ -9,16 +9,21 @@ use engine_rust::data::learnsets::LearnsetDatabase;
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::species::{SpeciesData, SpeciesDatabase};
 use engine_rust::data::type_chart::TypeChart;
+use engine_rust::get_best_move_minimax;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::Path;
 
-const INPUT_SIZE: usize = 130;
+const INPUT_SIZE: usize = 166;
 const HIDDEN1_SIZE: usize = 128;
 const HIDDEN2_SIZE: usize = 64;
 const HIDDEN3_SIZE: usize = 32;
 const OUTPUT_SIZE: usize = 6;
+const CONFIRMED_KO_BONUS: f64 = 2.0;
+const FIRST_CONFIRMED_KO_BONUS: f64 = 1.0;
+const IMMEDIATE_DEATH_SWITCH_PENALTY: f64 = -3.0;
+const SAFE_SWITCH_WHEN_THREATENED_BONUS: f64 = 1.0;
 
 const TYPES_LIST: &[&str] = &[
     "bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass",
@@ -71,6 +76,10 @@ struct BatchMatch {
     team_b: Option<TeamSpec>,
     games: usize,
     seed: u64,
+    #[serde(default)]
+    baseline_a: bool,
+    #[serde(default)]
+    baseline_b: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -102,6 +111,8 @@ fn main() {
                     batch_match.team_b.as_ref(),
                     batch_match.games,
                     batch_match.seed,
+                    batch_match.baseline_a,
+                    batch_match.baseline_b,
                     &species_db,
                     &move_db,
                     &learnset_db,
@@ -127,6 +138,8 @@ fn main() {
         team_spec_b.as_ref(),
         config.games,
         config.seed,
+        false,
+        false,
         &species_db,
         &move_db,
         &learnset_db,
@@ -146,6 +159,8 @@ fn evaluate_matches(
     team_spec_b: Option<&TeamSpec>,
     games: usize,
     seed: u64,
+    baseline_a: bool,
+    baseline_b: bool,
     species_db: &SpeciesDatabase,
     move_db: &MoveDatabase,
     learnset_db: &LearnsetDatabase,
@@ -168,6 +183,8 @@ fn evaluate_matches(
             learnset_db,
             type_chart,
             seed + game_index as u64,
+            baseline_a,
+            baseline_b,
         );
 
         match outcome {
@@ -267,6 +284,8 @@ fn run_game(
     learnset_db: &LearnsetDatabase,
     type_chart: &TypeChart,
     seed: u64,
+    baseline_a: bool,
+    baseline_b: bool,
 ) -> GameOutcome {
     let mut rng = make_rng(seed);
     let (team_a, team_b) = match (team_spec_a, team_spec_b) {
@@ -314,8 +333,24 @@ fn run_game(
         }
 
         let mut actions = Vec::new();
-        push_action(&state, "a", weights_a, move_db, type_chart, &mut actions);
-        push_action(&state, "b", weights_b, move_db, type_chart, &mut actions);
+        push_action(
+            &state,
+            "a",
+            weights_a,
+            baseline_a,
+            move_db,
+            type_chart,
+            &mut actions,
+        );
+        push_action(
+            &state,
+            "b",
+            weights_b,
+            baseline_b,
+            move_db,
+            type_chart,
+            &mut actions,
+        );
 
         if actions.is_empty() {
             break;
@@ -374,12 +409,17 @@ fn push_action(
     state: &BattleState,
     player_id: &str,
     weights: &MlpWeights,
+    use_baseline: bool,
     move_db: &MoveDatabase,
     type_chart: &TypeChart,
     actions: &mut Vec<Action>,
 ) {
-    let action = select_action_mlp(state, player_id, weights, move_db, type_chart)
-        .or_else(|| first_switch(state, player_id));
+    let action = if use_baseline {
+        get_best_move_minimax(state, player_id, 1)
+    } else {
+        select_action_mlp(state, player_id, weights, move_db, type_chart)
+    }
+    .or_else(|| first_switch(state, player_id));
 
     if let Some(action) = action {
         actions.push(action);
@@ -530,12 +570,17 @@ fn select_action_mlp(
     type_chart: &TypeChart,
 ) -> Option<Action> {
     let features = extract_features(state, player_id, move_db, type_chart)?;
-    let logits = forward(weights, &features);
+    let mut logits = forward(weights, &features);
     let mask = action_mask(state, player_id, move_db);
 
     let mut best_idx = None;
     let mut best_value = f64::NEG_INFINITY;
-    for (idx, value) in logits.iter().enumerate() {
+    for (idx, value) in logits.iter_mut().enumerate() {
+        if mask.get(idx).copied().unwrap_or(false) {
+            if let Some(action) = action_from_slot(state, player_id, idx) {
+                *value += rule_bonus(state, player_id, &action, move_db, type_chart);
+            }
+        }
         if mask.get(idx).copied().unwrap_or(false) && *value > best_value {
             best_value = *value;
             best_idx = Some(idx);
@@ -543,6 +588,75 @@ fn select_action_mlp(
     }
 
     action_from_slot(state, player_id, best_idx?)
+}
+
+fn rule_bonus(
+    state: &BattleState,
+    player_id: &str,
+    action: &Action,
+    move_db: &MoveDatabase,
+    type_chart: &TypeChart,
+) -> f64 {
+    let Some(player) = state.players.iter().find(|p| p.id == player_id) else {
+        return 0.0;
+    };
+    let Some(opponent) = state.players.iter().find(|p| p.id != player_id) else {
+        return 0.0;
+    };
+    let Some(active) = player.team.get(player.active_slot) else {
+        return 0.0;
+    };
+    let Some(opponent_active) = opponent.team.get(opponent.active_slot) else {
+        return 0.0;
+    };
+
+    match action.action_type {
+        ActionType::Move => {
+            let Some(move_id) = action.move_id.as_deref() else {
+                return 0.0;
+            };
+            let Some(move_data) = move_db.get(move_id) else {
+                return 0.0;
+            };
+            let max_pp = max_pp(move_id, move_db);
+            if remaining_pp(active, move_id, max_pp) <= 0 {
+                return -9999.0;
+            }
+
+            if !is_reliable_damage_move(move_data) {
+                return 0.0;
+            }
+
+            if estimated_min_damage(active, opponent_active, move_data, type_chart)
+                >= opponent_active.hp
+            {
+                let mut bonus = CONFIRMED_KO_BONUS;
+                if moves_before(active, opponent_active, move_data) {
+                    bonus += FIRST_CONFIRMED_KO_BONUS;
+                }
+                return bonus;
+            }
+
+            0.0
+        }
+        ActionType::Switch => {
+            let Some(slot) = action.slot else {
+                return 0.0;
+            };
+            let Some(target) = player.team.get(slot) else {
+                return 0.0;
+            };
+            let target_dies = can_active_confirmed_ko(opponent_active, target, move_db, type_chart);
+            if target_dies {
+                IMMEDIATE_DEATH_SWITCH_PENALTY
+            } else if can_active_confirmed_ko(opponent_active, active, move_db, type_chart) {
+                SAFE_SWITCH_WHEN_THREATENED_BONUS
+            } else {
+                0.0
+            }
+        }
+        ActionType::UseItem => 0.0,
+    }
 }
 
 fn extract_features(
@@ -557,10 +671,10 @@ fn extract_features(
     let opponent_active = opponent.team.get(opponent.active_slot)?;
 
     let mut features = Vec::with_capacity(INPUT_SIZE);
-    append_side_features(&mut features, player, opponent_active);
-    append_side_features(&mut features, opponent, active);
-    append_bench_features(&mut features, player, opponent_active, type_chart);
-    append_bench_features(&mut features, opponent, active, type_chart);
+    append_side_features(&mut features, player, opponent_active, move_db);
+    append_side_features(&mut features, opponent, active, move_db);
+    append_bench_features(&mut features, player, opponent_active, move_db, type_chart);
+    append_bench_features(&mut features, opponent, active, move_db, type_chart);
     append_move_features(&mut features, active, opponent_active, move_db, type_chart);
 
     Some(features)
@@ -570,9 +684,10 @@ fn append_side_features(
     features: &mut Vec<f64>,
     player: &PlayerState,
     opponent_active: &CreatureState,
+    move_db: &MoveDatabase,
 ) {
     let Some(active) = player.team.get(player.active_slot) else {
-        features.extend([0.0; 49]);
+        features.extend([0.0; 53]);
         return;
     };
 
@@ -629,6 +744,7 @@ fn append_side_features(
     let speed = active.speed.max(0) as f64;
     let opponent_speed = opponent_active.speed.max(0) as f64;
     features.push(speed / (speed + opponent_speed + 1e-8));
+    append_pp_summary(features, active, move_db);
 }
 
 fn append_type_onehot(features: &mut Vec<f64>, type_name: Option<&str>) {
@@ -645,6 +761,7 @@ fn append_bench_features(
     features: &mut Vec<f64>,
     player: &PlayerState,
     opponent_active: &CreatureState,
+    move_db: &MoveDatabase,
     type_chart: &TypeChart,
 ) {
     let bench: Vec<&CreatureState> = player
@@ -665,11 +782,182 @@ fn append_bench_features(
                 .map(String::as_str)
                 .unwrap_or("");
             let type_eff = type_chart.effectiveness(attacking_type, &creature.types) as f64 / 4.0;
-            features.extend([hp_ratio, 1.0, type_eff]);
+            let best_offense = best_offense_score(creature, opponent_active, move_db, type_chart);
+            let speed = creature.speed.max(0) as f64;
+            let opponent_speed = opponent_active.speed.max(0) as f64;
+            let speed_ratio = speed / (speed + opponent_speed + 1e-8);
+            let outspeeds = if speed > opponent_speed { 1.0 } else { 0.0 };
+
+            features.extend([
+                hp_ratio,
+                1.0,
+                type_eff,
+                best_offense,
+                speed_ratio,
+                outspeeds,
+            ]);
         } else {
-            features.extend([0.0, 0.0, 0.0]);
+            features.extend([0.0; 6]);
         }
     }
+}
+
+fn append_pp_summary(features: &mut Vec<f64>, creature: &CreatureState, move_db: &MoveDatabase) {
+    let move_count = creature.moves.iter().take(4).count();
+    if move_count == 0 {
+        features.extend([0.0; 4]);
+        return;
+    }
+
+    let mut usable = 0.0;
+    let mut total_ratio = 0.0;
+    let mut empty = 0.0;
+    let mut low = 0.0;
+
+    for move_id in creature.moves.iter().take(4) {
+        let max_pp = max_pp(move_id, move_db);
+        let remaining = remaining_pp(creature, move_id, max_pp);
+        let ratio = remaining as f64 / max_pp as f64;
+        total_ratio += ratio;
+        if remaining > 0 {
+            usable += 1.0;
+        }
+        if remaining <= 0 {
+            empty += 1.0;
+        }
+        if remaining > 0 && ratio <= 0.25 {
+            low += 1.0;
+        }
+    }
+
+    let count = move_count as f64;
+    features.extend([
+        usable / count,
+        total_ratio / count,
+        empty / count,
+        low / count,
+    ]);
+}
+
+fn best_offense_score(
+    attacker: &CreatureState,
+    defender: &CreatureState,
+    move_db: &MoveDatabase,
+    type_chart: &TypeChart,
+) -> f64 {
+    attacker
+        .moves
+        .iter()
+        .take(4)
+        .filter_map(|move_id| {
+            let move_data = move_db.get(move_id)?;
+            if move_data.category.as_deref() == Some("status") {
+                return None;
+            }
+            let max_pp = max_pp(move_id, move_db);
+            if remaining_pp(attacker, move_id, max_pp) <= 0 {
+                return None;
+            }
+            let power_norm = move_data.power.unwrap_or(0).max(0) as f64 / 150.0;
+            let effectiveness = move_data
+                .move_type
+                .as_deref()
+                .map(|move_type| type_chart.effectiveness(move_type, &defender.types) as f64 / 4.0)
+                .unwrap_or(0.0);
+            Some((power_norm * effectiveness).min(1.0))
+        })
+        .fold(0.0, f64::max)
+}
+
+fn can_active_confirmed_ko(
+    attacker: &CreatureState,
+    defender: &CreatureState,
+    move_db: &MoveDatabase,
+    type_chart: &TypeChart,
+) -> bool {
+    attacker.moves.iter().take(4).any(|move_id| {
+        let Some(move_data) = move_db.get(move_id) else {
+            return false;
+        };
+        let max_pp = max_pp(move_id, move_db);
+        remaining_pp(attacker, move_id, max_pp) > 0
+            && is_reliable_damage_move(move_data)
+            && estimated_min_damage(attacker, defender, move_data, type_chart) >= defender.hp
+    })
+}
+
+fn is_reliable_damage_move(move_data: &engine_rust::data::moves::MoveData) -> bool {
+    if move_data.category.as_deref() == Some("status") {
+        return false;
+    }
+    if move_data.power.unwrap_or(0) <= 0 {
+        return false;
+    }
+    move_data.accuracy.unwrap_or(1.0) >= 1.0
+}
+
+fn estimated_min_damage(
+    attacker: &CreatureState,
+    defender: &CreatureState,
+    move_data: &engine_rust::data::moves::MoveData,
+    type_chart: &TypeChart,
+) -> i32 {
+    let power = move_data.power.unwrap_or(0).max(0);
+    if power <= 0 {
+        return 0;
+    }
+
+    let is_special = move_data.category.as_deref() == Some("special");
+    let attack_stat = if is_special {
+        attacker.sp_attack as f64 * stat_stage_multiplier(attacker.stages.spa)
+    } else {
+        attacker.attack as f64 * stat_stage_multiplier(attacker.stages.atk)
+    };
+    let defense_stat = if is_special {
+        defender.sp_defense as f64 * stat_stage_multiplier(defender.stages.spd)
+    } else {
+        defender.defense as f64 * stat_stage_multiplier(defender.stages.def)
+    }
+    .max(1.0);
+    let level = attacker.level as f64;
+    let base =
+        (((2.0 * level / 5.0 + 2.0) * power as f64 * attack_stat / defense_stat) / 50.0) + 2.0;
+    let move_type = move_data.move_type.as_deref().unwrap_or("normal");
+    let stab = if attacker.types.iter().any(|t| t == move_type) {
+        1.5
+    } else {
+        1.0
+    };
+    let effectiveness = type_chart.effectiveness(move_type, &defender.types) as f64;
+    (base * stab * effectiveness * 0.85).floor().max(1.0) as i32
+}
+
+fn stat_stage_multiplier(stage: i32) -> f64 {
+    let stage = stage.clamp(-6, 6);
+    if stage >= 0 {
+        (2 + stage) as f64 / 2.0
+    } else {
+        2.0 / (2 - stage) as f64
+    }
+}
+
+fn moves_before(
+    attacker: &CreatureState,
+    defender: &CreatureState,
+    move_data: &engine_rust::data::moves::MoveData,
+) -> bool {
+    let priority = move_data.priority.unwrap_or(0);
+    if priority > 0 {
+        return true;
+    }
+    if priority < 0 {
+        return false;
+    }
+    modified_speed(attacker) >= modified_speed(defender)
+}
+
+fn modified_speed(creature: &CreatureState) -> f64 {
+    creature.speed.max(0) as f64 * stat_stage_multiplier(creature.stages.spe)
 }
 
 fn append_move_features(
@@ -682,13 +970,8 @@ fn append_move_features(
     for slot in 0..4 {
         if let Some(move_id) = active.moves.get(slot) {
             if let Some(move_data) = move_db.get(move_id) {
-                let max_pp = move_data.pp.unwrap_or(1).max(1);
-                let remaining_pp = active
-                    .move_pp
-                    .get(move_id)
-                    .copied()
-                    .unwrap_or(max_pp)
-                    .max(0);
+                let max_pp = max_pp(move_id, move_db);
+                let remaining_pp = remaining_pp(active, move_id, max_pp);
                 let category = move_data.category.as_deref().unwrap_or("");
                 let is_physical = category == "physical";
                 let is_special = category == "special";
@@ -705,19 +988,47 @@ fn append_move_features(
                         type_chart.effectiveness(move_type, &opponent_active.types) as f64 / 4.0
                     })
                     .unwrap_or(0.0);
+                let pp_ratio = remaining_pp as f64 / max_pp as f64;
+                let expected_hit = (power_norm * type_effectiveness).min(1.0);
+                let priority_norm = (move_data.priority.unwrap_or(0) as f64 / 5.0).clamp(-1.0, 1.0);
 
-                features.push(remaining_pp as f64 / max_pp as f64);
+                features.push(pp_ratio);
+                features.push(if remaining_pp <= 0 { 1.0 } else { 0.0 });
+                features.push(if remaining_pp > 0 && pp_ratio <= 0.25 {
+                    1.0
+                } else {
+                    0.0
+                });
                 features.push(power_norm);
                 features.push(type_effectiveness);
+                features.push(expected_hit);
+                features.push(priority_norm);
                 features.push(if is_physical { 1.0 } else { 0.0 });
                 features.push(if is_status { 1.0 } else { 0.0 });
             } else {
-                features.extend([0.0; 5]);
+                features.extend([0.0; 9]);
             }
         } else {
-            features.extend([0.0; 5]);
+            features.extend([0.0; 9]);
         }
     }
+}
+
+fn max_pp(move_id: &str, move_db: &MoveDatabase) -> i32 {
+    move_db
+        .get(move_id)
+        .and_then(|move_data| move_data.pp)
+        .unwrap_or(10)
+        .max(1)
+}
+
+fn remaining_pp(creature: &CreatureState, move_id: &str, max_pp: i32) -> i32 {
+    creature
+        .move_pp
+        .get(move_id)
+        .copied()
+        .unwrap_or(max_pp)
+        .max(0)
 }
 
 fn has_status(creature: &CreatureState, ids: &[&str]) -> bool {

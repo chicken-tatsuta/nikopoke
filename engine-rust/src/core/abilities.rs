@@ -80,10 +80,12 @@ pub fn run_ability_value_hook(
     };
 
     match (ability, hook) {
-        ("thick_fat", "onDefensivePower") => match ctx.move_data.and_then(|m| m.move_type.as_deref()) {
-            Some("fire") | Some("ice") => value * 0.5,
-            _ => value,
-        },
+        ("thick_fat", "onDefensivePower") => {
+            match ctx.move_data.and_then(|m| m.move_type.as_deref()) {
+                Some("fire") | Some("ice") => value * 0.5,
+                _ => value,
+            }
+        }
         ("fur_coat", "onModifyDefense") => {
             if ctx.category == Some("physical") {
                 value * 2.0
@@ -116,7 +118,13 @@ pub fn run_ability_value_hook(
                 value
             }
         }
-        ("technician", "onModifyPower") => if value <= 60.0 { value * 1.5 } else { value },
+        ("technician", "onModifyPower") => {
+            if value <= 60.0 {
+                value * 1.5
+            } else {
+                value
+            }
+        }
         ("steelworker", "onModifyPower") => {
             if ctx.move_data.and_then(|m| m.move_type.as_deref()) == Some("steel") {
                 value * 1.5
@@ -124,9 +132,27 @@ pub fn run_ability_value_hook(
                 value
             }
         }
-        ("hustle", "onModifyPower") => if ctx.category == Some("physical") { value * 1.5 } else { value },
-        ("hustle", "onModifyAccuracy") => if ctx.category == Some("physical") { value * 0.8 } else { value },
-        ("pure_power", "onModifyPower") => if ctx.category == Some("physical") { value * 2.0 } else { value },
+        ("hustle", "onModifyPower") => {
+            if ctx.category == Some("physical") {
+                value * 1.5
+            } else {
+                value
+            }
+        }
+        ("hustle", "onModifyAccuracy") => {
+            if ctx.category == Some("physical") {
+                value * 0.8
+            } else {
+                value
+            }
+        }
+        ("pure_power", "onModifyPower") => {
+            if ctx.category == Some("physical") {
+                value * 2.0
+            } else {
+                value
+            }
+        }
         ("guts", "onModifyPower") => {
             if ctx.category == Some("physical") {
                 if let Some(active) = get_active_creature(state, player_id) {
@@ -159,8 +185,20 @@ pub fn run_ability_value_hook(
             }
             value
         }
-        ("swift_swim", "onModifySpeed") => if ctx.weather == Some("rain") { value * 2.0 } else { value },
-        ("chlorophyll", "onModifySpeed") => if ctx.weather == Some("sun") { value * 2.0 } else { value },
+        ("swift_swim", "onModifySpeed") => {
+            if ctx.weather == Some("rain") {
+                value * 2.0
+            } else {
+                value
+            }
+        }
+        ("chlorophyll", "onModifySpeed") => {
+            if ctx.weather == Some("sun") {
+                value * 2.0
+            } else {
+                value
+            }
+        }
         ("prankster", "onModifyPriority") => {
             if ctx.move_data.map(is_status_move).unwrap_or(false) {
                 value + 1.0
@@ -187,7 +225,9 @@ pub fn run_ability_check_hook(
     };
 
     match (ability, hook) {
-        ("immunity", "onCheckStatusImmunity") => matches!(ctx.status_id, Some("poison") | Some("toxic")),
+        ("immunity", "onCheckStatusImmunity") => {
+            matches!(ctx.status_id, Some("poison") | Some("toxic"))
+        }
         ("insomnia", "onCheckStatusImmunity") => ctx.status_id == Some("sleep"),
         ("own_tempo", "onCheckStatusImmunity") => ctx.status_id == Some("confusion"),
         ("own_tempo", "onImmunity") => ctx.r#type == Some("intimidate"),
@@ -233,7 +273,12 @@ pub fn modify_stages_with_ability(
     }
 }
 
-pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: AbilityHookContext<'_>) -> AbilityHookResult {
+pub fn run_ability_hooks(
+    state: &BattleState,
+    player_id: &str,
+    hook: &str,
+    ctx: AbilityHookContext<'_>,
+) -> AbilityHookResult {
     let Some(active) = get_active_creature(state, player_id) else {
         return AbilityHookResult::default();
     };
@@ -243,7 +288,12 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
 
     match (ability, hook) {
         ("intimidate", "onSwitchIn") => {
-            if active.ability_data.get("intimidateUsed").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if active
+                .ability_data
+                .get("intimidateUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return AbilityHookResult::default();
             }
             let next = mark_ability_used(state, player_id, "intimidateUsed");
@@ -252,12 +302,18 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
                 if other.id == player_id {
                     continue;
                 }
-                if run_ability_check_hook(&next, &other.id, "onImmunity", AbilityCheckContext {
-                    status_id: None,
-                    r#type: Some("intimidate"),
-                    target_id: None,
-                    action: None,
-                }, false) {
+                if run_ability_check_hook(
+                    &next,
+                    &other.id,
+                    "onImmunity",
+                    AbilityCheckContext {
+                        status_id: None,
+                        r#type: Some("intimidate"),
+                        target_id: None,
+                        action: None,
+                    },
+                    false,
+                ) {
                     continue;
                 }
                 let mut stages = HashMap::new();
@@ -271,16 +327,34 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
                     meta: meta_with_move_source(None, Some(player_id)),
                 });
             }
-            AbilityHookResult { state: Some(next), events, prevent_action: false, override_action: None }
+            AbilityHookResult {
+                state: Some(next),
+                events,
+                prevent_action: false,
+                override_action: None,
+            }
         }
         ("download", "onSwitchIn") => {
-            if active.ability_data.get("downloadUsed").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if active
+                .ability_data
+                .get("downloadUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return AbilityHookResult::default();
             }
             let target_player = state.players.iter().find(|p| p.id != player_id);
-            let Some(target_player) = target_player else { return AbilityHookResult::default(); };
-            let Some(target) = get_active_creature(state, &target_player.id) else { return AbilityHookResult::default(); };
-            let raise = if target.defense < target.sp_defense { "atk" } else { "spa" };
+            let Some(target_player) = target_player else {
+                return AbilityHookResult::default();
+            };
+            let Some(target) = get_active_creature(state, &target_player.id) else {
+                return AbilityHookResult::default();
+            };
+            let raise = if target.defense < target.sp_defense {
+                "atk"
+            } else {
+                "spa"
+            };
             let next = mark_ability_used(state, player_id, "downloadUsed");
             let mut stages = HashMap::new();
             stages.insert(raise.to_string(), 1);
@@ -302,7 +376,12 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             }
         }
         ("drought", "onSwitchIn") => {
-            if active.ability_data.get("droughtUsed").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if active
+                .ability_data
+                .get("droughtUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return AbilityHookResult::default();
             }
             let mut next = mark_ability_used(state, player_id, "droughtUsed");
@@ -322,10 +401,12 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
         }
         ("moody", "onTurnEnd") => {
             let stats = ["atk", "def", "spa", "spd", "spe"];
-            let up_index = (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();
+            let up_index =
+                (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();
             let mut down_index = up_index;
             while down_index == up_index {
-                down_index = (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();
+                down_index =
+                    (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();
             }
             let mut stages = HashMap::new();
             stages.insert(stats[up_index].to_string(), 2);
@@ -348,25 +429,44 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             }
         }
         ("libero", "onBeforeAction") => {
-            let Some(action) = ctx.action else { return AbilityHookResult::default(); };
+            let Some(action) = ctx.action else {
+                return AbilityHookResult::default();
+            };
             let move_id = action.move_id.as_deref();
-            let Some(move_id) = move_id else { return AbilityHookResult::default(); };
-            
+            let Some(move_id) = move_id else {
+                return AbilityHookResult::default();
+            };
+
             // 眠り・氷状態なら発動しない
-            if active.statuses.iter().any(|s| s.id == "sleep" || s.id == "freeze") {
+            if active
+                .statuses
+                .iter()
+                .any(|s| s.id == "sleep" || s.id == "freeze")
+            {
                 return AbilityHookResult::default();
             }
 
-            if active.ability_data.get("liberoUsed").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if active
+                .ability_data
+                .get("liberoUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return AbilityHookResult::default();
             }
-            let Some(move_data) = ctx.move_data else { return AbilityHookResult::default(); };
-            let Some(move_type) = move_data.move_type.as_deref() else { return AbilityHookResult::default(); };
+            let Some(move_data) = ctx.move_data else {
+                return AbilityHookResult::default();
+            };
+            let Some(move_type) = move_data.move_type.as_deref() else {
+                return AbilityHookResult::default();
+            };
             let mut next = state.clone();
             if let Some(player) = next.players.iter_mut().find(|p| p.id == player_id) {
                 if let Some(creature) = player.team.get_mut(player.active_slot) {
                     creature.types = vec![move_type.to_string()];
-                    creature.ability_data.insert("liberoUsed".to_string(), Value::Bool(true));
+                    creature
+                        .ability_data
+                        .insert("liberoUsed".to_string(), Value::Bool(true));
                 }
             }
             AbilityHookResult {
@@ -383,7 +483,9 @@ pub fn run_ability_hooks(state: &BattleState, player_id: &str, hook: &str, ctx: 
             }
         }
         ("receiver", "onSwitchIn") => copy_fainted_ability(state, player_id, "receiver"),
-        ("power_of_alchemy", "onSwitchIn") => copy_fainted_ability(state, player_id, "power_of_alchemy"),
+        ("power_of_alchemy", "onSwitchIn") => {
+            copy_fainted_ability(state, player_id, "power_of_alchemy")
+        }
         _ => AbilityHookResult::default(),
     }
 }
@@ -394,21 +496,35 @@ pub struct AbilityHookContext<'a> {
     pub move_data: Option<&'a MoveData>,
 }
 
-pub fn run_all_ability_hooks(state: &BattleState, hook: &str, ctx: AbilityHookContext<'_>) -> AbilityHookResult {
+pub fn run_all_ability_hooks(
+    state: &BattleState,
+    hook: &str,
+    ctx: AbilityHookContext<'_>,
+) -> AbilityHookResult {
     let mut working_state = state.clone();
     let mut events = Vec::new();
     for player in &working_state.players.clone() {
-        let result = run_ability_hooks(&working_state, &player.id, hook, AbilityHookContext {
-            rng: ctx.rng,
-            action: ctx.action,
-            move_data: ctx.move_data,
-        });
+        let result = run_ability_hooks(
+            &working_state,
+            &player.id,
+            hook,
+            AbilityHookContext {
+                rng: ctx.rng,
+                action: ctx.action,
+                move_data: ctx.move_data,
+            },
+        );
         if let Some(new_state) = result.state {
             working_state = new_state;
         }
         events.extend(result.events);
     }
-    AbilityHookResult { state: Some(working_state), events, prevent_action: false, override_action: None }
+    AbilityHookResult {
+        state: Some(working_state),
+        events,
+        prevent_action: false,
+        override_action: None,
+    }
 }
 
 pub fn apply_ability_event_modifiers(
@@ -445,7 +561,11 @@ pub fn apply_ability_event_modifiers(
                             .unwrap_or(false);
                         if is_sound {
                             output.push(BattleEvent::Log {
-                                message: format!("{}の 特性『{}』！", target.name, ability_label("soundproof")),
+                                message: format!(
+                                    "{}の 特性『{}』！",
+                                    target.name,
+                                    ability_label("soundproof")
+                                ),
                                 meta: Map::new(),
                             });
                             output.push(BattleEvent::Log {
@@ -463,10 +583,16 @@ pub fn apply_ability_event_modifiers(
                     if let Some(ability) = active.ability.as_deref() {
                         let reactions = match ability {
                             "stamina" => after_stamina(&processed, &player.id, &active.name),
-                            "cotton_down" => after_cotton_down(state, &processed, &player.id, &active.name),
+                            "cotton_down" => {
+                                after_cotton_down(state, &processed, &player.id, &active.name)
+                            }
                             "berserk" => after_berserk(state, &processed, &player.id, &active.name),
-                            "competitive" => after_competitive(&processed, &player.id, &active.name),
-                            "opportunist" => after_opportunist(&processed, &player.id, &active.name),
+                            "competitive" => {
+                                after_competitive(&processed, &player.id, &active.name)
+                            }
+                            "opportunist" => {
+                                after_opportunist(&processed, &player.id, &active.name)
+                            }
                             _ => Vec::new(),
                         };
                         output.extend(reactions);
@@ -479,17 +605,13 @@ pub fn apply_ability_event_modifiers(
 }
 
 pub fn get_weather(state: &BattleState) -> Option<WeatherKind> {
-    state
-        .field
-        .global
-        .iter()
-        .find_map(|e| match e.id.as_str() {
-            "sun" => Some(WeatherKind::Sun),
-            "rain" => Some(WeatherKind::Rain),
-            "sandstorm" => Some(WeatherKind::Sandstorm),
-            "snow" => Some(WeatherKind::Snow),
-            _ => None,
-        })
+    state.field.global.iter().find_map(|e| match e.id.as_str() {
+        "sun" => Some(WeatherKind::Sun),
+        "rain" => Some(WeatherKind::Rain),
+        "sandstorm" => Some(WeatherKind::Sandstorm),
+        "snow" => Some(WeatherKind::Snow),
+        _ => None,
+    })
 }
 
 fn set_weather(state: &BattleState, weather: WeatherKind, turns: Option<i32>) -> BattleState {
@@ -517,13 +639,19 @@ fn mark_ability_used(state: &BattleState, player_id: &str, key: &str) -> BattleS
     let mut next = state.clone();
     if let Some(player) = next.players.iter_mut().find(|p| p.id == player_id) {
         if let Some(creature) = player.team.get_mut(player.active_slot) {
-            creature.ability_data.insert(key.to_string(), Value::Bool(true));
+            creature
+                .ability_data
+                .insert(key.to_string(), Value::Bool(true));
         }
     }
     next
 }
 
-fn copy_fainted_ability(state: &BattleState, player_id: &str, ability_id: &str) -> AbilityHookResult {
+fn copy_fainted_ability(
+    state: &BattleState,
+    player_id: &str,
+    ability_id: &str,
+) -> AbilityHookResult {
     let ban = [
         "receiver",
         "power_of_alchemy",
@@ -644,7 +772,11 @@ fn try_magic_bounce(
 
     let mut bounced_event = event.clone();
     set_event_target(&mut bounced_event, &source_id);
-    set_event_meta(&mut bounced_event, "source", Value::String(target_id.clone()));
+    set_event_meta(
+        &mut bounced_event,
+        "source",
+        Value::String(target_id.clone()),
+    );
     set_event_meta(&mut bounced_event, "bounced", Value::Bool(true));
 
     Some(vec![
@@ -714,11 +846,20 @@ fn after_stamina(event: &BattleEvent, player_id: &str, creature_name: &str) -> V
     }
 }
 
-fn after_cotton_down(state: &BattleState, event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
+fn after_cotton_down(
+    state: &BattleState,
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+) -> Vec<BattleEvent> {
     match event {
         BattleEvent::Damage { target_id, .. } if target_id == player_id => {
             let mut events = vec![BattleEvent::Log {
-                message: format!("{}の 特性『{}』！", creature_name, ability_label("cotton_down")),
+                message: format!(
+                    "{}の 特性『{}』！",
+                    creature_name,
+                    ability_label("cotton_down")
+                ),
                 meta: Map::new(),
             }];
             for other in &state.players {
@@ -742,16 +883,27 @@ fn after_cotton_down(state: &BattleState, event: &BattleEvent, player_id: &str, 
     }
 }
 
-fn after_berserk(state: &BattleState, event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
+fn after_berserk(
+    state: &BattleState,
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+) -> Vec<BattleEvent> {
     match event {
-        BattleEvent::Damage { target_id, amount, .. } if target_id == player_id => {
+        BattleEvent::Damage {
+            target_id, amount, ..
+        } if target_id == player_id => {
             if let Some(target) = get_active_creature(state, player_id) {
                 if target.hp > target.max_hp / 2 && target.hp - amount <= target.max_hp / 2 {
                     let mut stages = HashMap::new();
                     stages.insert("spa".to_string(), 1);
                     return vec![
                         BattleEvent::Log {
-                            message: format!("{}の 特性『{}』！", creature_name, ability_label("berserk")),
+                            message: format!(
+                                "{}の 特性『{}』！",
+                                creature_name,
+                                ability_label("berserk")
+                            ),
                             meta: Map::new(),
                         },
                         BattleEvent::ModifyStage {
@@ -771,9 +923,18 @@ fn after_berserk(state: &BattleState, event: &BattleEvent, player_id: &str, crea
     }
 }
 
-fn after_competitive(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
+fn after_competitive(
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+) -> Vec<BattleEvent> {
     match event {
-        BattleEvent::ModifyStage { target_id, stages, meta, .. } if target_id == player_id => {
+        BattleEvent::ModifyStage {
+            target_id,
+            stages,
+            meta,
+            ..
+        } if target_id == player_id => {
             if event_meta_flag_raw(meta, "competitive") {
                 return Vec::new();
             }
@@ -784,7 +945,11 @@ fn after_competitive(event: &BattleEvent, player_id: &str, creature_name: &str) 
                 meta.insert("competitive".to_string(), Value::Bool(true));
                 return vec![
                     BattleEvent::Log {
-                        message: format!("{}の 特性『{}』！", creature_name, ability_label("competitive")),
+                        message: format!(
+                            "{}の 特性『{}』！",
+                            creature_name,
+                            ability_label("competitive")
+                        ),
                         meta: Map::new(),
                     },
                     BattleEvent::ModifyStage {
@@ -803,9 +968,18 @@ fn after_competitive(event: &BattleEvent, player_id: &str, creature_name: &str) 
     }
 }
 
-fn after_opportunist(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
+fn after_opportunist(
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+) -> Vec<BattleEvent> {
     match event {
-        BattleEvent::ModifyStage { target_id, stages, meta, .. } if target_id != player_id => {
+        BattleEvent::ModifyStage {
+            target_id,
+            stages,
+            meta,
+            ..
+        } if target_id != player_id => {
             if event_meta_flag_raw(meta, "opportunist") {
                 return Vec::new();
             }
@@ -821,7 +995,11 @@ fn after_opportunist(event: &BattleEvent, player_id: &str, creature_name: &str) 
             meta.insert("opportunist".to_string(), Value::Bool(true));
             vec![
                 BattleEvent::Log {
-                    message: format!("{}の 特性『{}』！", creature_name, ability_label("opportunist")),
+                    message: format!(
+                        "{}の 特性『{}』！",
+                        creature_name,
+                        ability_label("opportunist")
+                    ),
                     meta: Map::new(),
                 },
                 BattleEvent::ModifyStage {
@@ -851,7 +1029,10 @@ fn event_meta_move_id(event: &BattleEvent) -> Option<String> {
         | BattleEvent::RandomMove { meta, .. }
         | BattleEvent::Log { meta, .. }
         | BattleEvent::ApplyFieldStatus { meta, .. }
-        | BattleEvent::RemoveFieldStatus { meta, .. } => meta.get("moveId").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        | BattleEvent::RemoveFieldStatus { meta, .. } => meta
+            .get("moveId")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         _ => None,
     }
 }
@@ -869,7 +1050,10 @@ fn event_meta_source(event: &BattleEvent) -> Option<String> {
         | BattleEvent::RandomMove { meta, .. }
         | BattleEvent::Log { meta, .. }
         | BattleEvent::ApplyFieldStatus { meta, .. }
-        | BattleEvent::RemoveFieldStatus { meta, .. } => meta.get("source").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        | BattleEvent::RemoveFieldStatus { meta, .. } => meta
+            .get("source")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         _ => None,
     }
 }

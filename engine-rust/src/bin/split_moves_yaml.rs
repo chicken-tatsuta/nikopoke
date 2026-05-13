@@ -77,12 +77,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut grouped: BTreeMap<String, Vec<(String, Value)>> = BTreeMap::new();
     for (key, value) in map {
-        let move_id = key
-            .as_str()
-            .ok_or("move id must be string")?
-            .to_string();
+        let move_id = key.as_str().ok_or("move id must be string")?.to_string();
         let move_type = extract_move_type(value).unwrap_or_else(|| "unknown".to_string());
-        grouped.entry(move_type).or_default().push((move_id, value.clone()));
+        grouped
+            .entry(move_type)
+            .or_default()
+            .push((move_id, value.clone()));
     }
 
     for (move_type, moves) in grouped {

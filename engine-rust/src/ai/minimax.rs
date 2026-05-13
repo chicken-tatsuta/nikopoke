@@ -22,7 +22,11 @@ fn opponent_id(state: &BattleState, player_id: &str) -> Option<String> {
         .map(|p| p.id.clone())
 }
 
-fn move_has_pp(active: &crate::core::state::CreatureState, move_id: &str, move_db: &MoveDatabase) -> bool {
+fn move_has_pp(
+    active: &crate::core::state::CreatureState,
+    move_id: &str,
+    move_db: &MoveDatabase,
+) -> bool {
     let Some(move_data) = move_db.get(move_id) else {
         return false;
     };
@@ -91,11 +95,7 @@ fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
     }
 }
 
-fn evaluate_after_turn(
-    state: &BattleState,
-    max_player_id: &str,
-    depth: usize,
-) -> f32 {
+fn evaluate_after_turn(state: &BattleState, max_player_id: &str, depth: usize) -> f32 {
     if depth == 0 || is_battle_over(state) {
         return evaluate_state(state, max_player_id);
     }
@@ -118,7 +118,14 @@ fn evaluate_after_turn(
         for opp_action in &opp_actions {
             let actions = vec![action.clone(), opp_action.clone()];
             let mut rng = || 0.42;
-            let next = step_battle(state, &actions, &mut rng, BattleOptions { record_history: false });
+            let next = step_battle(
+                state,
+                &actions,
+                &mut rng,
+                BattleOptions {
+                    record_history: false,
+                },
+            );
             let score = evaluate_after_turn(&next, max_player_id, depth - 1);
             if score < worst {
                 worst = score;
@@ -152,7 +159,14 @@ pub fn get_best_move_minimax(state: &BattleState, player_id: &str, depth: usize)
         for opp_action in &opp_actions {
             let actions = vec![action.clone(), opp_action.clone()];
             let mut rng = || 0.42;
-            let next = step_battle(state, &actions, &mut rng, BattleOptions { record_history: false });
+            let next = step_battle(
+                state,
+                &actions,
+                &mut rng,
+                BattleOptions {
+                    record_history: false,
+                },
+            );
             let score = evaluate_after_turn(&next, player_id, search_depth - 1);
             if score < worst {
                 worst = score;

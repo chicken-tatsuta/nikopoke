@@ -1,9 +1,11 @@
+use crate::ai::vega::{get_best_move_vega_with_options_and_db_ref, DEFAULT_PARAMS};
 use crate::ai::{get_best_move_mcts, get_best_move_minimax};
 use crate::core::battle::{
     apply_initial_switch_in_effects, is_battle_over, replace_fainted_pokemon, step_battle,
     BattleOptions,
 };
 use crate::core::factory::{create_creature, CreateCreatureOptions, EVStats};
+use crate::core::state::create_battle_state;
 use crate::core::state::{
     Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, FieldEffect,
     FieldState, PlayerState, Status,
@@ -11,7 +13,6 @@ use crate::core::state::{
 use crate::data::learnsets::LearnsetDatabase;
 use crate::data::moves::MoveDatabase;
 use crate::data::species::SpeciesDatabase;
-use crate::core::state::create_battle_state;
 use js_sys::Math;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -309,7 +310,11 @@ impl From<CreatureState> for CreatureStateWire {
             hp: creature.hp,
             max_hp: creature.max_hp,
             stages: creature.stages,
-            statuses: creature.statuses.into_iter().map(StatusWire::from).collect(),
+            statuses: creature
+                .statuses
+                .into_iter()
+                .map(StatusWire::from)
+                .collect(),
             move_pp: creature.move_pp,
             ability_data: creature.ability_data,
             volatile_data: creature.volatile_data,
@@ -356,7 +361,11 @@ impl From<PlayerState> for PlayerStateWire {
         Self {
             id: player.id,
             name: player.name,
-            team: player.team.into_iter().map(CreatureStateWire::from).collect(),
+            team: player
+                .team
+                .into_iter()
+                .map(CreatureStateWire::from)
+                .collect(),
             active_slot: player.active_slot,
             last_fainted_ability: player.last_fainted_ability,
         }
@@ -378,7 +387,11 @@ impl From<PlayerStateWire> for PlayerState {
 impl From<FieldState> for FieldStateWire {
     fn from(field: FieldState) -> Self {
         Self {
-            global: field.global.into_iter().map(FieldEffectWire::from).collect(),
+            global: field
+                .global
+                .into_iter()
+                .map(FieldEffectWire::from)
+                .collect(),
             sides: field
                 .sides
                 .into_iter()
@@ -460,7 +473,11 @@ impl TryFrom<BattleTurnWire> for BattleTurn {
 impl From<BattleHistory> for BattleHistoryWire {
     fn from(history: BattleHistory) -> Self {
         Self {
-            turns: history.turns.into_iter().map(BattleTurnWire::from).collect(),
+            turns: history
+                .turns
+                .into_iter()
+                .map(BattleTurnWire::from)
+                .collect(),
         }
     }
 }
@@ -482,7 +499,11 @@ impl TryFrom<BattleHistoryWire> for BattleHistory {
 impl From<BattleState> for BattleStateWire {
     fn from(state: BattleState) -> Self {
         Self {
-            players: state.players.into_iter().map(PlayerStateWire::from).collect(),
+            players: state
+                .players
+                .into_iter()
+                .map(PlayerStateWire::from)
+                .collect(),
             field: FieldStateWire::from(state.field),
             turn: state.turn,
             log: state.log,
@@ -619,6 +640,36 @@ pub fn get_best_move_minimax_wasm(
     let state_wire: BattleStateWire = serde_wasm_bindgen::from_value(state).map_err(js_err)?;
     let state = BattleState::try_from(state_wire).map_err(js_err)?;
     let action = get_best_move_minimax(&state, player_id.as_str(), depth);
+    serde_wasm_bindgen::to_value(&action.map(ActionWire::from)).map_err(js_err)
+}
+
+#[wasm_bindgen(js_name = getBestMoveVega)]
+pub fn get_best_move_vega_wasm(
+    state: JsValue,
+    player_id: String,
+    depth: usize,
+) -> Result<JsValue, JsValue> {
+    let branch_limit = if depth >= 3 { 2 } else { 4 };
+    get_best_move_vega_with_branch_wasm(state, player_id, depth, branch_limit)
+}
+
+#[wasm_bindgen(js_name = getBestMoveVegaWithBranch)]
+pub fn get_best_move_vega_with_branch_wasm(
+    state: JsValue,
+    player_id: String,
+    depth: usize,
+    branch_limit: usize,
+) -> Result<JsValue, JsValue> {
+    let state_wire: BattleStateWire = serde_wasm_bindgen::from_value(state).map_err(js_err)?;
+    let state = BattleState::try_from(state_wire).map_err(js_err)?;
+    let action = get_best_move_vega_with_options_and_db_ref(
+        &state,
+        player_id.as_str(),
+        depth,
+        DEFAULT_PARAMS,
+        branch_limit,
+        &MOVE_DB,
+    );
     serde_wasm_bindgen::to_value(&action.map(ActionWire::from)).map_err(js_err)
 }
 

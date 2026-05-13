@@ -41,12 +41,18 @@ pub fn run_status_hooks(
 
     let statuses = active.statuses.clone();
     for status in statuses {
-        let result = match_status(&working_state, player_id, hook, &status, &mut StatusHookContext {
-            rng: ctx.rng,
-            action: ctx.action,
-            move_data: ctx.move_data,
-            type_chart: ctx.type_chart,
-        });
+        let result = match_status(
+            &working_state,
+            player_id,
+            hook,
+            &status,
+            &mut StatusHookContext {
+                rng: ctx.rng,
+                action: ctx.action,
+                move_data: ctx.move_data,
+                type_chart: ctx.type_chart,
+            },
+        );
         if let Some(next) = result.state {
             working_state = next;
         }
@@ -79,12 +85,19 @@ pub fn run_field_hooks(
     let mut event_transforms = Vec::new();
 
     for effect in &state.field.global {
-        let result = match_field_effect(&working_state, hook, effect.id.as_str(), effect, None, &mut StatusHookContext {
-            rng: ctx.rng,
-            action: ctx.action,
-            move_data: ctx.move_data,
-            type_chart: ctx.type_chart,
-        });
+        let result = match_field_effect(
+            &working_state,
+            hook,
+            effect.id.as_str(),
+            effect,
+            None,
+            &mut StatusHookContext {
+                rng: ctx.rng,
+                action: ctx.action,
+                move_data: ctx.move_data,
+                type_chart: ctx.type_chart,
+            },
+        );
         if let Some(next) = result.state {
             working_state = next;
         }
@@ -94,12 +107,19 @@ pub fn run_field_hooks(
 
     for (side_id, effects) in &state.field.sides {
         for effect in effects {
-            let result = match_field_effect(&working_state, hook, effect.id.as_str(), effect, Some(side_id.as_str()), &mut StatusHookContext {
-                rng: ctx.rng,
-                action: ctx.action,
-                move_data: ctx.move_data,
-                type_chart: ctx.type_chart,
-            });
+            let result = match_field_effect(
+                &working_state,
+                hook,
+                effect.id.as_str(),
+                effect,
+                Some(side_id.as_str()),
+                &mut StatusHookContext {
+                    rng: ctx.rng,
+                    action: ctx.action,
+                    move_data: ctx.move_data,
+                    type_chart: ctx.type_chart,
+                },
+            );
             if let Some(next) = result.state {
                 working_state = next;
             }
@@ -131,7 +151,12 @@ fn match_field_effect(
             let Some(active) = get_active_creature(state, &player.id) else {
                 continue;
             };
-            if active.hp <= 0 || active.types.iter().any(|t| matches!(t.as_str(), "rock" | "steel" | "ground")) {
+            if active.hp <= 0
+                || active
+                    .types
+                    .iter()
+                    .any(|t| matches!(t.as_str(), "rock" | "steel" | "ground"))
+            {
                 continue;
             }
             let damage = (active.max_hp / 16).max(1);
@@ -164,7 +189,10 @@ fn match_field_effect(
                     if !is_flying && !has_levitate {
                         let heal = (active.max_hp / 16).max(1);
                         events.push(BattleEvent::Log {
-                            message: format!("{}は グラスフィールドの 恩恵を 受けている！", active.name),
+                            message: format!(
+                                "{}は グラスフィールドの 恩恵を 受けている！",
+                                active.name
+                            ),
                             meta: Map::new(),
                         });
                         events.push(BattleEvent::Damage {
@@ -188,7 +216,10 @@ fn match_field_effect(
         data: {
             let mut data = status.data.clone();
             if let Some(owner_side) = owner_side {
-                data.insert("ownerSideId".to_string(), Value::String(owner_side.to_string()));
+                data.insert(
+                    "ownerSideId".to_string(),
+                    Value::String(owner_side.to_string()),
+                );
             }
             data
         },
@@ -211,7 +242,10 @@ fn match_status(
                 return StatusHookResult {
                     override_action: Some(new_action),
                     events: vec![BattleEvent::Log {
-                        message: format!("{}は 力を 解き放つ！", get_active_creature(state, player_id).unwrap().name),
+                        message: format!(
+                            "{}は 力を 解き放つ！",
+                            get_active_creature(state, player_id).unwrap().name
+                        ),
                         meta: Map::new(),
                     }],
                     ..Default::default()
@@ -279,7 +313,9 @@ fn match_status(
                 let mut new_state = state.clone();
                 if let Some(player) = new_state.players.iter_mut().find(|p| p.id == player_id) {
                     if let Some(active_mut) = player.team.get_mut(player.active_slot) {
-                        if let Some(toxic) = active_mut.statuses.iter_mut().find(|s| s.id == "toxic") {
+                        if let Some(toxic) =
+                            active_mut.statuses.iter_mut().find(|s| s.id == "toxic")
+                        {
                             toxic
                                 .data
                                 .insert("counter".to_string(), Value::Number((counter + 1).into()));
@@ -296,7 +332,10 @@ fn match_status(
                             meta: Map::new(),
                         },
                         BattleEvent::Log {
-                            message: format!("{}は もうどくの ダメージを 受けている！", active.name),
+                            message: format!(
+                                "{}は もうどくの ダメージを 受けている！",
+                                active.name
+                            ),
                             meta: Map::new(),
                         },
                     ],
@@ -338,7 +377,11 @@ fn match_status(
                         .move_data
                         .is_some_and(|move_data| is_usable_while_asleep(&move_data.id));
                     let mut new_state = state.clone();
-                    let player = new_state.players.iter_mut().find(|p| p.id == player_id).unwrap();
+                    let player = new_state
+                        .players
+                        .iter_mut()
+                        .find(|p| p.id == player_id)
+                        .unwrap();
                     let active = player.team.get_mut(player.active_slot).unwrap();
                     let status = &mut active.statuses[idx];
 
@@ -366,7 +409,9 @@ fn match_status(
                         };
                     }
 
-                    status.data.insert("elapsed".to_string(), Value::Number(elapsed.into()));
+                    status
+                        .data
+                        .insert("elapsed".to_string(), Value::Number(elapsed.into()));
                     let name = active.name.clone();
                     if can_act_while_asleep {
                         return StatusHookResult {
@@ -471,7 +516,9 @@ fn match_status(
         "flinch" => match hook {
             "onBeforeAction" => {
                 let active = get_active_creature(state, player_id);
-                let name = active.map(|c| c.name.clone()).unwrap_or_else(|| "誰か".to_string());
+                let name = active
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| "誰か".to_string());
                 StatusHookResult {
                     prevent_action: true,
                     events: vec![BattleEvent::Log {
@@ -656,7 +703,11 @@ fn match_status(
                         return StatusHookResult {
                             prevent_action: true,
                             events: vec![BattleEvent::Log {
-                                message: format!("{}は {}を 出すことができない！", get_active_creature(state, player_id).unwrap().name, move_id),
+                                message: format!(
+                                    "{}は {}を 出すことができない！",
+                                    get_active_creature(state, player_id).unwrap().name,
+                                    move_id
+                                ),
                                 meta: Map::new(),
                             }],
                             ..Default::default()
@@ -677,7 +728,10 @@ fn match_status(
                         return StatusHookResult {
                             override_action: Some(new_action),
                             events: vec![BattleEvent::Log {
-                                message: format!("{}は アンコールを 受けた！", get_active_creature(state, player_id).unwrap().name),
+                                message: format!(
+                                    "{}は アンコールを 受けた！",
+                                    get_active_creature(state, player_id).unwrap().name
+                                ),
                                 meta: Map::new(),
                             }],
                             ..Default::default()
@@ -695,7 +749,13 @@ fn match_status(
                         return StatusHookResult {
                             prevent_action: true,
                             events: vec![BattleEvent::Log {
-                                message: format!("ちょうはつされて {}を 出すことができない！", move_data.name.clone().unwrap_or_else(|| move_data.id.clone())),
+                                message: format!(
+                                    "ちょうはつされて {}を 出すことができない！",
+                                    move_data
+                                        .name
+                                        .clone()
+                                        .unwrap_or_else(|| move_data.id.clone())
+                                ),
                                 meta: Map::new(),
                             }],
                             ..Default::default()
@@ -714,13 +774,21 @@ fn match_status(
                 let Some(active) = get_active_creature(state, player_id) else {
                     return StatusHookResult::default();
                 };
-                let last_move = active.volatile_data.get("lastMove").and_then(|v| v.as_str());
-                if let (Some(last_move), Some(current_move)) = (last_move, action.move_id.as_deref()) {
+                let last_move = active
+                    .volatile_data
+                    .get("lastMove")
+                    .and_then(|v| v.as_str());
+                if let (Some(last_move), Some(current_move)) =
+                    (last_move, action.move_id.as_deref())
+                {
                     if last_move == current_move {
                         return StatusHookResult {
                             prevent_action: true,
                             events: vec![BattleEvent::Log {
-                                message: format!("{}は いちゃもんで 同じ技を 連続で 出せない！", active.name),
+                                message: format!(
+                                    "{}は いちゃもんで 同じ技を 連続で 出せない！",
+                                    active.name
+                                ),
                                 meta: Map::new(),
                             }],
                             ..Default::default()
@@ -741,11 +809,17 @@ fn match_status(
                     return StatusHookResult::default();
                 }
                 let active = get_active_creature(state, player_id).unwrap();
-                let move_name = move_data.name.clone().unwrap_or_else(|| move_data.id.clone());
+                let move_name = move_data
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| move_data.id.clone());
                 StatusHookResult {
                     prevent_action: true,
                     events: vec![BattleEvent::Log {
-                        message: format!("{}は じごくづきで {}を 出せない！", active.name, move_name),
+                        message: format!(
+                            "{}は じごくづきで {}を 出せない！",
+                            active.name, move_name
+                        ),
                         meta: Map::new(),
                     }],
                     ..Default::default()
@@ -791,7 +865,9 @@ fn match_status(
         "leech_seed" => match hook {
             "onLeechSeed" => {
                 let source_id = status.data.get("sourceId").and_then(|v| v.as_str());
-                let Some(source_id) = source_id else { return StatusHookResult::default(); };
+                let Some(source_id) = source_id else {
+                    return StatusHookResult::default();
+                };
                 let source = get_active_creature(state, source_id);
                 if source.is_none() || source.unwrap().hp <= 0 {
                     return StatusHookResult::default();
@@ -876,7 +952,9 @@ fn match_status(
                     let mut new_state = state.clone();
                     if let Some(player) = new_state.players.iter_mut().find(|p| p.id == player_id) {
                         if let Some(active) = player.team.get_mut(player.active_slot) {
-                            if let Some(status_mut) = active.statuses.iter_mut().find(|s| s.id == "yawn") {
+                            if let Some(status_mut) =
+                                active.statuses.iter_mut().find(|s| s.id == "yawn")
+                            {
                                 status_mut
                                     .data
                                     .insert("turns".to_string(), Value::Number((turns - 1).into()));
@@ -886,7 +964,10 @@ fn match_status(
                     return StatusHookResult {
                         state: Some(new_state),
                         events: vec![BattleEvent::Log {
-                            message: format!("{}は 眠たそうだ……", get_active_creature(state, player_id).unwrap().name),
+                            message: format!(
+                                "{}は 眠たそうだ……",
+                                get_active_creature(state, player_id).unwrap().name
+                            ),
                             meta: Map::new(),
                         }],
                         ..Default::default()
@@ -945,11 +1026,19 @@ fn match_status(
         // ねがいごと - 次ターン開始時にHP回復
         "wish" => match hook {
             "onWishResolve" => {
-                let trigger_turn = status.data.get("triggerTurn").and_then(|v| v.as_i64()).unwrap_or(0);
+                let trigger_turn = status
+                    .data
+                    .get("triggerTurn")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
                 if (state.turn as i64) < trigger_turn {
                     return StatusHookResult::default();
                 }
-                let heal_amount = status.data.get("healAmount").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let heal_amount = status
+                    .data
+                    .get("healAmount")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i32;
                 let active = get_active_creature(state, player_id);
                 if active.is_none() || active.unwrap().hp <= 0 {
                     return StatusHookResult::default();
@@ -982,11 +1071,18 @@ fn match_status(
             "onBindDamage" => {
                 let active = get_active_creature(state, player_id).unwrap();
                 let damage = (active.max_hp / 8).max(1);
-                let move_name = status.data.get("moveName").and_then(|v| v.as_str()).unwrap_or("バインド");
+                let move_name = status
+                    .data
+                    .get("moveName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("バインド");
                 StatusHookResult {
                     events: vec![
                         BattleEvent::Log {
-                            message: format!("{}は {}の ダメージを受けている！", active.name, move_name),
+                            message: format!(
+                                "{}は {}の ダメージを受けている！",
+                                active.name, move_name
+                            ),
                             meta: Map::new(),
                         },
                         BattleEvent::Damage {
@@ -1062,7 +1158,10 @@ fn match_status(
                     StatusHookResult {
                         events: vec![
                             BattleEvent::Log {
-                                message: format!("{}は くろいヘドロで ダメージを受けた！", active.name),
+                                message: format!(
+                                    "{}は くろいヘドロで ダメージを受けた！",
+                                    active.name
+                                ),
                                 meta: Map::new(),
                             },
                             BattleEvent::Damage {
@@ -1079,7 +1178,11 @@ fn match_status(
         },
         "safeguard" => match hook {
             "onEventTransform" => {
-                let owner_side = status.data.get("ownerSideId").and_then(|v| v.as_str()).unwrap_or("");
+                let owner_side = status
+                    .data
+                    .get("ownerSideId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 if owner_side.is_empty() {
                     return StatusHookResult::default();
                 }
@@ -1114,8 +1217,16 @@ fn handle_delayed(
     hook: &str,
     ctx: &mut StatusHookContext<'_>,
 ) -> StatusHookResult {
-    let timing = status.data.get("timing").and_then(|v| v.as_str()).unwrap_or("turn_end");
-    let trigger_turn = status.data.get("triggerTurn").and_then(|v| v.as_i64()).unwrap_or(i64::MAX);
+    let timing = status
+        .data
+        .get("timing")
+        .and_then(|v| v.as_str())
+        .unwrap_or("turn_end");
+    let trigger_turn = status
+        .data
+        .get("triggerTurn")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(i64::MAX);
     if (state.turn as i64) < trigger_turn {
         return StatusHookResult::default();
     }
@@ -1123,8 +1234,16 @@ fn handle_delayed(
         return StatusHookResult::default();
     }
 
-    let target_id = status.data.get("targetId").and_then(|v| v.as_str()).unwrap_or(player_id);
-    let attacker_id = status.data.get("sourceId").and_then(|v| v.as_str()).unwrap_or(player_id);
+    let target_id = status
+        .data
+        .get("targetId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(player_id);
+    let attacker_id = status
+        .data
+        .get("sourceId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(player_id);
     if let Some(target) = get_active_creature(state, target_id) {
         if target.hp <= 0 {
             return StatusHookResult::default();
@@ -1165,13 +1284,25 @@ fn handle_over_time(
     hook: &str,
     ctx: &mut StatusHookContext<'_>,
 ) -> StatusHookResult {
-    let timing = status.data.get("timing").and_then(|v| v.as_str()).unwrap_or("turn_end");
+    let timing = status
+        .data
+        .get("timing")
+        .and_then(|v| v.as_str())
+        .unwrap_or("turn_end");
     if !matches_timing(hook, timing) {
         return StatusHookResult::default();
     }
 
-    let target_id = status.data.get("targetId").and_then(|v| v.as_str()).unwrap_or(player_id);
-    let attacker_id = status.data.get("sourceId").and_then(|v| v.as_str()).unwrap_or(player_id);
+    let target_id = status
+        .data
+        .get("targetId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(player_id);
+    let attacker_id = status
+        .data
+        .get("sourceId")
+        .and_then(|v| v.as_str())
+        .unwrap_or(player_id);
     if let Some(target) = get_active_creature(state, target_id) {
         if target.hp <= 0 {
             return StatusHookResult::default();
@@ -1232,12 +1363,12 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
         if let Some(active) = player.team.get_mut(player.active_slot) {
             // Track statuses that will expire and need special handling
             let mut apply_confusion = false;
-            
+
             for status in &mut active.statuses {
                 if let Some(turns) = status.remaining_turns {
                     let new_turns = turns - 1;
                     status.remaining_turns = Some(new_turns);
-                    
+
                     // Check if lock_move with confuseOnEnd is expiring
                     if new_turns <= 0 && status.id == "lock_move" {
                         if let Some(Value::Bool(true)) = status.data.get("confuseOnEnd") {
@@ -1246,15 +1377,19 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
                     }
                 }
             }
-            
+
             active
                 .statuses
                 .retain(|s| s.remaining_turns.map(|t| t > 0).unwrap_or(true));
-            
+
             // Apply confusion if needed (from expiring lock_move with confuseOnEnd)
             if apply_confusion && active.hp > 0 {
                 // Major status effects are mutually exclusive in Nikimon battle rules.
-                if !active.statuses.iter().any(|s| is_exclusive_major_status(&s.id)) {
+                if !active
+                    .statuses
+                    .iter()
+                    .any(|s| is_exclusive_major_status(&s.id))
+                {
                     let rng_data = HashMap::new();
                     // Duration 2-4 turns (pseudo-random based on turn number)
                     let duration = 2 + ((state.turn % 3) as i32);
@@ -1263,7 +1398,8 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
                         remaining_turns: Some(duration),
                         data: rng_data,
                     });
-                    next.log.push(format!("{}は 混乱してしまった！", active.name));
+                    next.log
+                        .push(format!("{}は 混乱してしまった！", active.name));
                 } else {
                     next.log.push("しかしうまく決まらなかった！".to_string());
                 }
@@ -1314,18 +1450,16 @@ pub fn tick_field_effects(state: &BattleState) -> BattleState {
 }
 
 fn find_last_move_from_history(state: &BattleState, player_id: &str) -> Option<String> {
-            if let Some(history) = &state.history {
-                for turn in history.turns.iter().rev() {
-                    for action in turn.actions.iter().rev() {
-                        if action.player_id == player_id {
-                            if let Some(move_id) = &action.move_id {
-                                return Some(move_id.clone());
-                            }
-                        }
+    if let Some(history) = &state.history {
+        for turn in history.turns.iter().rev() {
+            for action in turn.actions.iter().rev() {
+                if action.player_id == player_id {
+                    if let Some(move_id) = &action.move_id {
+                        return Some(move_id.clone());
                     }
                 }
             }
-            None
         }
-        
-        
+    }
+    None
+}

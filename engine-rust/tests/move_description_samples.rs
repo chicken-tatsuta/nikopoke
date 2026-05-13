@@ -7,15 +7,11 @@ fn normalize_description(text: &str) -> String {
 
 fn load_csv_descriptions() -> HashMap<String, String> {
     let mut descriptions = HashMap::new();
-    let mut reader = csv::Reader::from_path("data/2期生男子種族値 - 技一覧.csv")
-        .expect("open move csv");
+    let mut reader =
+        csv::Reader::from_path("data/2期生男子種族値 - 技一覧.csv").expect("open move csv");
     for result in reader.records() {
         let record = result.expect("read move record");
-        let name = record
-            .get(0)
-            .expect("move name")
-            .trim()
-            .to_string();
+        let name = record.get(0).expect("move name").trim().to_string();
         let effect = record.get(8).expect("move effect").to_string();
         descriptions.insert(name, effect);
     }

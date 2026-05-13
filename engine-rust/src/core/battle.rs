@@ -5,7 +5,9 @@ use crate::core::abilities::{
 use crate::core::effects::{apply_effects, apply_events, has_item, EffectContext};
 use crate::core::events::{apply_event, event_type, BattleEvent, EventTransform};
 use crate::core::state::{Action, ActionType, BattleHistory, BattleState, BattleTurn};
-use crate::core::statuses::{run_field_hooks, run_status_hooks, tick_field_effects, tick_statuses, StatusHookContext};
+use crate::core::statuses::{
+    run_field_hooks, run_status_hooks, tick_field_effects, tick_statuses, StatusHookContext,
+};
 use crate::core::utils::{get_active_creature, get_active_creature_mut, stage_multiplier};
 use crate::data::moves::{MoveData, MoveDatabase};
 use crate::data::type_chart::TypeChart;
@@ -19,7 +21,9 @@ pub struct BattleOptions {
 
 impl Default for BattleOptions {
     fn default() -> Self {
-        Self { record_history: true }
+        Self {
+            record_history: true,
+        }
     }
 }
 
@@ -40,7 +44,10 @@ impl Default for BattleEngine {
 
 impl BattleEngine {
     pub fn new(move_db: MoveDatabase, type_chart: TypeChart) -> Self {
-        Self { move_db, type_chart }
+        Self {
+            move_db,
+            type_chart,
+        }
     }
 
     pub fn apply_initial_switch_in_effects(
@@ -82,7 +89,8 @@ impl BattleEngine {
 
         next.log.push(format!("--- Turn {} ---", next.turn));
 
-        let ability_start = run_all_ability(next.clone(), "onTurnStart", &mut rng_recorder, None, None);
+        let ability_start =
+            run_all_ability(next.clone(), "onTurnStart", &mut rng_recorder, None, None);
         next = ability_start.state.unwrap_or(next);
         for event in ability_start.events {
             next = apply_event(&next, &event);
@@ -175,8 +183,13 @@ impl BattleEngine {
                 );
                 if move_data
                     .is_some_and(|m| matches!(m.id.as_str(), "grassy_glide" | "grass_slider"))
-                    && next.field.global.iter().any(|effect| effect.id == "grassy_terrain")
-                    && get_active_creature(&next, &action.player_id).is_some_and(is_grounded_for_field)
+                    && next
+                        .field
+                        .global
+                        .iter()
+                        .any(|effect| effect.id == "grassy_terrain")
+                    && get_active_creature(&next, &action.player_id)
+                        .is_some_and(is_grounded_for_field)
                 {
                     priority += 1.0;
                 }
@@ -190,7 +203,11 @@ impl BattleEngine {
             })
             .collect();
 
-        let trick_room_active = next.field.global.iter().any(|effect| effect.id == "trick_room");
+        let trick_room_active = next
+            .field
+            .global
+            .iter()
+            .any(|effect| effect.id == "trick_room");
         // Sort into a temporary Vec then convert back to VecDeque
         {
             let mut tmp: Vec<OrderedAction> = ordered.into_iter().collect();
@@ -203,12 +220,18 @@ impl BattleEngine {
                 b.priority
                     .cmp(&a.priority)
                     .then_with(|| speed_order)
-                    .then_with(|| a.rand.partial_cmp(&b.rand).unwrap_or(std::cmp::Ordering::Equal))
+                    .then_with(|| {
+                        a.rand
+                            .partial_cmp(&b.rand)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
             });
             ordered = tmp.into_iter().collect();
         }
         for ordered_action in &ordered {
-            if let Some(active) = get_active_creature_mut(&mut next, &ordered_action.action.player_id) {
+            if let Some(active) =
+                get_active_creature_mut(&mut next, &ordered_action.action.player_id)
+            {
                 active.volatile_data.insert(
                     "selectedPriority".to_string(),
                     Value::Number(ordered_action.priority.into()),
@@ -229,7 +252,8 @@ impl BattleEngine {
             if action.action_type != ActionType::Switch {
                 if let Some(active) = get_active_creature(&next, &action.player_id) {
                     if active.statuses.iter().any(|s| s.id == "pending_switch") {
-                        next.log.push(format!("{}は 交代しなければならない！", attacker_name));
+                        next.log
+                            .push(format!("{}は 交代しなければならない！", attacker_name));
                         continue;
                     }
                 }
@@ -237,24 +261,37 @@ impl BattleEngine {
 
             if action.action_type == ActionType::Switch {
                 let Some(slot) = action.slot else {
-                    next.log.push(format!("{} tried to switch without a slot.", attacker_name));
+                    next.log
+                        .push(format!("{} tried to switch without a slot.", attacker_name));
                     continue;
                 };
                 let Some(player) = next.players.iter().find(|p| p.id == player_id) else {
-                    next.log.push(format!("{} tried to switch but player not found.", attacker_name));
+                    next.log.push(format!(
+                        "{} tried to switch but player not found.",
+                        attacker_name
+                    ));
                     continue;
                 };
                 if slot >= player.team.len() {
-                    next.log.push(format!("{} tried to switch to an invalid slot.", attacker_name));
+                    next.log.push(format!(
+                        "{} tried to switch to an invalid slot.",
+                        attacker_name
+                    ));
                     continue;
                 }
                 if slot == player.active_slot {
-                    next.log.push(format!("{} tried to switch to the active slot.", attacker_name));
+                    next.log.push(format!(
+                        "{} tried to switch to the active slot.",
+                        attacker_name
+                    ));
                     continue;
                 }
                 if let Some(target) = player.team.get(slot) {
                     if target.hp <= 0 {
-                        next.log.push(format!("{} tried to switch to a fainted Pokémon.", attacker_name));
+                        next.log.push(format!(
+                            "{} tried to switch to a fainted Pokémon.",
+                            attacker_name
+                        ));
                         continue;
                     }
                 }
@@ -276,7 +313,8 @@ impl BattleEngine {
                             )
                             .prevent_action;
                             if trapped_by_status {
-                                next.log.push(format!("{}は 交代できなかった！", attacker_name));
+                                next.log
+                                    .push(format!("{}は 交代できなかった！", attacker_name));
                                 continue;
                             }
                             let trapper = next.players.iter().find(|p| {
@@ -295,7 +333,8 @@ impl BattleEngine {
                                     )
                             });
                             if trapper.is_some() {
-                                next.log.push(format!("{}は 交代できなかった！", attacker_name));
+                                next.log
+                                    .push(format!("{}は 交代できなかった！", attacker_name));
                                 continue;
                             }
                         }
@@ -342,14 +381,16 @@ impl BattleEngine {
                     true,
                 );
                 if !can_use {
-                    next.log.push(format!("{}は 道具を使えない！", attacker_name));
+                    next.log
+                        .push(format!("{}は 道具を使えない！", attacker_name));
                     continue;
                 }
                 let Some(active) = get_active_creature(&next, &action.player_id) else {
                     continue;
                 };
                 if !has_item(active) {
-                    next.log.push(format!("{}は 使う道具を 持っていない！", attacker_name));
+                    next.log
+                        .push(format!("{}は 使う道具を 持っていない！", attacker_name));
                     continue;
                 }
                 next.log.push(format!("{}は 道具を使った！", attacker_name));
@@ -369,14 +410,16 @@ impl BattleEngine {
                     .map(|p| p.id.clone())
             });
             let Some(target_id) = target_id else {
-                next.log.push(format!("No valid target for {}.", attacker_name));
+                next.log
+                    .push(format!("No valid target for {}.", attacker_name));
                 continue;
             };
 
             let mut move_id = match action.move_id.as_deref() {
                 Some(id) => id.to_string(),
                 None => {
-                    next.log.push(format!("{} has no move selected.", attacker_name));
+                    next.log
+                        .push(format!("{} has no move selected.", attacker_name));
                     continue;
                 }
             };
@@ -384,7 +427,8 @@ impl BattleEngine {
             let mut move_data = match self.move_db.get(&move_id) {
                 Some(data) => data,
                 None => {
-                    next.log.push(format!("{} tried unknown move {}.", attacker_name, move_id));
+                    next.log
+                        .push(format!("{} tried unknown move {}.", attacker_name, move_id));
                     continue;
                 }
             };
@@ -416,12 +460,16 @@ impl BattleEngine {
                             move_id = new_move_id.to_string();
                             move_data = new_move_data;
                         } else {
-                            next.log.push(format!("{} tried unknown move {}.", attacker_name, new_move_id));
+                            next.log.push(format!(
+                                "{} tried unknown move {}.",
+                                attacker_name, new_move_id
+                            ));
                             continue;
                         }
                     }
                 } else {
-                    next.log.push(format!("{} has no move selected.", attacker_name));
+                    next.log
+                        .push(format!("{} has no move selected.", attacker_name));
                     continue;
                 }
             }
@@ -457,12 +505,16 @@ impl BattleEngine {
                             move_id = new_move_id.to_string();
                             move_data = new_move_data;
                         } else {
-                            next.log.push(format!("{} tried unknown move {}.", attacker_name, new_move_id));
+                            next.log.push(format!(
+                                "{} tried unknown move {}.",
+                                attacker_name, new_move_id
+                            ));
                             continue;
                         }
                     }
                 } else {
-                    next.log.push(format!("{} has no move selected.", attacker_name));
+                    next.log
+                        .push(format!("{} has no move selected.", attacker_name));
                     continue;
                 }
             }
@@ -498,10 +550,16 @@ impl BattleEngine {
             if let Some(active) = get_active_creature_mut(&mut next, &player_id) {
                 if !consume_move_pp(active, &move_id, move_data) {
                     let move_name = move_data.name.clone().unwrap_or_else(|| move_id.clone());
-                    next.log.push(format!("{}の {}は PPが 足りない！", attacker_name, move_name));
+                    next.log.push(format!(
+                        "{}の {}は PPが 足りない！",
+                        attacker_name, move_name
+                    ));
                     continue;
                 }
-                let previous_move = active.volatile_data.get("lastMove").and_then(|v| v.as_str());
+                let previous_move = active
+                    .volatile_data
+                    .get("lastMove")
+                    .and_then(|v| v.as_str());
                 let previous_failed = active
                     .volatile_data
                     .get("lastMoveFailed")
@@ -512,11 +570,12 @@ impl BattleEngine {
                     .get("consecutiveMoveCount")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0);
-                let consecutive_count = if previous_move == Some(move_id.as_str()) && !previous_failed {
-                    previous_count + 1
-                } else {
-                    1
-                };
+                let consecutive_count =
+                    if previous_move == Some(move_id.as_str()) && !previous_failed {
+                        previous_count + 1
+                    } else {
+                        1
+                    };
                 active.volatile_data.insert(
                     "consecutiveMoveCount".to_string(),
                     Value::Number(consecutive_count.into()),
@@ -542,17 +601,14 @@ impl BattleEngine {
                 last_damage: None,
             };
             let move_name = move_data.name.as_deref().unwrap_or(&move_id);
-            next.log.push(format!("{}の {}！", attacker_name, move_name));
+            next.log
+                .push(format!("{}の {}！", attacker_name, move_name));
 
             let mut events = apply_effects(&next, &move_data.steps, &mut effect_ctx);
 
             events = apply_ability_event_modifiers(&next, &events, self.move_db.as_map());
 
-            let transforms = collect_event_transforms(
-                &next,
-                &mut rng_recorder,
-                &self.type_chart,
-            );
+            let transforms = collect_event_transforms(&next, &mut rng_recorder, &self.type_chart);
             events = apply_event_transforms(&events, &transforms);
             let turn = next.turn;
             events = expand_random_moves(
@@ -569,7 +625,12 @@ impl BattleEngine {
             next = apply_events(&next, &events);
             for event in &events {
                 if let BattleEvent::Switch { player_id, .. } = event {
-                    next = apply_switch_in_effects(next, player_id, &mut rng_recorder, &self.type_chart);
+                    next = apply_switch_in_effects(
+                        next,
+                        player_id,
+                        &mut rng_recorder,
+                        &self.type_chart,
+                    );
                 }
             }
             let failed = move_failed(&events);
@@ -785,7 +846,9 @@ impl BattleEngine {
 
         if options.record_history {
             let turn_log = next.log[log_start..].to_vec();
-            let history = next.history.get_or_insert(BattleHistory { turns: Vec::new() });
+            let history = next
+                .history
+                .get_or_insert(BattleHistory { turns: Vec::new() });
             history.turns.push(BattleTurn {
                 turn: next.turn,
                 actions: actions.to_vec(),
@@ -806,26 +869,46 @@ impl BattleEngine {
     ) -> BattleState {
         let mut next = state.clone();
         let Some(player) = next.players.iter().find(|p| p.id == player_id) else {
-            next.log.push(format!("{} tried to replace pokemon but player not found.", player_id));
+            next.log.push(format!(
+                "{} tried to replace pokemon but player not found.",
+                player_id
+            ));
             return next;
         };
         if slot >= player.team.len() {
-            next.log.push(format!("{} tried to replace with an invalid slot.", player.name));
+            next.log.push(format!(
+                "{} tried to replace with an invalid slot.",
+                player.name
+            ));
             return next;
         }
         if slot == player.active_slot {
-            next.log.push(format!("{} tried to replace with the active slot.", player.name));
+            next.log.push(format!(
+                "{} tried to replace with the active slot.",
+                player.name
+            ));
             return next;
         }
-        if player.team.get(slot).is_some_and(|creature| creature.hp <= 0) {
-            next.log.push(format!("{} tried to replace with a fainted Pokémon.", player.name));
+        if player
+            .team
+            .get(slot)
+            .is_some_and(|creature| creature.hp <= 0)
+        {
+            next.log.push(format!(
+                "{} tried to replace with a fainted Pokémon.",
+                player.name
+            ));
             return next;
         }
 
         let Some(active) = get_active_creature(&next, player_id) else {
             return next;
         };
-        let must_replace = active.hp <= 0 || active.statuses.iter().any(|status| status.id == "pending_switch");
+        let must_replace = active.hp <= 0
+            || active
+                .statuses
+                .iter()
+                .any(|status| status.id == "pending_switch");
         if !must_replace {
             next.log.push(format!("{}は まだ戦える！", active.name));
             return next;
@@ -910,7 +993,11 @@ fn move_failed(events: &[BattleEvent]) -> bool {
     !has_progress
 }
 
-fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_chart: &TypeChart) -> BattleState {
+fn apply_switch_in_field_effects(
+    mut state: BattleState,
+    player_id: &str,
+    type_chart: &TypeChart,
+) -> BattleState {
     let effects = state
         .field
         .sides
@@ -951,7 +1038,8 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_c
                 });
             }
             "stealth_rock" => {
-                let effectiveness = type_chart.effectiveness("rock", &effective_types_for_field(&active));
+                let effectiveness =
+                    type_chart.effectiveness("rock", &effective_types_for_field(&active));
                 let amount = ((active.max_hp as f32 / 8.0) * effectiveness).floor() as i32;
                 events.push(BattleEvent::Log {
                     message: format!("{}に尖った岩がくいこんだ！", active.name),
@@ -965,7 +1053,11 @@ fn apply_switch_in_field_effects(mut state: BattleState, player_id: &str, type_c
             }
             "toxic_spikes" if grounded && !toxic_spikes_handled => {
                 toxic_spikes_handled = true;
-                let status_id = if toxic_spikes_layers >= 2 { "toxic" } else { "poison" };
+                let status_id = if toxic_spikes_layers >= 2 {
+                    "toxic"
+                } else {
+                    "poison"
+                };
                 if can_be_poisoned_by_toxic_spikes(&state, &active) {
                     let message = if status_id == "toxic" {
                         format!("{}は猛毒をあびた！", active.name)
@@ -1014,7 +1106,11 @@ fn can_be_poisoned_by_toxic_spikes(
     active: &crate::core::state::CreatureState,
 ) -> bool {
     !active.types.iter().any(|t| t == "poison" || t == "steel")
-        && !state.field.global.iter().any(|effect| effect.id == "misty_terrain")
+        && !state
+            .field
+            .global
+            .iter()
+            .any(|effect| effect.id == "misty_terrain")
 }
 
 #[derive(Clone, Debug)]
@@ -1076,7 +1172,13 @@ pub fn determine_winner(state: &BattleState) -> Option<String> {
         return alive_by_player
             .iter()
             .enumerate()
-            .find_map(|(index, alive)| if *alive { Some(state.players[index].id.clone()) } else { None });
+            .find_map(|(index, alive)| {
+                if *alive {
+                    Some(state.players[index].id.clone())
+                } else {
+                    None
+                }
+            });
     }
 
     if alive_count != 0 || state.players.len() != 2 {
@@ -1093,7 +1195,11 @@ pub fn determine_winner(state: &BattleState) -> Option<String> {
         return None;
     }
 
-    let trick_room_active = state.field.global.iter().any(|effect| effect.id == "trick_room");
+    let trick_room_active = state
+        .field
+        .global
+        .iter()
+        .any(|effect| effect.id == "trick_room");
     let first_faint_id = if trick_room_active {
         if p1_speed < p2_speed {
             &p1.id
@@ -1170,7 +1276,11 @@ fn creature_speed(state: &BattleState, player_id: &str) -> i32 {
         .get(player_id)
         .map(|effects| effects.iter().any(|effect| effect.id == "tailwind"))
         .unwrap_or(false);
-    let global_tailwind = state.field.global.iter().any(|effect| effect.id == "tailwind");
+    let global_tailwind = state
+        .field
+        .global
+        .iter()
+        .any(|effect| effect.id == "tailwind");
     if side_tailwind || global_tailwind {
         speed *= 2.0;
     }
@@ -1202,7 +1312,9 @@ fn creature_speed(state: &BattleState, player_id: &str) -> i32 {
 
 fn is_grounded_for_field(creature: &crate::core::state::CreatureState) -> bool {
     (creature.statuses.iter().any(|s| s.id == "roosted")
-        || !effective_types_for_field(creature).iter().any(|t| t == "flying"))
+        || !effective_types_for_field(creature)
+            .iter()
+            .any(|t| t == "flying"))
         && creature.ability.as_deref() != Some("levitate")
         && !creature.statuses.iter().any(|s| s.id == "magnet_rise")
 }
@@ -1213,9 +1325,15 @@ fn effective_types_for_field(creature: &crate::core::state::CreatureState) -> Ve
         .iter()
         .filter(|type_id| {
             let removed_status = format!("type_removed_{}", type_id);
-            !creature.statuses.iter().any(|status| status.id == removed_status)
+            !creature
+                .statuses
+                .iter()
+                .any(|status| status.id == removed_status)
                 && !(type_id.as_str() == "flying"
-                    && creature.statuses.iter().any(|status| status.id == "roosted"))
+                    && creature
+                        .statuses
+                        .iter()
+                        .any(|status| status.id == "roosted"))
         })
         .cloned()
         .collect()
@@ -1274,7 +1392,10 @@ fn collect_event_transforms(
     transforms
 }
 
-fn apply_event_transforms(events: &[BattleEvent], transforms: &[EventTransform]) -> Vec<BattleEvent> {
+fn apply_event_transforms(
+    events: &[BattleEvent],
+    transforms: &[EventTransform],
+) -> Vec<BattleEvent> {
     if transforms.is_empty() {
         return events.to_vec();
     }
@@ -1337,7 +1458,11 @@ fn matches_transform(event: &BattleEvent, transform: &EventTransform) -> bool {
     }
     if let Some(meta_key) = &transform.require_absent_meta {
         if let Some(meta) = event_meta(event) {
-            if meta.get(meta_key).and_then(|v| v.as_bool()).unwrap_or(false) {
+            if meta
+                .get(meta_key)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return false;
             }
         }
@@ -1346,7 +1471,11 @@ fn matches_transform(event: &BattleEvent, transform: &EventTransform) -> bool {
         let Some(meta) = event_meta(event) else {
             return false;
         };
-        if !meta.get(meta_key).and_then(|v| v.as_bool()).unwrap_or(false) {
+        if !meta
+            .get(meta_key)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             return false;
         }
     }
@@ -1392,7 +1521,9 @@ fn event_source_id(event: &BattleEvent) -> Option<String> {
         | BattleEvent::SetStages { meta, .. }
         | BattleEvent::SwapStages { meta, .. }
         | BattleEvent::AverageStats { meta, .. }
-        | BattleEvent::SwapAttackDefense { meta, .. } => crate::core::events::meta_get_string(meta, "source"),
+        | BattleEvent::SwapAttackDefense { meta, .. } => {
+            crate::core::events::meta_get_string(meta, "source")
+        }
         _ => None,
     }
 }
@@ -1423,7 +1554,11 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
     }
 }
 
-fn ensure_move_pp(creature: &mut crate::core::state::CreatureState, move_id: &str, move_data: &MoveData) -> Option<i32> {
+fn ensure_move_pp(
+    creature: &mut crate::core::state::CreatureState,
+    move_id: &str,
+    move_data: &MoveData,
+) -> Option<i32> {
     let Some(pp) = move_data.pp else {
         return None;
     };
@@ -1431,11 +1566,19 @@ fn ensure_move_pp(creature: &mut crate::core::state::CreatureState, move_id: &st
     Some(*entry)
 }
 
-fn has_move_pp(creature: &mut crate::core::state::CreatureState, move_id: &str, move_data: &MoveData) -> bool {
+fn has_move_pp(
+    creature: &mut crate::core::state::CreatureState,
+    move_id: &str,
+    move_data: &MoveData,
+) -> bool {
     ensure_move_pp(creature, move_id, move_data).map_or(true, |pp| pp > 0)
 }
 
-fn consume_move_pp(creature: &mut crate::core::state::CreatureState, move_id: &str, move_data: &MoveData) -> bool {
+fn consume_move_pp(
+    creature: &mut crate::core::state::CreatureState,
+    move_id: &str,
+    move_data: &MoveData,
+) -> bool {
     match ensure_move_pp(creature, move_id, move_data) {
         None => true,
         Some(pp) if pp > 0 => {
@@ -1558,7 +1701,10 @@ fn expand_random_moves(
                     choose_random_move(state, move_db, pool, rng, Some(attacker_id));
                 let Some(chosen_move_id) = chosen_move_id else {
                     expanded.push(BattleEvent::Log {
-                        message: format!("{}は ランダムに 技を出そうとしたが 失敗した！", attacker_name),
+                        message: format!(
+                            "{}は ランダムに 技を出そうとしたが 失敗した！",
+                            attacker_name
+                        ),
                         meta: Map::new(),
                     });
                     continue;

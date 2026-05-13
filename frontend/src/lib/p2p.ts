@@ -288,15 +288,14 @@ function handleIncomingMessage(raw: unknown): void {
             emit({ type: 'start_battle' });
             return;
 
-            case 'team_selected':
-    session.remoteSelectedDeck = cloneDeck(message.deck);
-    emitSnapshot();
-    emit({
-        type: 'team_selected',
-        deck: cloneDeck(message.deck),
-    });
-    return;
-
+        case 'team_selected':
+            session.remoteSelectedDeck = cloneDeck(message.deck);
+            emitSnapshot();
+            emit({
+                type: 'team_selected',
+                deck: cloneDeck(message.deck),
+            });
+            return;
         case 'battle_init':
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);

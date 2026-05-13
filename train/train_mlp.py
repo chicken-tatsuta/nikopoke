@@ -18,13 +18,15 @@ HOF_MAX_SIZE = 15
 HOF_GAMES = 5
 EVALUATE_TIMEOUT_SECONDS = 120
 RANDOM_TEAM_MATCH_RATE = 0.10
+LV1_MATCH_GAMES = 5
+LV1_SCORE_WEIGHT = 2
 
 TRAIN_DIR = Path(__file__).resolve().parent
 DATA_DIR = TRAIN_DIR.parent / "engine-rust/data"
 BINARY_PATH = TRAIN_DIR.parent / "engine-rust/target/release/self-play-export"
 OUTPUT_PATH = TRAIN_DIR.parent / "frontend/public/ai_weights.json"
 
-W1 = (128, 130)
+W1 = (128, 166)
 B1 = (128,)
 W2 = (64, 128)
 B2 = (64,)
@@ -34,6 +36,26 @@ W4 = (6, 32)
 B4 = (6,)
 
 hall_of_fame = []
+
+
+def env_int(name, default):
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+POPULATION_SIZE = env_int("NIKIPOKE_POPULATION_SIZE", POPULATION_SIZE)
+GENERATIONS = env_int("NIKIPOKE_GENERATIONS", GENERATIONS)
+GAMES_PER_MATCH = env_int("NIKIPOKE_GAMES_PER_MATCH", GAMES_PER_MATCH)
+SURVIVORS = min(env_int("NIKIPOKE_SURVIVORS", SURVIVORS), POPULATION_SIZE)
+HOF_GAMES = env_int("NIKIPOKE_HOF_GAMES", HOF_GAMES)
+LV1_MATCH_GAMES = env_int("NIKIPOKE_LV1_MATCH_GAMES", LV1_MATCH_GAMES)
+LV1_SCORE_WEIGHT = env_int("NIKIPOKE_LV1_SCORE_WEIGHT", LV1_SCORE_WEIGHT)
 
 
 def load_species_data():
@@ -218,6 +240,8 @@ def evaluate_batch(matches):
                     "team_b": None if match["use_random_teams"] else copy_team(match["ind_b"]["team"]),
                     "games": match["games"],
                     "seed": match["seed"],
+                    "baseline_a": match.get("baseline_a", False),
+                    "baseline_b": match.get("baseline_b", False),
                 }
             )
 
@@ -265,7 +289,22 @@ def _evaluate_worker(args):
                     "use_random_teams": False,
                 }
             )
-    return sum(result["wins_a"] for result in evaluate_batch(matches))
+    matches.append(
+        {
+            "ind_a": ind,
+            "ind_b": ind,
+            "games": LV1_MATCH_GAMES,
+            "seed": 42 + idx * 3000,
+            "use_random_teams": False,
+            "baseline_b": True,
+            "score_weight": LV1_SCORE_WEIGHT,
+        }
+    )
+
+    return sum(
+        result["wins_a"] * match.get("score_weight", 1)
+        for match, result in zip(matches, evaluate_batch(matches))
+    )
 
 
 def tournament(population):
@@ -357,7 +396,7 @@ def main():
         best_score, best_individual = ranked[0]
         update_hof(ranked)
         hof_matches = min(2, len(hall_of_fame) - 1) if generation > 1 else 0
-        total_games = 3 * GAMES_PER_MATCH + hof_matches * HOF_GAMES
+        total_games = 3 * GAMES_PER_MATCH + hof_matches * HOF_GAMES + LV1_MATCH_GAMES * LV1_SCORE_WEIGHT
         print(f"Generation {generation}/{GENERATIONS}: {best_score}/{total_games} wins", flush=True)
         save_individual(best_individual, generation)
 

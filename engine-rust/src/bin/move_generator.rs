@@ -234,7 +234,7 @@ async fn generate_move(
     existing_moves: &Value,
 ) -> Result<Value, Box<dyn Error>> {
     let example_moves = find_similar_moves(&record.effect, existing_moves, 2);
-    
+
     let prompt = build_move_prompt(
         &record.name,
         &record.move_type,
@@ -252,19 +252,19 @@ async fn generate_move(
 
     let mut move_data = loop {
         let response = client.generate(&prompt).await?;
-        
+
         // Parse the JSON response
         let parsed: Result<Value, _> = serde_json::from_str(&response);
-        
+
         match parsed {
             Ok(mut data) => {
                 // If it's an array with one element, take that element
                 if let Some(arr) = data.as_array() {
                     if let Some(first) = arr.first() {
-                         data = first.clone();
+                        data = first.clone();
                     }
                 }
-                
+
                 // Validate with SpellChecker
                 match SpellChecker::validate(&data) {
                     Ok(_) => {
@@ -273,10 +273,17 @@ async fn generate_move(
                     Err(e) => {
                         println!("      ⚠️ Validation failed: {}", e);
                         if retries >= MAX_RETRIES {
-                             return Err(format!("Validation failed after {} retries: {}", MAX_RETRIES, e).into());
+                            return Err(format!(
+                                "Validation failed after {} retries: {}",
+                                MAX_RETRIES, e
+                            )
+                            .into());
                         }
                         // Append error to prompt and retry
-                        prompt = format!("{}\n\n前回の出力は以下のエラーがありました。修正してください:\n{}", prompt, e);
+                        prompt = format!(
+                            "{}\n\n前回の出力は以下のエラーがありました。修正してください:\n{}",
+                            prompt, e
+                        );
                         retries += 1;
                         println!("      🔄 Retrying ({}/{})...", retries, MAX_RETRIES);
                         sleep(Duration::from_millis(1000)).await;
@@ -284,14 +291,21 @@ async fn generate_move(
                 }
             }
             Err(e) => {
-                 println!("      ⚠️ JSON parsing failed: {}", e);
-                 if retries >= MAX_RETRIES {
-                     return Err(format!("JSON parsing failed after {} retries: {}", MAX_RETRIES, e).into());
-                 }
-                  prompt = format!("{}\n\n前回の出力は有効なJSONではありませんでした。修正してください:\n{}", prompt, e);
-                  retries += 1;
-                  println!("      🔄 Retrying ({}/{})...", retries, MAX_RETRIES);
-                  sleep(Duration::from_millis(1000)).await;
+                println!("      ⚠️ JSON parsing failed: {}", e);
+                if retries >= MAX_RETRIES {
+                    return Err(format!(
+                        "JSON parsing failed after {} retries: {}",
+                        MAX_RETRIES, e
+                    )
+                    .into());
+                }
+                prompt = format!(
+                    "{}\n\n前回の出力は有効なJSONではありませんでした。修正してください:\n{}",
+                    prompt, e
+                );
+                retries += 1;
+                println!("      🔄 Retrying ({}/{})...", retries, MAX_RETRIES);
+                sleep(Duration::from_millis(1000)).await;
             }
         }
     };
@@ -398,12 +412,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Filter records
     let records_to_process: Vec<MoveCSVRecord> = if let Some(ref single) = config.single_move {
-        records
-            .into_iter()
-            .filter(|r| r.name == *single)
-            .collect()
+        records.into_iter().filter(|r| r.name == *single).collect()
     } else if config.process_all {
-         records
+        records
     } else {
         records
             .into_iter()
@@ -416,10 +427,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    println!(
-        "\n📝 Will process {} new moves",
-        records_to_process.len()
-    );
+    println!("\n📝 Will process {} new moves", records_to_process.len());
 
     // Create client
     let client = GeminiClient::new(api_key, config.model.clone());
@@ -429,8 +437,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Save results
     if !config.dry_run && !generated.is_empty() {
-        println!("\n💾 Saving {} generated moves to {:?}", generated.len(), config.output_path);
-        
+        println!(
+            "\n💾 Saving {} generated moves to {:?}",
+            generated.len(),
+            config.output_path
+        );
+
         // Merge with existing generated moves if file exists
         let mut output_moves: Map<String, Value> = if config.output_path.exists() {
             let content = fs::read_to_string(&config.output_path)?;
@@ -445,7 +457,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         let output = serde_json::to_string_pretty(&output_moves)?;
         fs::write(&config.output_path, output)?;
-        
+
         println!("✅ Done! Generated moves saved to {:?}", config.output_path);
         println!("\n📋 Next steps:");
         println!("   1. Review the generated DSL in {:?}", config.output_path);
