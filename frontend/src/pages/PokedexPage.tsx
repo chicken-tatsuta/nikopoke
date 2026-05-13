@@ -191,10 +191,12 @@ function PokedexCard({
 }
 
 function MiniStat({ label, value }: { label: string; value: number }) {
+    const width = Math.max(12, Math.min(100, (value / 150) * 100));
+
     return (
         <div className="grid grid-cols-[0.8rem_1fr_1.45rem] items-center gap-1 text-[9px]">
             <span className="font-semibold">{label}</span>
-            <span className="h-px bg-[#111111]" style={{ width: `${Math.max(24, Math.min(100, value))}%` }} />
+            <span className="h-px bg-[#111111]" style={{ width: `${width}%` }} />
             <span className="text-right font-semibold tabular-nums">{value}</span>
         </div>
     );
