@@ -38,11 +38,11 @@ export default function SignupPage() {
                         <span className="text-xl font-bold tracking-[0.22em]">Nikidan</span>
                     </div>
                     <h1 className="mt-12 text-4xl font-black leading-[1.35] tracking-[0.14em]">
-                        研究員証を<br />
+                        アカウントを<br />
                         作る。
                     </h1>
                     <p className="mt-5 text-sm font-semibold leading-7 tracking-[0.08em] text-[#333333]">
-                        ユーザー名とデッキを紐づけて、ニキダンの対戦記録を残せるようにします。
+                        ユーザー名とデッキを紐づけて、ニキダンと戦えるようにします。
                     </p>
                 </section>
 

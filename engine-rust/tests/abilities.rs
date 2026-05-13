@@ -2,8 +2,10 @@ use engine_rust::core::abilities::{
     run_ability_check_hook, run_ability_value_hook, AbilityCheckContext, AbilityValueContext,
 };
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
+use engine_rust::core::events::{apply_event, BattleEvent};
 use engine_rust::core::state::{
     Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    Status,
 };
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
@@ -163,6 +165,83 @@ fn technician_boosts_low_power_damage() {
 }
 
 #[test]
+fn adaptability_uses_double_stab_damage() {
+    fn damage_with_ability(ability: Option<&str>) -> i32 {
+        let mut move_db = MoveDatabase::new();
+        move_db.insert(MoveData {
+            id: "flame".to_string(),
+            name: Some("Flame".to_string()),
+            move_type: Some("fire".to_string()),
+            category: Some("physical".to_string()),
+            pp: Some(10),
+            power: Some(60),
+            accuracy: Some(1.0),
+            priority: Some(0),
+            description: None,
+            steps: vec![effect("damage", json!({ "power": 60, "accuracy": 1.0 }))],
+            tags: Vec::new(),
+            crit_rate: None,
+        });
+        move_db.insert(MoveData {
+            id: "wait".to_string(),
+            name: Some("Wait".to_string()),
+            move_type: Some("normal".to_string()),
+            category: Some("status".to_string()),
+            pp: Some(10),
+            power: None,
+            accuracy: None,
+            priority: Some(0),
+            description: None,
+            steps: vec![],
+            tags: Vec::new(),
+            crit_rate: None,
+        });
+
+        let mut attacker = make_creature("c1", "Alpha", ability, vec!["flame".to_string()]);
+        attacker.types = vec!["fire".to_string()];
+        attacker.attack = 100;
+        let mut defender = make_creature("c2", "Beta", None, vec!["wait".to_string()]);
+        defender.hp = 200;
+        defender.max_hp = 200;
+        defender.defense = 100;
+
+        let state = make_state(attacker, defender);
+        let actions = vec![
+            Action {
+                player_id: "p1".to_string(),
+                action_type: ActionType::Move,
+                move_id: Some("flame".to_string()),
+                target_id: Some("p2".to_string()),
+                slot: None,
+                priority: None,
+            },
+            Action {
+                player_id: "p2".to_string(),
+                action_type: ActionType::Move,
+                move_id: Some("wait".to_string()),
+                target_id: Some("p1".to_string()),
+                slot: None,
+                priority: None,
+            },
+        ];
+
+        let mut rng = || 0.0;
+        let engine = BattleEngine::new(move_db, TypeChart::new());
+        let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+        200 - next.players[1].team[0].hp
+    }
+
+    let normal_stab = damage_with_ability(None);
+    let adaptability_stab = damage_with_ability(Some("adaptability"));
+
+    assert!(normal_stab > 0);
+    assert!(
+        adaptability_stab > normal_stab,
+        "adaptability damage ({adaptability_stab}) should exceed normal STAB ({normal_stab})"
+    );
+}
+
+#[test]
 fn shadow_tag_traps_other_creature() {
     let state = make_state(
         make_creature("c1", "Alpha", Some("shadow_tag"), vec![]),
@@ -183,4 +262,66 @@ fn shadow_tag_traps_other_creature() {
     );
 
     assert!(trapped);
+}
+
+#[test]
+fn unburden_doubles_speed_after_held_item_is_lost() {
+    let mut unburden = make_creature("c1", "Alpha", Some("unburden"), vec![]);
+    unburden.item = Some("sitrus_berry".to_string());
+    unburden.statuses.push(Status {
+        id: "item".to_string(),
+        remaining_turns: None,
+        data: HashMap::new(),
+    });
+    let state = make_state(unburden, make_creature("c2", "Beta", None, vec![]));
+    let next = apply_event(
+        &state,
+        &BattleEvent::RemoveStatus {
+            target_id: "p1".to_string(),
+            status_id: "item".to_string(),
+            meta: Map::new(),
+        },
+    );
+
+    let value = run_ability_value_hook(
+        &next,
+        "p1",
+        "onModifySpeed",
+        90.0,
+        AbilityValueContext {
+            move_data: None,
+            category: None,
+            target: None,
+            weather: None,
+            turn: 1,
+            stages: None,
+        },
+    );
+
+    assert_eq!(value, 180.0);
+}
+
+#[test]
+fn unburden_does_not_activate_when_starting_without_item() {
+    let state = make_state(
+        make_creature("c1", "Alpha", Some("unburden"), vec![]),
+        make_creature("c2", "Beta", None, vec![]),
+    );
+
+    let value = run_ability_value_hook(
+        &state,
+        "p1",
+        "onModifySpeed",
+        90.0,
+        AbilityValueContext {
+            move_data: None,
+            category: None,
+            target: None,
+            weather: None,
+            turn: 1,
+            stages: None,
+        },
+    );
+
+    assert_eq!(value, 90.0);
 }

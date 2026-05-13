@@ -2,7 +2,7 @@ use crate::core::abilities::{
     ability_label, get_weather, is_weather_id, modify_stages_with_ability, run_ability_check_hook,
     AbilityCheckContext, WeatherKind,
 };
-use crate::core::state::{BattleState, StatStages, Status};
+use crate::core::state::{BattleState, CreatureState, StatStages, Status};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
@@ -232,8 +232,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         }
                     }
                     let mut effective_amount = *amount;
-                    let is_move_damage =
-                        meta.and_then(|meta| meta.get("moveId")).is_some();
+                    let is_move_damage = meta.and_then(|meta| meta.get("moveId")).is_some();
                     let endured = is_move_damage
                         && effective_amount > 0
                         && active.hp > 0
@@ -422,6 +421,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         remaining_turns: *duration,
                         data: data.clone(),
                     });
+                    if status_id == "item" || status_id == "berry" {
+                        update_unburden_after_item_change(active, false);
+                    }
                 }
             }
         }
@@ -432,9 +434,11 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
+                    let had_item = creature_has_item(active);
                     active.statuses.retain(|s| s.id != *status_id);
                     if status_id == "item" || status_id == "berry" {
                         active.item = None;
+                        update_unburden_after_item_change(active, had_item);
                     }
                 }
             }
@@ -676,7 +680,8 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     };
                     next.log.push(message);
                     if ability_id.as_deref() == Some("slow_start") {
-                        next.log.push(format!("{}は 調子が 上がらない！", active.name));
+                        next.log
+                            .push(format!("{}は 調子が 上がらない！", active.name));
                     }
                 }
             }
@@ -722,10 +727,12 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
+                    let had_item = creature_has_item(active);
                     active
                         .statuses
                         .retain(|s| s.id != "item" && s.id != "berry");
                     active.item = item_id.clone();
+                    update_unburden_after_item_change(active, had_item);
                 }
             }
         }
@@ -737,6 +744,8 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             if let (Some(left_idx), Some(right_idx)) = (left_idx, right_idx) {
                 let left_slot = next.players[left_idx].active_slot;
                 let right_slot = next.players[right_idx].active_slot;
+                let left_had_item = creature_has_item(&next.players[left_idx].team[left_slot]);
+                let right_had_item = creature_has_item(&next.players[right_idx].team[right_slot]);
                 let left_item = next.players[left_idx].team[left_slot].item.clone();
                 let right_item = next.players[right_idx].team[right_slot].item.clone();
                 next.players[left_idx].team[left_slot]
@@ -747,6 +756,14 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     .retain(|s| s.id != "item" && s.id != "berry");
                 next.players[left_idx].team[left_slot].item = right_item;
                 next.players[right_idx].team[right_slot].item = left_item;
+                update_unburden_after_item_change(
+                    &mut next.players[left_idx].team[left_slot],
+                    left_had_item,
+                );
+                update_unburden_after_item_change(
+                    &mut next.players[right_idx].team[right_slot],
+                    right_had_item,
+                );
             }
         }
         BattleEvent::SetStages {
@@ -1074,10 +1091,33 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
     }
 }
 
+fn creature_has_item(creature: &CreatureState) -> bool {
+    creature.item.is_some()
+        || creature
+            .statuses
+            .iter()
+            .any(|status| status.id == "item" || status.id == "berry")
+}
+
+fn update_unburden_after_item_change(creature: &mut CreatureState, had_item: bool) {
+    if creature.ability.as_deref() != Some("unburden") {
+        return;
+    }
+    if creature_has_item(creature) {
+        creature.ability_data.remove("unburdenActivated");
+    } else if had_item {
+        creature
+            .ability_data
+            .insert("unburdenActivated".to_string(), Value::Bool(true));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::state::{BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages};
+    use crate::core::state::{
+        BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    };
     use std::collections::HashMap;
 
     fn test_creature(id: &str) -> CreatureState {

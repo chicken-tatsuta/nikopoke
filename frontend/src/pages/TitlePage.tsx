@@ -15,8 +15,8 @@ export default function TitlePage() {
                     </div>
 
                     <h1 className="text-balance text-5xl font-black leading-[1.25] tracking-[0.16em] sm:text-7xl">
-                        二期生男子が、<br />
-                        ニキダンになる。
+                        二期男が、<br />
+                        ニキダンに。
                     </h1>
 
                     <p className="mt-8 max-w-lg text-sm font-semibold leading-8 tracking-[0.1em] text-white/90">

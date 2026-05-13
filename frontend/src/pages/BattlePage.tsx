@@ -734,6 +734,11 @@ function copyTargetAfterAction(
         return;
     }
 
+    if (hasLaterAction && activeSlotChanged(draft, finalState, playerId)) {
+        copyCurrentSlotAfterAction(draft, finalState, playerId, actionLogs);
+        return;
+    }
+
     const previousHp = before.draftCreature.hp;
     const loggedDelta = getLoggedHpDelta(actionLogs, before.draftCreature.name);
     copyFinalActiveCreature(draft, finalState, playerId);
@@ -1955,11 +1960,14 @@ export default function BattlePage() {
 
         try {
             if (moveHasEffect(moves[moveId], 'self_switch')) {
-                setPendingSelfSwitchMoveId(moveId);
-                setCommandMode('pokemon');
-                setStatusText('交代先を選んでください。');
-                setWaiting(false);
-                return;
+                const slot = firstAvailableSwitchSlot(battleState, localPlayerIdRef.current);
+                if (slot !== null) {
+                    setPendingSelfSwitchMoveId(moveId);
+                    setCommandMode('pokemon');
+                    setStatusText('交代先を選んでください。');
+                    setWaiting(false);
+                    return;
+                }
             }
 
             const playerAction: ActionWire = {

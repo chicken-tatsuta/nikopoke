@@ -56,6 +56,8 @@ pub fn ability_label(ability: &str) -> &str {
         "berserk" => "ぎゃくじょう",
         "competitive" => "かちき",
         "opportunist" => "びんじょう",
+        "unburden" => "かるわざ",
+        "adaptability" => "てきおうりょく",
         other => other,
     }
 }
@@ -193,6 +195,18 @@ pub fn run_ability_value_hook(
                 }
             }
             value
+        }
+        ("unburden", "onModifySpeed") => {
+            if active
+                .ability_data
+                .get("unburdenActivated")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                value * 2.0
+            } else {
+                value
+            }
         }
         ("swift_swim", "onModifySpeed") => {
             if ctx.weather == Some("rain") {
@@ -796,7 +810,9 @@ fn try_aroma_veil(event: &BattleEvent, state: &BattleState) -> Option<Vec<Battle
 
 fn is_aroma_veil_blocked_event(event: &BattleEvent) -> bool {
     match event {
-        BattleEvent::ApplyStatus { status_id, meta, .. } => {
+        BattleEvent::ApplyStatus {
+            status_id, meta, ..
+        } => {
             matches!(
                 status_id.as_str(),
                 "torment" | "heal_block" | "disable_move" | "taunt" | "attract" | "infatuation"

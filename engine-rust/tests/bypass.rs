@@ -1,6 +1,7 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
 use engine_rust::core::state::{
-    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages, Status,
+    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    Status,
 };
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;

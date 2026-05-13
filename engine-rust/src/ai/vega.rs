@@ -161,9 +161,9 @@ impl TranspositionTable {
     fn store(&mut self, hash: u64, depth: usize, score: f32, flag: TTFlag) {
         let idx = (hash as usize) & self.mask;
         // Always replace: deeper or newer entries are preferred
-        let should_replace = self.entries[idx]
-            .as_ref()
-            .map_or(true, |existing| existing.depth <= depth || existing.hash != hash);
+        let should_replace = self.entries[idx].as_ref().map_or(true, |existing| {
+            existing.depth <= depth || existing.hash != hash
+        });
         if should_replace {
             self.entries[idx] = Some(TTEntry {
                 hash,
@@ -197,7 +197,8 @@ fn hash_battle_state(state: &BattleState, player_id: &str) -> u64 {
             creature.stages.spd.hash(&mut hasher);
             creature.stages.spe.hash(&mut hasher);
             // statuses (sorted for consistency)
-            let mut status_ids: Vec<&str> = creature.statuses.iter().map(|s| s.id.as_str()).collect();
+            let mut status_ids: Vec<&str> =
+                creature.statuses.iter().map(|s| s.id.as_str()).collect();
             status_ids.sort_unstable();
             for sid in &status_ids {
                 sid.hash(&mut hasher);
@@ -877,7 +878,9 @@ fn action_ordering_score(
                 return 0.0;
             };
             if move_data.category.as_deref() == Some("status") {
-                return status_move_ordering_score(state, player_id, active, target, move_data, ctx);
+                return status_move_ordering_score(
+                    state, player_id, active, target, move_data, ctx,
+                );
             }
             let damage = expected_move_damage(
                 active,
@@ -1013,11 +1016,7 @@ fn score_stage_change_step(
     score
 }
 
-fn score_apply_status_step(
-    target: &CreatureState,
-    step: &Effect,
-    ctx: &VegaContext,
-) -> f32 {
+fn score_apply_status_step(target: &CreatureState, step: &Effect, ctx: &VegaContext) -> f32 {
     let target_str = step
         .data
         .get("target")
@@ -1548,7 +1547,11 @@ fn expected_move_damage(
         .iter()
         .any(|t| t.eq_ignore_ascii_case(move_type))
     {
-        modifier *= 1.5;
+        modifier *= if attacker.ability.as_deref() == Some("adaptability") {
+            2.0
+        } else {
+            1.5
+        };
     }
     modifier *= type_effectiveness(move_type, &defender.types);
     modifier *= screen_multiplier(state, defender_player_id, category);

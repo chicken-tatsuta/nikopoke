@@ -392,7 +392,8 @@ fn match_status(
                         .unwrap_or(0)
                         + 1;
 
-                    let wakes_up = sleep_turn >= 3 || (sleep_turn == 2 && (ctx.rng)() < (1.0 / 3.0));
+                    let wakes_up =
+                        sleep_turn >= 3 || (sleep_turn == 2 && (ctx.rng)() < (1.0 / 3.0));
                     if wakes_up {
                         return StatusHookResult {
                             events: vec![
@@ -410,7 +411,9 @@ fn match_status(
                         };
                     }
 
-                    status.data.insert("elapsed".to_string(), Value::Number(sleep_turn.into()));
+                    status
+                        .data
+                        .insert("elapsed".to_string(), Value::Number(sleep_turn.into()));
                     let name = active.name.clone();
                     if can_act_while_asleep {
                         return StatusHookResult {

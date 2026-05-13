@@ -924,7 +924,11 @@ fn estimated_min_damage(
         (((2.0 * level / 5.0 + 2.0) * power as f64 * attack_stat / defense_stat) / 50.0) + 2.0;
     let move_type = move_data.move_type.as_deref().unwrap_or("normal");
     let stab = if attacker.types.iter().any(|t| t == move_type) {
-        1.5
+        if attacker.ability.as_deref() == Some("adaptability") {
+            2.0
+        } else {
+            1.5
+        }
     } else {
         1.0
     };

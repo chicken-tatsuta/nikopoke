@@ -315,7 +315,7 @@ const ABILITY_LABELS: Record<string, string> = {
     magic_bounce: 'マジックミラー',
     merciless: 'ひとでなし',
     moody: 'ムラっけ',
-    opportunist: 'かるわざ',
+    opportunist: 'びんじょう',
     own_tempo: 'マイペース',
     parental_bond: 'おやこあい',
     power_of_alchemy: 'かがくのちから',
@@ -332,7 +332,8 @@ const ABILITY_LABELS: Record<string, string> = {
     technician: 'テクニシャン',
     thick_fat: 'あついしぼう',
     unaware: 'てんねん',
-    clear_body: 'びんじょう',
+    clear_body: 'クリアボディ',
+    unburden: 'かるわざ',
     unnerve: 'きんちょうかん',
 
     // Other abilities

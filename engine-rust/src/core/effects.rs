@@ -83,7 +83,12 @@ pub fn apply_events(state: &BattleState, events: &[BattleEvent]) -> BattleState 
 fn clamp_damage_events_to_remaining_hp(state: &BattleState, events: &mut [BattleEvent]) {
     let mut simulated_state = state.clone();
     for event in events.iter_mut() {
-        if let BattleEvent::Damage { target_id, amount, meta } = event {
+        if let BattleEvent::Damage {
+            target_id,
+            amount,
+            meta,
+        } = event
+        {
             if *amount > 0 {
                 *amount = actual_positive_damage_amount(&simulated_state, target_id, meta, *amount);
             }
@@ -111,7 +116,11 @@ fn actual_positive_damage_amount(
         .unwrap_or(false);
     let is_self = source == Some(target_id);
     if !bypass_substitute && !is_self {
-        if let Some(substitute) = active.statuses.iter().find(|status| status.id == "substitute") {
+        if let Some(substitute) = active
+            .statuses
+            .iter()
+            .find(|status| status.id == "substitute")
+        {
             let substitute_hp = substitute
                 .data
                 .get("hp")
@@ -2162,7 +2171,12 @@ fn apply_ohko(
         .unwrap_or(0.3);
     let required_type = effect.data.get("requiredType").and_then(|v| v.as_str());
     let attacker_has_required_type = required_type
-        .map(|required| attacker.types.iter().any(|ty| ty.eq_ignore_ascii_case(required)))
+        .map(|required| {
+            attacker
+                .types
+                .iter()
+                .any(|ty| ty.eq_ignore_ascii_case(required))
+        })
         .unwrap_or(true);
     let mut accuracy = if attacker_has_required_type {
         base_accuracy
@@ -2173,7 +2187,12 @@ fn apply_ohko(
             .and_then(|v| v.as_f64())
             .unwrap_or(base_accuracy)
     };
-    if effect.data.get("levelScaling").and_then(|v| v.as_bool()).unwrap_or(true) {
+    if effect
+        .data
+        .get("levelScaling")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+    {
         accuracy += (attacker.level as f64 - target.level as f64) / 100.0;
     }
     accuracy = accuracy.clamp(0.0, 1.0);
@@ -2730,7 +2749,10 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
     }
 
     let mut events = Vec::new();
-    if ctx.move_data.is_some_and(|move_data| move_data.id == "baton_pass") {
+    if ctx
+        .move_data
+        .is_some_and(|move_data| move_data.id == "baton_pass")
+    {
         events.push(BattleEvent::SetVolatile {
             target_id: ctx.attacker_player_id.clone(),
             key: "batonPass".to_string(),
@@ -3716,7 +3738,13 @@ fn calc_damage(
             .iter()
             .any(|t| t.eq_ignore_ascii_case(move_type))
         {
-            modifier *= 1.5;
+            let stab_multiplier =
+                if !ctx.ignore_ability && attacker.ability.as_deref() == Some("adaptability") {
+                    2.0
+                } else {
+                    1.5
+                };
+            modifier *= stab_multiplier;
         }
         let gravity_active = state.field.global.iter().any(|e| e.id == "gravity");
         let magnet_rise_active = target.statuses.iter().any(|s| s.id == "magnet_rise");
@@ -3857,7 +3885,9 @@ fn stage_value(stages: &crate::core::state::StatStages, stat: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::state::{create_battle_state, CreatureState, EVStats, PlayerState, StatStages};
+    use crate::core::state::{
+        create_battle_state, CreatureState, EVStats, PlayerState, StatStages,
+    };
     use serde_json::json;
 
     fn test_creature(id: &str) -> CreatureState {
@@ -4034,7 +4064,11 @@ mod tests {
         let mut rng = || 0.0;
         let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
 
-        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+        let events = apply_effects(
+            &state,
+            &[effect(json!({ "type": "self_switch" }))],
+            &mut ctx,
+        );
 
         assert!(events.iter().any(|event| matches!(
             event,
@@ -4058,7 +4092,11 @@ mod tests {
         let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
         ctx.switch_slot = Some(1);
 
-        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+        let events = apply_effects(
+            &state,
+            &[effect(json!({ "type": "self_switch" }))],
+            &mut ctx,
+        );
 
         assert!(events.iter().any(|event| matches!(
             event,

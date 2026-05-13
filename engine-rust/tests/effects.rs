@@ -1,6 +1,7 @@
 use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
 use engine_rust::core::state::{
-    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages, Status,
+    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    Status,
 };
 use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
 use engine_rust::data::moves::Effect;

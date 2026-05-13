@@ -1,7 +1,9 @@
 use engine_rust::core::abilities::{run_ability_hooks, AbilityHookContext};
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::{apply_event, BattleEvent};
-use engine_rust::core::state::{BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages};
+use engine_rust::core::state::{
+    BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+};
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::type_chart::TypeChart;
 use std::collections::HashMap;

@@ -8,8 +8,8 @@ use crate::core::battle::{
 };
 use crate::core::factory::{create_creature, CreateCreatureOptions};
 use crate::core::state::{
-    create_battle_state, Action, ActionType, BattleHistory, BattleState, BattleTurn,
-    CreatureState, FieldEffect, EVStats, FieldState, PlayerState, Status,
+    create_battle_state, Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState,
+    EVStats, FieldEffect, FieldState, PlayerState, Status,
 };
 use crate::data::learnsets::LearnsetDatabase;
 use crate::data::moves::MoveDatabase;
