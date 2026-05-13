@@ -1,9 +1,9 @@
-use engine_rust::core::state::{BattleState, PlayerState, CreatureState, FieldState, StatStages};
-use engine_rust::core::events::{apply_event, BattleEvent};
+use engine_rust::core::abilities::{run_ability_hooks, AbilityHookContext};
 use engine_rust::core::effects::{apply_effects, EffectContext};
+use engine_rust::core::events::{apply_event, BattleEvent};
+use engine_rust::core::state::{BattleState, CreatureState, FieldState, PlayerState, StatStages};
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::type_chart::TypeChart;
-use engine_rust::core::abilities::{run_ability_hooks, AbilityHookContext};
 use std::collections::HashMap;
 
 fn create_test_state() -> BattleState {
@@ -81,7 +81,7 @@ fn test_morning_sun_healing() {
     let move_data = move_db.get("morning_sun").unwrap();
     let mut state = create_test_state();
     state.players[0].team[0].hp = 20; // 20/100 HP
-    
+
     let mut rng = || 0.5;
     let type_chart = TypeChart::new();
     let mut ctx = EffectContext {
@@ -96,19 +96,22 @@ fn test_morning_sun_healing() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
         switch_slot: None,
     };
 
     let events = apply_effects(&state, &move_data.steps, &mut ctx);
-    
+
     // Should contain a damage event with a negative amount (healing)
     let heal_event = events.iter().find(|e| match e {
         BattleEvent::Damage { amount, .. } => *amount < 0,
         _ => false,
     });
-    
-    assert!(heal_event.is_some(), "Morning Sun should produce a healing event (negative damage)");
+
+    assert!(
+        heal_event.is_some(),
+        "Morning Sun should produce a healing event (negative damage)"
+    );
     if let Some(BattleEvent::Damage { amount, .. }) = heal_event {
         assert_eq!(*amount, -50); // 50% of 100
     }
@@ -122,25 +125,35 @@ fn test_power_of_alchemy_reset() {
     let mut state = create_test_state();
     state.players[0].team[0].ability = Some("power_of_alchemy".to_string());
     state.players[0].last_fainted_ability = Some("levitate".to_string());
-    
+
     let mut rng = || 0.5;
-    let result = run_ability_hooks(&state, "p1", "onSwitchIn", AbilityHookContext {
-        rng: &mut rng,
-        action: None,
-        move_data: None,
-    });
-    
+    let result = run_ability_hooks(
+        &state,
+        "p1",
+        "onSwitchIn",
+        AbilityHookContext {
+            rng: &mut rng,
+            action: None,
+            move_data: None,
+        },
+    );
+
     let state_after_switch_in = result.state.unwrap();
     let mon = &state_after_switch_in.players[0].team[0];
     assert_eq!(mon.ability.as_deref(), Some("levitate"));
-    assert_eq!(mon.ability_data.get("originalAbility").and_then(|v| v.as_str()), Some("power_of_alchemy"));
+    assert_eq!(
+        mon.ability_data
+            .get("originalAbility")
+            .and_then(|v| v.as_str()),
+        Some("power_of_alchemy")
+    );
 
     // Now switch out
     let switch_out_event = BattleEvent::Switch {
         player_id: "p1".to_string(),
-        slot: 1, 
+        slot: 1,
     };
-    
+
     // Add another mon to team p1 for switching
     let mut p1_team = state_after_switch_in.players[0].team.clone();
     p1_team.push(p1_team[0].clone());
@@ -149,7 +162,7 @@ fn test_power_of_alchemy_reset() {
     state_for_switch.players[0].team = p1_team;
 
     let state_after_switch_out = apply_event(&state_for_switch, &switch_out_event);
-    
+
     // Check if c1 (now in slot 0, inactive) has its ability restored
     let mon_after = &state_after_switch_out.players[0].team[0];
     assert_eq!(mon_after.ability.as_deref(), Some("power_of_alchemy"));

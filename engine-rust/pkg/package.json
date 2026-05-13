@@ -1,5 +1,6 @@
 {
   "name": "engine-rust",
+  "type": "module",
   "version": "0.1.0",
   "files": [
     "engine_rust_bg.wasm",
@@ -7,5 +8,8 @@
     "engine_rust.d.ts"
   ],
   "main": "engine_rust.js",
-  "types": "engine_rust.d.ts"
+  "types": "engine_rust.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
 }

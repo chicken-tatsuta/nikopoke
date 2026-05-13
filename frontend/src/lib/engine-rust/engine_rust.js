@@ -243,6 +243,56 @@ export function getBestMoveMinimax(state, player_id, depth) {
 
 /**
  * @param {any} state
+ * @param {string} player_id
+ * @param {number} depth
+ * @returns {any}
+ */
+export function getBestMoveVega(state, player_id, depth) {
+    const ptr0 = passStringToWasm0(player_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getBestMoveVega(state, ptr0, len0, depth);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {any} state
+ * @param {string} player_id
+ * @param {number} max_depth
+ * @param {number} node_budget
+ * @returns {any}
+ */
+export function getBestMoveVegaIterative(state, player_id, max_depth, node_budget) {
+    const ptr0 = passStringToWasm0(player_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getBestMoveVegaIterative(state, ptr0, len0, max_depth, node_budget);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {any} state
+ * @param {string} player_id
+ * @param {number} depth
+ * @param {number} branch_limit
+ * @returns {any}
+ */
+export function getBestMoveVegaWithBranch(state, player_id, depth, branch_limit) {
+    const ptr0 = passStringToWasm0(player_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getBestMoveVegaWithBranch(state, ptr0, len0, depth, branch_limit);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * @param {any} state
  * @returns {boolean}
  */
 export function isBattleOver(state) {

@@ -200,7 +200,7 @@ export default function OnlineLobbyPage() {
                         </button>
                         <div>
                             <h1 className="text-lg font-semibold text-[var(--text-primary)]">オンライン対戦</h1>
-                            <p className="text-sm text-[var(--text-muted)]">PeerJS でシンプルに部屋を作って対戦します</p>
+                                 <p className="text-sm text-[var(--text-muted)]">PeerJS で部屋を作って対戦します（30秒タイムアウト）</p>
                         </div>
                     </div>
                     <button

@@ -21,12 +21,18 @@ pub fn is_status_move(move_data: &MoveData) -> bool {
     }
 }
 
-pub fn get_active_creature<'a>(state: &'a BattleState, player_id: &str) -> Option<&'a CreatureState> {
+pub fn get_active_creature<'a>(
+    state: &'a BattleState,
+    player_id: &str,
+) -> Option<&'a CreatureState> {
     let player = state.players.iter().find(|p| p.id == player_id)?;
     player.team.get(player.active_slot)
 }
 
-pub fn get_active_creature_mut<'a>(state: &'a mut BattleState, player_id: &str) -> Option<&'a mut CreatureState> {
+pub fn get_active_creature_mut<'a>(
+    state: &'a mut BattleState,
+    player_id: &str,
+) -> Option<&'a mut CreatureState> {
     let idx = state.players.iter().position(|p| p.id == player_id)?;
     let active_slot = state.players[idx].active_slot;
     state.players[idx].team.get_mut(active_slot)

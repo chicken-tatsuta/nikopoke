@@ -1,5 +1,7 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages,
+};
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{json, Map, Value};
@@ -73,7 +75,12 @@ fn random_move_uses_self_moves_and_consumes_pp() {
     let p1 = PlayerState {
         id: "p1".to_string(),
         name: "P1".to_string(),
-        team: vec![make_creature("c1", "Alpha", vec!["tackle".to_string()], 100)],
+        team: vec![make_creature(
+            "c1",
+            "Alpha",
+            vec!["tackle".to_string()],
+            100,
+        )],
         active_slot: 0,
         last_fainted_ability: None,
     };

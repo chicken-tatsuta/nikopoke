@@ -359,7 +359,9 @@ export default function TeamPreviewPage() {
             return;
         }
     
-        const selectedOpponentDeck = pickRandomTeam(opponentDeck, SELECT_TEAM_SIZE);
+        const selectedOpponentDeck = aiLevel === 'lv2'
+            ? opponentDeck.slice(0, SELECT_TEAM_SIZE)
+            : pickRandomTeam(opponentDeck, SELECT_TEAM_SIZE);
     
         sessionStorage.setItem('selectedPlayerDeck', JSON.stringify(selectedTeam));
         sessionStorage.setItem('selectedOpponentDeck', JSON.stringify(selectedOpponentDeck));
@@ -430,7 +432,7 @@ export default function TeamPreviewPage() {
                                                     : 'bg-[var(--surface-3)] text-[var(--text-muted)] hover:bg-[var(--surface-4)]'
                                             }`}
                                         >
-                                            LV2: Minimax 2
+                                            LV2: Vega 2
                                         </button>
                                     </div>
                                 </div>

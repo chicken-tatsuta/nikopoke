@@ -5,6 +5,9 @@ import init, {
     stepBattle as wasmStepBattle,
     getBestMoveMCTS as wasmGetBestMoveMCTS,
     getBestMoveMinimax as wasmGetBestMoveMinimax,
+    getBestMoveVega as wasmGetBestMoveVega,
+    getBestMoveVegaWithBranch as wasmGetBestMoveVegaWithBranch,
+    getBestMoveVegaIterative as wasmGetBestMoveVegaIterative,
     isBattleOver as wasmIsBattleOver,
     replaceFaintedPokemon as wasmReplaceFaintedPokemon,
 } from './engine-rust/engine_rust.js';
@@ -340,6 +343,35 @@ export async function getBestMoveMinimax(
 ): Promise<ActionWire | null> {
     await initEngine();
     return wasmGetBestMoveMinimax(state, playerId, depth);
+}
+
+export async function getBestMoveVega(
+    state: BattleStateWire,
+    playerId: string,
+    depth: number = 2
+): Promise<ActionWire | null> {
+    await initEngine();
+    return wasmGetBestMoveVega(state, playerId, depth);
+}
+
+export async function getBestMoveVegaWithBranch(
+    state: BattleStateWire,
+    playerId: string,
+    depth: number,
+    branchLimit: number
+): Promise<ActionWire | null> {
+    await initEngine();
+    return wasmGetBestMoveVegaWithBranch(state, playerId, depth, branchLimit);
+}
+
+export async function getBestMoveVegaIterative(
+    state: BattleStateWire,
+    playerId: string,
+    maxDepth: number = 10,
+    nodeBudget: number = 500_000
+): Promise<ActionWire | null> {
+    await initEngine();
+    return wasmGetBestMoveVegaIterative(state, playerId, maxDepth, nodeBudget);
 }
 
 export async function isBattleOver(state: BattleStateWire): Promise<boolean> {

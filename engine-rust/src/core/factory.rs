@@ -15,8 +15,8 @@ impl EVStats {
     }
 
     pub fn normalized(&self) -> Self {
-        let raw_values = [self.hp, self.atk, self.def, self.spa, self.spd, self.spe]
-            .map(|value| value.max(0));
+        let raw_values =
+            [self.hp, self.atk, self.def, self.spa, self.spd, self.spe].map(|value| value.max(0));
         let legacy_scale = raw_values.iter().any(|value| *value > EV_STAT_MAX);
         let mut values = raw_values.map(|value| {
             let converted = if legacy_scale {
@@ -29,10 +29,8 @@ impl EVStats {
 
         let mut overflow = values.iter().sum::<i32>() - EV_TOTAL_MAX;
         while overflow > 0 {
-            let Some((largest_index, largest_value)) = values
-                .iter()
-                .enumerate()
-                .max_by_key(|(_, value)| **value)
+            let Some((largest_index, largest_value)) =
+                values.iter().enumerate().max_by_key(|(_, value)| **value)
             else {
                 break;
             };

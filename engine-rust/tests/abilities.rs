@@ -1,6 +1,10 @@
-use engine_rust::core::abilities::{run_ability_check_hook, run_ability_value_hook, AbilityCheckContext, AbilityValueContext};
+use engine_rust::core::abilities::{
+    run_ability_check_hook, run_ability_value_hook, AbilityCheckContext, AbilityValueContext,
+};
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages,
+};
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{json, Map, Value};

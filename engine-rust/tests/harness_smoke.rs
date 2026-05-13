@@ -54,20 +54,12 @@ fn harness_seeded_run_is_reproducible() {
         player(
             "p1",
             "P1",
-            vec![
-                CreatureBuilder::new("c1", "Alpha")
-                    .moves(&["chip"])
-                    .build(),
-            ],
+            vec![CreatureBuilder::new("c1", "Alpha").moves(&["chip"]).build()],
         ),
         player(
             "p2",
             "P2",
-            vec![
-                CreatureBuilder::new("c2", "Beta")
-                    .moves(&["wait"])
-                    .build(),
-            ],
+            vec![CreatureBuilder::new("c2", "Beta").moves(&["wait"]).build()],
         ),
     ]);
 
@@ -89,11 +81,9 @@ fn harness_builder_can_set_initial_status() {
         player(
             "p1",
             "P1",
-            vec![
-                CreatureBuilder::new("c1", "Alpha")
-                    .with_status(status("burn", None))
-                    .build(),
-            ],
+            vec![CreatureBuilder::new("c1", "Alpha")
+                .with_status(status("burn", None))
+                .build()],
         ),
         player("p2", "P2", vec![CreatureBuilder::new("c2", "Beta").build()]),
     ]);

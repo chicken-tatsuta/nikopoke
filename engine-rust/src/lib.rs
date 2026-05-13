@@ -5,7 +5,10 @@ pub mod data;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod tools;
 
-pub use ai::{get_best_move_mcts, get_best_move_minimax, run_auto_battle, choose_highest_power};
+pub use ai::{
+    choose_highest_power, get_best_move_mcts, get_best_move_minimax, get_best_move_vega,
+    run_auto_battle,
+};
 pub use core::{
     battle::{apply_initial_switch_in_effects, is_battle_over, step_battle, BattleEngine, BattleOptions},
     factory::{calc_stat, create_creature, CreateCreatureOptions},
