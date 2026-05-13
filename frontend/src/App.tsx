@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import type { ReactNode } from 'react';
 import TitlePage from './pages/TitlePage';
 import HomePage from './pages/HomePage';
+import BattleModePage from './pages/BattleModePage';
 import DeckBuilderPage from './pages/DeckBuilderPage';
 import BattlePage from './pages/BattlePage';
 import OnlineLobbyPage from './pages/OnlineLobbyPage';
@@ -43,6 +44,7 @@ function App() {
           <Route path="/ranking" element={<ProtectedRoute><RankingPage /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><TitlePage /></ProtectedRoute>} />
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/battle-mode" element={<ProtectedRoute><BattleModePage /></ProtectedRoute>} />
           <Route path="/deck-builder" element={<ProtectedRoute><DeckBuilderPage /></ProtectedRoute>} />
           <Route path="/team-preview" element={<ProtectedRoute><TeamPreviewPage /></ProtectedRoute>} />
           <Route path="/online-lobby" element={<ProtectedRoute><OnlineLobbyPage /></ProtectedRoute>} />

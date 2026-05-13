@@ -9,6 +9,7 @@ import { useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { getAbilityLabel } from './PokemonDetailPage';
 import { EMPTY_EVS, EV_KEYS, EV_STAT_MAX, EV_TOTAL_MAX, evTotal, normalizeEvs } from '../lib/evs';
+import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 
 
 const DECK_SIZE = 6;
@@ -427,6 +428,7 @@ export default function DeckBuilderPage() {
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {speciesList.map((mon) => {
                                         const isSelected = selectedPokemon.some(p => p.speciesId === mon.id);
+                                        const portraitSrc = getPokemonPortraitSrc(mon.id, mon.name);
                                         return (
                                             <button
                                                 key={mon.id}
@@ -439,6 +441,14 @@ export default function DeckBuilderPage() {
                                                         : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)] card-hover'
                                                     }`}
                                             >
+                                                <div className="mb-3 aspect-square overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
+                                                    <img
+                                                        src={portraitSrc}
+                                                        alt={mon.name}
+                                                        className="size-full object-cover"
+                                                        draggable={false}
+                                                    />
+                                                </div>
                                                 <h3 className="font-semibold text-[var(--text-primary)]">{mon.name}</h3>
                                                 <div className="flex gap-1 mt-2">
                                                     {mon.type.map((t) => (
@@ -553,14 +563,27 @@ function SelectedPokemonCard({
     onAbilityChange: (ability: string) => void;
 }) {
     const totalEvs = evTotal(pokemon.evs);
+    const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
 
     return (
         <div className="flex h-full min-w-0 flex-col">
-            <div className="mb-2 flex items-start justify-between gap-2">
-                <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
-                <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
-                    <X className="size-4 text-red-400" />
-                </button>
+            <div className="mb-3 flex items-start gap-3">
+                <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
+                    <img
+                        src={portraitSrc}
+                        alt={species.name}
+                        className="size-full object-cover"
+                        draggable={false}
+                    />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                        <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
+                        <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
+                            <X className="size-4 text-red-400" />
+                        </button>
+                    </div>
+                </div>
             </div>
             <div className="mb-3 flex flex-wrap gap-1">
                 {species.type.map((t) => (
