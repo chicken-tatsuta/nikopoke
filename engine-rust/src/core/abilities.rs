@@ -435,11 +435,13 @@ pub fn run_ability_hooks(
             let stats = ["atk", "def", "spa", "spd", "spe"];
             let up_index =
                 (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();
-            let mut down_index = up_index;
-            while down_index == up_index {
-                down_index =
-                    (ctx.rng)().mul_add(stats.len() as f64, 0.0).floor() as usize % stats.len();
-            }
+            let down_roll = (ctx.rng)().mul_add((stats.len() - 1) as f64, 0.0).floor() as usize
+                % (stats.len() - 1);
+            let down_index = if down_roll >= up_index {
+                down_roll + 1
+            } else {
+                down_roll
+            };
             let mut stages = HashMap::new();
             stages.insert(stats[up_index].to_string(), 2);
             stages.insert(stats[down_index].to_string(), -1);

@@ -162,7 +162,7 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
                     <Link to="/pokedex">図鑑</Link>
                     <Link to="/battle-mode">バトル</Link>
                     <Link to="/ranking">ランキング</Link>
-                    <span className="flex items-center gap-2">
+                    <Link to="/profile" className="flex items-center gap-2 transition-colors hover:text-[#555555]">
                         <span className="grid size-7 place-items-center rounded-full border border-[#111111]">
                             <UserRound className="size-4" strokeWidth={1.8} />
                         </span>
@@ -171,7 +171,7 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
                         ) : (
                             <span>ログイン</span>
                         )}
-                    </span>
+                    </Link>
                 </nav>
             </div>
         </header>

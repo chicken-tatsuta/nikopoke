@@ -44,11 +44,11 @@ export default function LoginPage() {
                         <span className="text-xl font-bold tracking-[0.22em]">Nikidan</span>
                     </div>
                     <h1 className="mt-12 text-4xl font-black leading-[1.35] tracking-[0.14em]">
-                        記録を<br />
-                        再開する。
+                        こういうの<br />
+                        思い出せないよね。
                     </h1>
                     <p className="mt-5 text-sm font-semibold leading-7 tracking-[0.08em] text-[#333333]">
-                        デッキ、レート、対戦ログをそのまま引き継いで、ニキダンの研究を続けます。
+                        デッキ、レート、対戦ログをそのまま引き継いで、ニキダンを戦わせましょう。
                     </p>
                 </section>
 

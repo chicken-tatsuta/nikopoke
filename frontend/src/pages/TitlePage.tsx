@@ -19,8 +19,8 @@ export default function TitlePage() {
                         ニキダンに。
                     </h1>
 
-                    <p className="mt-8 max-w-lg text-sm font-semibold leading-8 tracking-[0.1em] text-white/90">
-                        学生証みたいに集めて、研究ノートみたいに記録して、対戦ログとして残していく。
+                    <p className="mt-8 max-w-lg text-sm font-semibold leading-8 tracking-[0.05em] text-white/90">
+                        こわいとか いわれることも あるけど そんなことないです。
                     </p>
 
                     <div className="mt-10">
