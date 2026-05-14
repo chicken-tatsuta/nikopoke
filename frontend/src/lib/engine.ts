@@ -105,6 +105,11 @@ const NON_VOLATILE_STATUS_IDS = new Set([
     'sleep',
 ]);
 
+const BATON_PASS_STATUS_IDS = new Set([
+    'aqua_ring',
+    'ingrain',
+]);
+
 function hasPendingSwitch(creature: CreatureStateWire): boolean {
     return creature.statuses.some((status) => status.id === 'pending_switch');
 }
@@ -151,7 +156,11 @@ function replaceFaintedPokemonLocally(
         return nextState;
     }
 
-    const batonPassStages = outgoing.volatileData?.batonPass === true ? { ...outgoing.stages } : null;
+    const isBatonPass = outgoing.volatileData?.batonPass === true;
+    const batonPassStages = isBatonPass ? { ...outgoing.stages } : null;
+    const batonPassStatuses = isBatonPass
+        ? outgoing.statuses.filter((status) => BATON_PASS_STATUS_IDS.has(status.id)).map((status) => ({ ...status }))
+        : [];
     outgoing.stages = { ...RESET_STAGES };
     outgoing.statuses = outgoing.statuses.filter((status) => NON_VOLATILE_STATUS_IDS.has(status.id));
     player.activeSlot = slot;
@@ -159,6 +168,11 @@ function replaceFaintedPokemonLocally(
         incoming.stages = batonPassStages;
     }
     incoming.statuses = incoming.statuses.filter((status) => status.id !== 'pending_switch');
+    if (batonPassStatuses.length > 0) {
+        const carriedIds = new Set(batonPassStatuses.map((status) => status.id));
+        incoming.statuses = incoming.statuses.filter((status) => !carriedIds.has(status.id));
+        incoming.statuses.push(...batonPassStatuses);
+    }
     nextState.log.push(`${player.name}は ${incoming.name}を 繰り出した！`);
     return nextState;
 }

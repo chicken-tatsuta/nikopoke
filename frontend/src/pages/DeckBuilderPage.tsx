@@ -417,6 +417,7 @@ export default function DeckBuilderPage() {
                                 learnsets={learnsets}
                                 selectedMoves={editingMoves}
                                 onToggleMove={handleToggleMove}
+                                onReset={() => setEditingMoves([])}
                                 onSave={handleSaveMoves}
                                 onCancel={() => setEditingIndex(null)}
                             />
@@ -684,6 +685,7 @@ function MoveSelector({
     learnsets,
     selectedMoves,
     onToggleMove,
+    onReset,
     onSave,
     onCancel,
 }: {
@@ -692,6 +694,7 @@ function MoveSelector({
     learnsets: Learnset;
     selectedMoves: string[];
     onToggleMove: (moveId: string) => void;
+    onReset: () => void;
     onSave: () => void;
     onCancel: () => void;
 }) {
@@ -699,11 +702,18 @@ function MoveSelector({
 
     return (
         <div>
-            <div className="flex items-center justify-between mb-5">
+            <div className="sticky top-[105px] z-20 mb-5 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-1)] py-3">
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
                     {species.name}の技を選択 <span className="text-[var(--text-muted)] font-normal">({selectedMoves.length}/4)</span>
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-2">
+                    <button
+                        onClick={onReset}
+                        disabled={selectedMoves.length === 0}
+                        className="px-4 py-2 bg-white text-[var(--text-primary)] rounded-lg border border-[var(--border)] hover:bg-[var(--surface-3)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        リセット
+                    </button>
                     <button
                         onClick={onCancel}
                         className="px-4 py-2 bg-[var(--surface-3)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-4)] transition-colors"
@@ -843,12 +853,12 @@ function EVEditor({
 
     return (
         <div>
-            <div className="flex items-center justify-between mb-5">
+            <div className="sticky top-[105px] z-20 mb-5 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-1)] py-3">
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
                     {species.name}のEVを編集
                     <span className="text-[var(--text-muted)] font-normal ml-2">({total}/{EV_TOTAL_MAX})</span>
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-2">
                     <button
                         onClick={onCancel}
                         className="px-4 py-2 bg-[var(--surface-3)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-4)] transition-colors"

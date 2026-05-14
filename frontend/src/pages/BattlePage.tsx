@@ -42,6 +42,9 @@ import {
     type OnlineRole,
 } from '../lib/p2p';
 import type { SpeciesData, MoveData, DeckPokemon } from '../types/pokemon';
+
+const OPPONENT_TEAM_PREVIEW_SLOTS = 6;
+
 type FieldEffectValue =
     | boolean
     | number
@@ -557,7 +560,16 @@ const VEGA_ITERATIVE_NODE_BUDGET = 100_000;
 const VEGA_PONDERING_NODE_BUDGET = 300_000;
 const VEGA_PRECOMPUTE_MAX_WAIT_MS = 3000;
 const BATTLE_POPUP_MS = 1400;
-const HIDDEN_BATTLE_STATUS_IDS = new Set(['pending_switch']);
+const HIDDEN_BATTLE_STATUS_IDS = new Set([
+    'pending_switch',
+    'aqua_ring',
+    'ingrain',
+    'ally_fainted',
+    'opponent_fainted',
+    'enemy_fainted',
+    'faint',
+    'fainted',
+]);
 const STATUS_FLASH_COLORS: Record<BattleStatusFlashType, string> = {
     poison: '#a855f7',
     burn: '#f97316',
@@ -873,7 +885,10 @@ function moveTargetsOnlySelf(move: MoveData[string] | undefined): boolean {
 }
 
 function visibleStatuses(statuses: CreatureStateWire['statuses']): CreatureStateWire['statuses'] {
-    return statuses.filter((status) => !HIDDEN_BATTLE_STATUS_IDS.has(status.id));
+    return statuses.filter((status) => {
+        const normalizedId = status.id.toLowerCase().replace(/[\s-]+/g, '_');
+        return !HIDDEN_BATTLE_STATUS_IDS.has(normalizedId);
+    });
 }
 
 function hasPendingSwitchStatus(creature: CreatureStateWire | undefined): boolean {
@@ -1095,6 +1110,7 @@ export default function BattlePage() {
     const opponentPlayerIdRef = useRef(opponentPlayerId);
     const localDeckRef = useRef<DeckPokemon[] | null>(null);
     const opponentDeckRef = useRef<DeckPokemon[] | null>(null);
+    const opponentPreviewDeckRef = useRef<DeckPokemon[] | null>(null);
     const battleRecordSavedRef = useRef(false);
     const battleStatsIdRef = useRef<string>(createBattleStatsId());
     const ratingDeltaRef = useRef<{ winnerDelta: number; loserDelta: number } | null>(null);
@@ -1522,6 +1538,7 @@ export default function BattlePage() {
             winnerSideForHost &&
             localDeckRef.current &&
             opponentDeckRef.current &&
+            onlineRoleRef.current === 'host' &&
             battleMode === 'player';
 
         if (shouldUploadStats) {
@@ -1718,6 +1735,7 @@ export default function BattlePage() {
         if (battleMode === 'ai') {
             const selectedPlayerDeckJson = sessionStorage.getItem('selectedPlayerDeck');
             const selectedOpponentDeckJson = sessionStorage.getItem('selectedOpponentDeck');
+            const opponentPreviewDeckJson = sessionStorage.getItem('opponentPreviewDeck');
         
             if (!selectedPlayerDeckJson || !selectedOpponentDeckJson) {
                 navigate('/team-preview');
@@ -1728,6 +1746,9 @@ export default function BattlePage() {
         
             const playerDeck: DeckPokemon[] = JSON.parse(selectedPlayerDeckJson);
             const aiDeck: DeckPokemon[] = JSON.parse(selectedOpponentDeckJson);
+            const opponentPreviewDeck: DeckPokemon[] = opponentPreviewDeckJson
+                ? JSON.parse(opponentPreviewDeckJson)
+                : aiDeck;
         
             if (playerDeck.length !== 3 || aiDeck.length !== 3) {
                 navigate('/team-preview');
@@ -1736,6 +1757,7 @@ export default function BattlePage() {
         
             localDeckRef.current = playerDeck;
             opponentDeckRef.current = aiDeck;
+            opponentPreviewDeckRef.current = opponentPreviewDeck.length > 0 ? opponentPreviewDeck : aiDeck;
             resetBattlePersistenceState();
 
             createBattleState({
@@ -1781,6 +1803,7 @@ export default function BattlePage() {
             setOpponentPlayerId('guest');
             localDeckRef.current = selectedPlayerDeck;
             opponentDeckRef.current = selectedOpponentDeck;
+            opponentPreviewDeckRef.current = selectedOpponentDeck;
             resetBattlePersistenceState();
             createBattleState({
                 host: { team: selectedPlayerDeck },
@@ -1803,6 +1826,7 @@ export default function BattlePage() {
             initializedRef.current = true;
             localDeckRef.current = selectedPlayerDeck;
             opponentDeckRef.current = selectedOpponentDeck;
+            opponentPreviewDeckRef.current = selectedOpponentDeck;
             resetBattlePersistenceState();
             setLocalPlayerId('guest');
             setOpponentPlayerId('host');
@@ -2496,6 +2520,9 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     const monSpecies = species[mon.speciesId];
                     const isActive = idx === player.activeSlot;
                     const isFainted = mon.hp <= 0;
+                    const hpPercentage = mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
+                    const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
+                    const portraitSrc = getPokemonPortraitSrc(mon.speciesId, monSpecies?.name || mon.name);
 
                     return (
                         <button
@@ -2512,11 +2539,44 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 isFainted && 'opacity-50'
                             )}
                         >
-                            <div className="truncate text-sm font-medium text-[var(--text-primary)]">
-                                {monSpecies?.name}
-                            </div>
-                            <div className="text-xs tabular-nums text-[var(--text-muted)]">
-                                HP {mon.hp}/{mon.maxHp}
+                            <div className="flex items-center gap-2">
+                                <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
+                                    <img
+                                        src={portraitSrc}
+                                        alt={monSpecies?.name || mon.name}
+                                        className={cn('size-full object-cover', isFainted && 'grayscale')}
+                                    />
+                                    {isActive && (
+                                        <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full border border-[var(--surface-2)] bg-[var(--accent)]" />
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                                        {monSpecies?.name ?? mon.name}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {(monSpecies?.type ?? mon.types).map((type) => (
+                                            <span
+                                                key={type}
+                                                className="rounded-full px-1.5 py-0.5 text-[10px] text-white"
+                                                style={{ backgroundColor: getTypeColor(type) }}
+                                            >
+                                                {getTypeLabel(type)}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="mt-1.5 flex items-center gap-2">
+                                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                                            <div
+                                                className={cn('h-full transition-all duration-700 ease-out', hpColor)}
+                                                style={{ width: `${hpPercentage}%` }}
+                                            />
+                                        </div>
+                                        <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
+                                            {mon.hp}/{mon.maxHp}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </button>
                     );
@@ -2525,7 +2585,17 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
             </div>
 
             {/* Center column: focused pokemon detail */}
-            <div className="grid min-h-0 rounded-lg bg-[var(--surface-2)] p-4 sm:p-5 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)] lg:p-6 lg:overflow-hidden">
+            <div className="relative grid min-h-0 rounded-lg bg-[var(--surface-2)] p-4 pt-16 sm:p-5 sm:pt-16 lg:h-full lg:grid-rows-[auto_minmax(0,1fr)] lg:p-6 lg:pt-16 lg:overflow-hidden">
+                <button
+                    onClick={() => {
+                        setPendingSelfSwitchMoveId(null);
+                        setCommandMode('fight');
+                    }}
+                    disabled={mustSwitch}
+                    className="absolute right-4 top-4 z-10 inline-flex min-h-10 items-center justify-center rounded-md border border-[#111111] bg-white px-5 py-2 text-sm font-black tracking-[0.12em] text-[#111111] transition-colors hover:bg-[#F5EEE4] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    戻る
+                </button>
                 {(() => {
                     const mon = player.team[focusedTeamSlot] ?? player.team[player.activeSlot];
                     const monSpecies = species[mon.speciesId];
@@ -2544,26 +2614,30 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
                                 {/* 左：基本情報 */}
                                 <div className="space-y-4">
-                                    <div className="mb-3 flex items-start justify-between gap-3">
-                                        <div>
-                                            <div className="text-xl font-bold text-[var(--text-primary)]">
-                                                {monSpecies?.name}
-                                            </div>
-                                            <div className="mt-1 flex gap-1">
-                                                {(monSpecies?.type ?? []).map((t) => (
-                                                    <span
-                                                        key={t}
-                                                        className="rounded-full px-2 py-0.5 text-xs text-white"
-                                                        style={{ backgroundColor: getTypeColor(t) }}
-                                                    >
-                                                        {getTypeLabel(t)}
-                                                    </span>
-                                                ))}
+                                    <div className="mb-3">
+                                        <div className="min-w-0">
+                                            <div className="flex min-w-0 flex-wrap items-start gap-2">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="truncate text-xl font-bold text-[var(--text-primary)]">
+                                                        {monSpecies?.name}
+                                                    </div>
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {(monSpecies?.type ?? []).map((t) => (
+                                                            <span
+                                                                key={t}
+                                                                className="rounded-full px-2 py-0.5 text-xs text-white"
+                                                                style={{ backgroundColor: getTypeColor(t) }}
+                                                            >
+                                                                {getTypeLabel(t)}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="mt-1 text-sm text-[var(--text-muted)]">
                                                 HP {mon.hp}/{mon.maxHp}
                                             </div>
-                                                <div className="mt-2 h-2 w-full bg-[var(--surface-4)]">
+                                            <div className="mt-2 h-2 w-full bg-[var(--surface-4)]">
                                                 <div
                                                     className="h-full bg-[var(--accent)]"
                                                     style={{
@@ -2571,23 +2645,13 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                                     }}
                                                 />
                                             </div>
-                                            <div className="mt-4 rounded-lg bg-[var(--surface-3)] p-3">
-                                                <div className="text-xs text-[var(--text-muted)]">特性</div>
-                                                <div className="font-bold text-[var(--text-primary)]">
+                                            <div className="mt-4 rounded-md border border-[#111111] bg-white p-3">
+                                                <div className="text-[10px] font-bold tracking-[0.14em] text-[#555555]">特性</div>
+                                                <div className="mt-1 break-words text-base font-black leading-snug tracking-[0.06em] text-[#111111]">
                                                     {mon.ability ? getAbilityLabel(mon.ability) : 'なし'}
                                                 </div>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                setPendingSelfSwitchMoveId(null);
-                                                setCommandMode('fight');
-                                            }}
-                                            disabled={mustSwitch}
-                                            className="rounded-lg bg-[var(--surface-3)] px-3 py-1 text-sm text-[var(--text-muted)] disabled:opacity-40"
-                                        >
-                                            戻る
-                                        </button>
                                     </div>
                                 </div>
 
@@ -2690,72 +2754,107 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     <div className="text-sm font-bold text-[var(--text-primary)]">
                         相手チーム
                     </div>
-                    <div className="text-xs text-[var(--text-muted)]">
-                        登場済みのみ表示
-                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:block lg:space-y-2">
-                {ai.team.map((mon, idx) => {
-                    const monSpecies = species[mon.speciesId];
-                    const isActive = idx === ai.activeSlot;
-                    const isFainted = mon.hp <= 0;
-                    const isRevealed = isActive || revealedOpponentSlots.has(idx);
-                    const hpPercentage = mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
-                    const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
-                    const portraitSrc = getPokemonPortraitSrc(mon.speciesId, monSpecies?.name || mon.name);
+                {(() => {
+                    const selectedSlotBySpecies = new Map<string, number>();
+                    ai.team.forEach((mon, idx) => {
+                        selectedSlotBySpecies.set(mon.speciesId, idx);
+                    });
+                    const previewDeck = opponentPreviewDeckRef.current?.length
+                        ? opponentPreviewDeckRef.current.slice(0, OPPONENT_TEAM_PREVIEW_SLOTS)
+                        : ai.team.map((mon) => ({
+                            speciesId: mon.speciesId,
+                            ability: mon.ability ?? '',
+                            moves: mon.moves,
+                            evs: mon.evs,
+                        } satisfies DeckPokemon));
+                    const displayDeck = Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => previewDeck[idx] ?? null);
 
-                    return (
+                    return displayDeck.map((deckMon, idx) => {
+                        const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
+                        const mon = selectedSlot !== undefined ? ai.team[selectedSlot] : null;
+                        const monSpecies = deckMon ? species[deckMon.speciesId] : null;
+                        const displayName = monSpecies?.name ?? mon?.name ?? '未確認';
+                        const isActive = selectedSlot !== undefined && selectedSlot === ai.activeSlot;
+                        const isFainted = Boolean(mon && mon.hp <= 0);
+                        const isRevealed = selectedSlot !== undefined && Boolean(mon && (isActive || revealedOpponentSlots.has(selectedSlot)));
+                        const hpPercentage = mon && mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
+                        const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
+                        const portraitSrc = deckMon
+                            ? getPokemonPortraitSrc(deckMon.speciesId, displayName)
+                            : '';
+
+                        return (
                         <div
                             key={idx}
-                            className={cn(
-                                'rounded-lg border p-2 text-left transition-all',
-                                isRevealed
-                                    ? isActive
-                                        ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
-                                        : 'border-[var(--border)] bg-[var(--surface-3)]'
-                                    : 'border-[var(--border)] bg-[var(--surface-3)] opacity-45',
-                                isFainted && isRevealed && 'opacity-60'
-                            )}
+	                            className={cn(
+	                                'rounded-lg border p-2 text-left transition-all',
+	                                isRevealed
+	                                    ? isActive
+	                                        ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
+	                                        : 'border-[var(--border)] bg-[var(--surface-3)]'
+	                                    : 'border-[var(--border)] bg-[#111111] text-white opacity-55',
+	                                isFainted && 'opacity-60'
+	                            )}
                         >
-                            {isRevealed ? (
+                            {deckMon ? (
                                 <div className="flex items-center gap-2">
-                                    <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
+	                                    <div className={cn(
+	                                        'relative size-12 shrink-0 overflow-hidden rounded-md border bg-[var(--surface-3)]',
+	                                        isRevealed ? 'border-[var(--border)]' : 'border-white/40'
+	                                    )}>
                                         <img
-                                            src={portraitSrc}
-                                            alt={monSpecies?.name || mon.name}
-                                            className={cn('size-full object-cover', isFainted && 'grayscale')}
-                                        />
+	                                            src={portraitSrc}
+	                                            alt={displayName}
+	                                            className={cn('size-full object-cover', (!isRevealed || isFainted) && 'grayscale')}
+	                                        />
                                         {isActive && (
                                             <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full border border-[var(--surface-2)] bg-[var(--accent)]" />
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                                            {monSpecies?.name ?? mon.name}
+	                                        <div className={cn(
+	                                            'truncate text-sm font-semibold',
+	                                            isRevealed ? 'text-[var(--text-primary)]' : 'text-white'
+	                                        )}>
+                                            {displayName}
                                         </div>
                                         <div className="mt-1 flex flex-wrap gap-1">
-                                            {(monSpecies?.type ?? mon.types).map((type) => (
+                                            {(monSpecies?.type ?? mon?.types ?? []).map((type) => (
                                                 <span
                                                     key={type}
-                                                    className="rounded-full px-1.5 py-0.5 text-[10px] text-white"
+	                                                    className={cn(
+	                                                        'rounded-full px-1.5 py-0.5 text-[10px] text-white',
+	                                                        !isRevealed && 'opacity-70'
+	                                                    )}
                                                     style={{ backgroundColor: getTypeColor(type) }}
                                                 >
                                                     {getTypeLabel(type)}
                                                 </span>
                                             ))}
                                         </div>
-                                        <div className="mt-1.5 flex items-center gap-2">
-                                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-4)]">
-                                                <div
-                                                    className={cn('h-full transition-all duration-700 ease-out', hpColor)}
-                                                    style={{ width: `${hpPercentage}%` }}
-                                                />
+                                        {isRevealed && mon ? (
+                                            <div className="mt-1.5 flex items-center gap-2">
+                                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-4)]">
+                                                    <div
+                                                        className={cn('h-full transition-all duration-700 ease-out', hpColor)}
+                                                        style={{ width: `${hpPercentage}%` }}
+                                                    />
+                                                </div>
+                                                <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
+                                                    {mon.hp}/{mon.maxHp}
+                                                </div>
                                             </div>
-                                            <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
-                                                {mon.hp}/{mon.maxHp}
-                                            </div>
-                                        </div>
+	                                        ) : (
+	                                            <div className={cn(
+	                                                'mt-1.5 text-xs font-bold',
+	                                                isRevealed ? 'text-[var(--text-muted)]' : 'text-white/75'
+	                                            )}>
+	                                                未登場
+	                                            </div>
+	                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -2771,7 +2870,8 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                             )}
                           </div>
                       );
-                  })}
+                    });
+                  })()}
                 </div>
               </div>
           </div>
@@ -2887,6 +2987,7 @@ function PokemonStatus({
     const portraitSrc = getPokemonPortraitSrc(creature.speciesId, species?.name || creature.name);
     const typeColor = getTypeColor(effectType);
     const statusFlashColor = statusFlashType ? STATUS_FLASH_COLORS[statusFlashType] : undefined;
+    const [showAllStages, setShowAllStages] = useState(false);
 
     return (
         <div className={cn('min-w-0 flex-1', isPlayer ? 'text-right' : 'text-left')}>
@@ -2967,10 +3068,13 @@ function PokemonStatus({
                     if (stages.spe !== 0) displayStages.push({ label: 'すばやさ', value: stages.spe });
                     if (stages.accuracy !== 0) displayStages.push({ label: 'めいちゅう', value: stages.accuracy });
                     if (stages.evasion !== 0) displayStages.push({ label: 'かいひ', value: stages.evasion });
+                    const visibleStageLimit = 3;
+                    const visibleStageItems = showAllStages ? displayStages : displayStages.slice(0, visibleStageLimit);
+                    const hiddenStageCount = Math.max(0, displayStages.length - visibleStageLimit);
 
                     return displayStages.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
-                            {displayStages.map(({ label, value }) => (
+                            {visibleStageItems.map(({ label, value }) => (
                                 <span
                                     key={label}
                                     className={cn(
@@ -2981,6 +3085,16 @@ function PokemonStatus({
                                     {value > 0 ? '+' : ''}{value} {label}
                                 </span>
                             ))}
+                            {hiddenStageCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllStages((current) => !current)}
+                                    className="rounded border border-[#111111] bg-white px-2 py-0.5 text-xs font-bold tabular-nums text-[#111111] transition-colors hover:bg-[#F5EEE4]"
+                                    aria-expanded={showAllStages}
+                                >
+                                    {showAllStages ? '閉じる' : `+${hiddenStageCount}`}
+                                </button>
+                            )}
                         </div>
                     );
                 })()}

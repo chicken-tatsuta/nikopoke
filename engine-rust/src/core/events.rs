@@ -6,6 +6,8 @@ use crate::core::state::{BattleState, CreatureState, StatStages, Status};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
+const BATON_PASS_STATUS_IDS: &[&str] = &["aqua_ring", "ingrain"];
+
 #[derive(Clone, Debug)]
 pub enum BattleEvent {
     Log {
@@ -571,15 +573,24 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
                 if *slot < player.team.len() {
                     let mut baton_pass_stages = None;
+                    let mut baton_pass_statuses: Vec<Status> = Vec::new();
                     let mut shed_tail_substitute = None;
                     if let Some(outgoing) = player.team.get_mut(player.active_slot) {
-                        if outgoing
+                        let is_baton_pass = outgoing
                             .volatile_data
                             .get("batonPass")
                             .and_then(|v| v.as_bool())
-                            .unwrap_or(false)
-                        {
+                            .unwrap_or(false);
+                        if is_baton_pass {
                             baton_pass_stages = Some(outgoing.stages.clone());
+                            baton_pass_statuses = outgoing
+                                .statuses
+                                .iter()
+                                .filter(|status| {
+                                    BATON_PASS_STATUS_IDS.contains(&status.id.as_str())
+                                })
+                                .cloned()
+                                .collect();
                         }
                         if outgoing
                             .volatile_data
@@ -622,6 +633,12 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             incoming.stages = stages;
                         }
                         incoming.statuses.retain(|s| s.id != "pending_switch");
+                        if !baton_pass_statuses.is_empty() {
+                            incoming.statuses.retain(|status| {
+                                !BATON_PASS_STATUS_IDS.contains(&status.id.as_str())
+                            });
+                            incoming.statuses.extend(baton_pass_statuses);
+                        }
                         if let Some(substitute) = shed_tail_substitute {
                             incoming.statuses.retain(|s| s.id != "substitute");
                             incoming.statuses.push(substitute);
@@ -1207,6 +1224,56 @@ mod tests {
         assert_eq!(incoming.stages.atk, 2);
         assert_eq!(incoming.stages.def, -1);
         assert_eq!(incoming.stages.spe, 3);
+    }
+
+    #[test]
+    fn baton_pass_switch_carries_aqua_ring_and_ingrain_to_incoming_creature() {
+        let mut state = test_state();
+        state.players[0].team[0].statuses.push(Status {
+            id: "aqua_ring".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0].statuses.push(Status {
+            id: "ingrain".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0].statuses.push(Status {
+            id: "protect".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0]
+            .volatile_data
+            .insert("batonPass".to_string(), Value::Bool(true));
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        let outgoing = &next.players[0].team[0];
+        let incoming = &next.players[0].team[1];
+        assert!(!outgoing
+            .statuses
+            .iter()
+            .any(|status| status.id == "aqua_ring" || status.id == "ingrain"));
+        assert!(incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "aqua_ring"));
+        assert!(incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "ingrain"));
+        assert!(!incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "protect"));
     }
 
     #[test]

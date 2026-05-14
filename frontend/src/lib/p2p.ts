@@ -73,7 +73,16 @@ interface OnlineSessionState {
 
 const listeners = new Set<(event: OnlineSessionEvent) => void>();
 const JOIN_TIMEOUT_MS = 30000;
-const ROOM_CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+const ROOM_LOOKUP_RETRY_COUNT = 8;
+const ROOM_LOOKUP_RETRY_DELAY_MS = 500;
+const PEER_CONNECT_RETRY_COUNT = 3;
+const PEER_CONNECT_RETRY_DELAY_MS = 900;
+
+function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+    });
+}
 
 // --- ICE Servers (TURN / STUN) ---
 
@@ -476,6 +485,9 @@ function attachConnection(connection: DataConnection): void {
 
     connection.on('error', (error) => {
         console.error('[p2p] connection error', error);
+        if (session.status === 'joining' && isRetryablePeerError(error)) {
+            return;
+        }
         if (session.connection === connection) {
             setError(error.message);
         }
@@ -489,6 +501,9 @@ function setupPeerCommon(peer: Peer): void {
 
     peer.on('error', (error) => {
         console.error('[p2p] peer error', error);
+        if (session.status === 'joining' && isRetryablePeerError(error)) {
+            return;
+        }
         setError(error.message);
     });
 
@@ -542,10 +557,35 @@ export function validateRoomCode(code: string): string | null {
 }
 
 function createReadableRoomCode(): string {
-    const suffix = Array.from({ length: 4 }, () =>
-        ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)],
-    ).join('');
-    return `niko-${suffix}`;
+    return Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+}
+
+async function lookupRoomCodeWithRetry(roomCode: string): Promise<string | null> {
+    for (let attempt = 0; attempt <= ROOM_LOOKUP_RETRY_COUNT; attempt += 1) {
+        const peerId = await lookupRoomCode(roomCode);
+        if (peerId) {
+            if (attempt > 0) {
+                console.log('[p2p] room lookup succeeded after retry', { roomCode, attempt });
+            }
+            return peerId;
+        }
+        if (attempt < ROOM_LOOKUP_RETRY_COUNT) {
+            await delay(ROOM_LOOKUP_RETRY_DELAY_MS);
+        }
+    }
+    return null;
+}
+
+function isRetryablePeerError(error: Error): boolean {
+    const type = 'type' in error ? String((error as Error & { type?: unknown }).type ?? '') : '';
+    const message = error.message.toLowerCase();
+    return (
+        type === 'peer-unavailable' ||
+        type === 'network' ||
+        message.includes('could not connect') ||
+        message.includes('peer-unavailable') ||
+        message.includes('is not available')
+    );
 }
 
 
@@ -653,21 +693,19 @@ export async function joinHostSession(
     const peerOptions = buildPeerOptions(iceServers);
 
     // Resolve the room code to an actual PeerID via Supabase.
-    // Fall back to using the code directly as PeerID (legacy mode) if Supabase is not configured.
-    let resolvedPeerId = roomCode;
-    const lookedUpPeerId = await lookupRoomCode(roomCode);
+    const lookedUpPeerId = await lookupRoomCodeWithRetry(roomCode);
     if (lookedUpPeerId) {
-        resolvedPeerId = lookedUpPeerId;
-    } else if (lookedUpPeerId === null) {
-        // lookup succeeded but returned null → code not found
+        console.log('[p2p] room code resolved', { roomCode, peerId: lookedUpPeerId });
+    } else {
         throw new Error(
             `ルームコード "${roomCode}" が見つかりませんでした。コードが正しいか、ホストがルームを作成したままかを確認してください。`,
         );
     }
-    // If lookup returns undefined (Supabase not configured), fall through with roomCode as peerId.
+    const resolvedPeerId = lookedUpPeerId;
 
     return await new Promise<void>((resolve, reject) => {
         let resolved = false;
+        let connectionAttempt = 0;
 
         const rejectOnce = (error: Error): void => {
             if (resolved) return;
@@ -687,30 +725,55 @@ export async function joinHostSession(
         const peer = new Peer(peerOptions);
         session.peer = peer;
         emitSnapshot();
-        setupPeerCommon(peer);
+            setupPeerCommon(peer);
 
         peer.on('open', (peerId) => {
             console.log('[p2p] guest peer open', peerId);
             session.localPeerId = peerId;
             emitSnapshot();
 
-            const connection = peer.connect(resolvedPeerId, {
-                reliable: true,
-            });
+            const connect = () => {
+                if (resolved || peer.destroyed) {
+                    return;
+                }
+                connectionAttempt += 1;
+                const connection = peer.connect(resolvedPeerId, {
+                    reliable: true,
+                });
 
-            console.log('[p2p] connecting to host peer', resolvedPeerId);
-            attachConnection(connection);
+                console.log('[p2p] connecting to host peer', {
+                    roomCode,
+                    resolvedPeerId,
+                    attempt: connectionAttempt,
+                });
+                attachConnection(connection);
 
-            connection.on('open', () => {
-                if (resolved) return;
-                resolved = true;
-                window.clearTimeout(timeoutId);
-                resolve();
-            });
+                connection.on('open', () => {
+                    if (resolved) return;
+                    resolved = true;
+                    window.clearTimeout(timeoutId);
+                    resolve();
+                });
 
-            connection.on('error', (error) => {
-                rejectOnce(error);
-            });
+                connection.on('error', (error) => {
+                    if (
+                        connectionAttempt < PEER_CONNECT_RETRY_COUNT &&
+                        isRetryablePeerError(error)
+                    ) {
+                        console.warn('[p2p] connection attempt failed, retrying', {
+                            roomCode,
+                            resolvedPeerId,
+                            attempt: connectionAttempt,
+                            error,
+                        });
+                        window.setTimeout(connect, PEER_CONNECT_RETRY_DELAY_MS);
+                        return;
+                    }
+                    rejectOnce(error);
+                });
+            };
+
+            connect();
         });
 
         peer.on('error', (error) => {
