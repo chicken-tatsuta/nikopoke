@@ -105,7 +105,7 @@ export default function ProfilePage() {
                             {profile?.username ?? 'ユーザー'}
                         </h1>
                         <p className="mt-4 max-w-xl text-sm font-bold leading-7 tracking-[0.08em] text-[#333333]">
-                            作成したデッキを確認して、必要なら編集へ戻る。輝かしい戦績。
+                            作成したデッキを確認して、必要なら編集へ戻る。輝かしいあなたの戦績はこの右。
                         </p>
                     </div>
 
