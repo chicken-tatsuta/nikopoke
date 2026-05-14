@@ -2799,75 +2799,67 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
 	                                isFainted && 'opacity-60'
 	                            )}
                         >
-                            {deckMon ? (
+                            {isRevealed && deckMon && mon ? (
                                 <div className="flex items-center gap-2">
-	                                    <div className={cn(
+		                                    <div className={cn(
 	                                        'relative size-12 shrink-0 overflow-hidden rounded-md border bg-[var(--surface-3)]',
-	                                        isRevealed ? 'border-[var(--border)]' : 'border-white/40'
+	                                        'border-[var(--border)]'
 	                                    )}>
                                         <img
-	                                            src={portraitSrc}
-	                                            alt={displayName}
-	                                            className={cn('size-full object-cover', (!isRevealed || isFainted) && 'grayscale')}
-	                                        />
+		                                            src={portraitSrc}
+		                                            alt={displayName}
+		                                            className={cn('size-full object-cover', isFainted && 'grayscale')}
+		                                        />
                                         {isActive && (
                                             <span className="absolute bottom-0.5 right-0.5 size-2.5 rounded-full border border-[var(--surface-2)] bg-[var(--accent)]" />
                                         )}
                                     </div>
-                                    <div className="min-w-0 flex-1">
-	                                        <div className={cn(
-	                                            'truncate text-sm font-semibold',
-	                                            isRevealed ? 'text-[var(--text-primary)]' : 'text-white'
-	                                        )}>
-                                            {displayName}
-                                        </div>
+	                                    <div className="min-w-0 flex-1">
+		                                        <div className={cn(
+		                                            'truncate text-sm font-semibold',
+		                                            'text-[var(--text-primary)]'
+		                                        )}>
+	                                            {displayName}
+	                                        </div>
                                         <div className="mt-1 flex flex-wrap gap-1">
                                             {(monSpecies?.type ?? mon?.types ?? []).map((type) => (
                                                 <span
                                                     key={type}
 	                                                    className={cn(
 	                                                        'rounded-full px-1.5 py-0.5 text-[10px] text-white',
-	                                                        !isRevealed && 'opacity-70'
-	                                                    )}
+		                                                    )}
                                                     style={{ backgroundColor: getTypeColor(type) }}
                                                 >
                                                     {getTypeLabel(type)}
                                                 </span>
                                             ))}
                                         </div>
-                                        {isRevealed && mon ? (
-                                            <div className="mt-1.5 flex items-center gap-2">
+	                                        (
+	                                            <div className="mt-1.5 flex items-center gap-2">
                                                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-4)]">
                                                     <div
                                                         className={cn('h-full transition-all duration-700 ease-out', hpColor)}
                                                         style={{ width: `${hpPercentage}%` }}
                                                     />
                                                 </div>
-                                                <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
-                                                    {mon.hp}/{mon.maxHp}
-                                                </div>
-                                            </div>
-	                                        ) : (
-	                                            <div className={cn(
-	                                                'mt-1.5 text-xs font-bold',
-	                                                isRevealed ? 'text-[var(--text-muted)]' : 'text-white/75'
-	                                            )}>
-	                                                未登場
+	                                                <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
+	                                                    {mon.hp}/{mon.maxHp}
+	                                                </div>
 	                                            </div>
-	                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex min-h-12 items-center gap-2">
-                                    <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-3)] text-lg font-bold text-[var(--text-muted)]">
-                                        ?
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="text-sm font-semibold text-[var(--text-muted)]">未確認</div>
-                                        <div className="mt-1 text-xs text-[var(--text-muted)]">情報なし</div>
-                                    </div>
-                                </div>
-                            )}
+		                                        )
+	                                    </div>
+	                                </div>
+	                            ) : (
+	                                <div className="flex min-h-12 items-center gap-2">
+	                                    <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-white/40 bg-white text-lg font-bold text-[#888888]">
+	                                        ?
+	                                    </div>
+	                                    <div className="min-w-0">
+	                                        <div className="text-sm font-semibold text-white">未確認</div>
+	                                        <div className="mt-1 text-xs text-white/75">未登場</div>
+	                                    </div>
+	                                </div>
+	                            )}
                           </div>
                       );
                     });

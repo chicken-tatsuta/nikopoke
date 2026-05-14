@@ -406,6 +406,30 @@ fn damage_move_with_priority(
     }
 }
 
+fn sucker_punch_move() -> MoveData {
+    MoveData {
+        id: "sucker_punch".to_string(),
+        name: Some("ふいうち".to_string()),
+        move_type: Some("dark".to_string()),
+        category: Some("physical".to_string()),
+        pp: Some(5),
+        power: Some(70),
+        accuracy: Some(1.0),
+        priority: Some(1),
+        description: None,
+        steps: vec![effect(
+            "conditional",
+            json!({
+                "if": { "type": "target_selected_attacking_move" },
+                "then": [{ "type": "damage", "power": 70, "accuracy": 1.0 }],
+                "else": [{ "type": "log", "message": "しかし うまく きまらなかった！" }]
+            }),
+        )],
+        tags: vec!["contact".to_string()],
+        crit_rate: None,
+    }
+}
+
 fn field_status_move(id: &str, status_id: &str) -> MoveData {
     MoveData {
         id: id.to_string(),
@@ -420,6 +444,26 @@ fn field_status_move(id: &str, status_id: &str) -> MoveData {
         steps: vec![effect(
             "apply_field_status",
             json!({ "statusId": status_id, "duration": 5, "stack": false }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
+fn status_stage_move(id: &str, target: &str, stat: &str, delta: i32) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "modify_stage",
+            json!({ "target": target, "stages": { stat: delta } }),
         )],
         tags: Vec::new(),
         crit_rate: None,
@@ -1045,6 +1089,188 @@ fn p0_spec_priority_still_overrides_speed_order_under_trick_room() {
 
     assert_active_hp(&next, "p1", 100);
     assert_active_hp(&next, "p2", 0);
+}
+
+#[test]
+fn p0_spec_sucker_punch_hits_when_target_selected_physical_or_special_move() {
+    for category in ["physical", "special"] {
+        let engine = make_engine(vec![
+            sucker_punch_move(),
+            damage_move("strike", category, 40, None),
+        ]);
+        let state = battle_state(vec![
+            player(
+                "p1",
+                "P1",
+                vec![CreatureBuilder::new("c1", "Sucker")
+                    .moves(&["sucker_punch"])
+                    .build()],
+            ),
+            player(
+                "p2",
+                "P2",
+                vec![CreatureBuilder::new("c2", "Attacker")
+                    .moves(&["strike"])
+                    .build()],
+            ),
+        ]);
+
+        let next = run_turn_with_seed(
+            &engine,
+            &state,
+            &[
+                move_action("p1", "sucker_punch", "p2"),
+                move_action("p2", "strike", "p1"),
+            ],
+            7,
+        );
+
+        assert!(
+            active_hp(&next, "p2") < 100,
+            "sucker punch should hit when target selected {category}"
+        );
+    }
+}
+
+#[test]
+fn p0_spec_sucker_punch_fails_when_target_selected_status_move() {
+    let engine = make_engine(vec![sucker_punch_move(), wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Sucker")
+                .moves(&["sucker_punch"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Status")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "sucker_punch", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        8,
+    );
+
+    assert_active_hp(&next, "p2", 100);
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく きまらなかった")),
+        "failed sucker punch should be logged"
+    );
+}
+
+#[test]
+fn p0_spec_prankster_status_move_fails_against_dark_target() {
+    let engine = make_engine(vec![
+        status_stage_move("scary_prank", "target", "atk", -1),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Prankster")
+                .moves(&["scary_prank"])
+                .ability("prankster")
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "DarkTarget")
+                .types(&["dark"])
+                .moves(&["wait"])
+                .stats(50, 50, 50, 50, 200)
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "scary_prank", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        9,
+    );
+
+    let dark_target = &next.players[1].team[0];
+    assert_eq!(
+        dark_target.stages.atk, 0,
+        "prankster target status move should not affect dark targets"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく きまらなかった")),
+        "blocked prankster move should log failure"
+    );
+}
+
+#[test]
+fn p0_spec_prankster_self_and_field_moves_still_work_against_dark_target() {
+    let engine = make_engine(vec![
+        status_stage_move("self_boost", "self", "atk", 1),
+        field_status_move("set_spikes", "spikes"),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Prankster")
+                .moves(&["self_boost", "set_spikes"])
+                .ability("prankster")
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "DarkTarget")
+                .types(&["dark"])
+                .moves(&["wait"])
+                .stats(50, 50, 50, 50, 200)
+                .build()],
+        ),
+    ]);
+
+    let after_boost = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "self_boost", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        10,
+    );
+    assert_eq!(
+        after_boost.players[0].team[0].stages.atk, 1,
+        "prankster self-target boost should still work"
+    );
+
+    let after_field = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "set_spikes", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        11,
+    );
+    assert_field_has_status(&after_field, "spikes");
 }
 
 #[test]

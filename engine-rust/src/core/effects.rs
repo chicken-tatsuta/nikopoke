@@ -3422,6 +3422,13 @@ fn evaluate_condition(state: &BattleState, cond: Option<&Value>, ctx: &EffectCon
                     .and_then(|v| v.as_i64())
                     .is_some_and(|priority| priority > 0)
             }),
+        "target_selected_attacking_move" => get_active_creature(state, &ctx.target_player_id)
+            .map_or(false, |c| {
+                c.volatile_data
+                    .get("selectedMoveCategory")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|category| matches!(category, "physical" | "special"))
+            }),
         "target_has_not_acted_this_turn" => get_active_creature(state, &ctx.target_player_id)
             .map_or(false, |c| {
                 !c.volatile_data

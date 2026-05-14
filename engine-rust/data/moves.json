@@ -13270,9 +13270,23 @@
     "priority": 1,
     "steps": [
       {
-        "accuracy": 1,
-        "power": 70,
-        "type": "damage"
+        "else": [
+          {
+            "message": "しかし うまく きまらなかった！",
+            "type": "log"
+          }
+        ],
+        "if": {
+          "type": "target_selected_attacking_move"
+        },
+        "then": [
+          {
+            "accuracy": 1,
+            "power": 70,
+            "type": "damage"
+          }
+        ],
+        "type": "conditional"
       }
     ],
     "tags": [
