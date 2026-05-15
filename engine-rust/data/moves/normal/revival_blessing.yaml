@@ -8,6 +8,7 @@ accuracy: null
 priority: 0
 description: 手持ちの『ひんし』状態のポケモンを、最大HPの半分だけ回復させる。
 steps:
-- type: log
-  message: さいきのいのりは まだ実装されていない！
+- type: revive_fainted
+  target: user
+  ratioMaxHp: 0.5
 tags: []

@@ -1137,6 +1137,22 @@ fn apply_switch_in_field_effects(
         .count();
     let mut spikes_logged = false;
     let mut toxic_spikes_handled = false;
+    if grounded
+        && toxic_spikes_layers > 0
+        && active.types.iter().any(|pokemon_type| pokemon_type == "poison")
+    {
+        let mut meta = Map::new();
+        meta.insert("sideId".to_string(), Value::String(player_id.to_string()));
+        events.push(BattleEvent::Log {
+            message: "足元の どくびしが 消え去った！".to_string(),
+            meta: Map::new(),
+        });
+        events.push(BattleEvent::RemoveFieldStatus {
+            status_id: "toxic_spikes".to_string(),
+            meta,
+        });
+        toxic_spikes_handled = true;
+    }
     for effect in effects {
         match effect.id.as_str() {
             "spikes" if grounded => {

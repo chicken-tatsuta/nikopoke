@@ -7981,8 +7981,9 @@ revival_blessing:
   pp: 1
   priority: 0
   steps:
-    - message: さいきのいのりは まだ実装されていない！
-      type: log
+    - ratioMaxHp: 0.5
+      target: user
+      type: revive_fainted
   tags: []
   type: normal
 roar:

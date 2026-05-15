@@ -1274,6 +1274,82 @@ fn p0_spec_prankster_self_and_field_moves_still_work_against_dark_target() {
 }
 
 #[test]
+fn p0_spec_poison_type_switch_in_absorbs_toxic_spikes() {
+    let engine = make_engine(vec![wait_move()]);
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Lead")
+                    .moves(&["wait"])
+                    .build(),
+                CreatureBuilder::new("c2", "PoisonSwitch")
+                    .types(&["poison"])
+                    .moves(&["wait"])
+                    .build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c3", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    state.field.sides.insert(
+        "p1".to_string(),
+        vec![
+            FieldEffect {
+                id: "toxic_spikes".to_string(),
+                remaining_turns: None,
+                data: HashMap::new(),
+            },
+            FieldEffect {
+                id: "toxic_spikes".to_string(),
+                remaining_turns: None,
+                data: HashMap::new(),
+            },
+        ],
+    );
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            switch_action("p1", 1),
+            move_action("p2", "wait", "p1"),
+        ],
+        12,
+    );
+
+    let active = &next.players[0].team[next.players[0].active_slot];
+    assert_eq!(active.id, "c2");
+    assert!(
+        !active
+            .statuses
+            .iter()
+            .any(|status| status.id == "poison" || status.id == "toxic"),
+        "poison type should absorb toxic spikes instead of being poisoned"
+    );
+    assert!(
+        !next
+            .field
+            .sides
+            .get("p1")
+            .is_some_and(|effects| effects.iter().any(|effect| effect.id == "toxic_spikes")),
+        "toxic spikes should be removed from the switching player's side"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("足元の どくびしが 消え去った！")),
+        "absorbing toxic spikes should be logged"
+    );
+}
+
+#[test]
 fn p0_spec_reflect_reduces_physical_damage() {
     let engine = make_engine(vec![
         damage_move("strike", "physical", 80, None),

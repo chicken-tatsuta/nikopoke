@@ -202,6 +202,7 @@ fn apply_effect(
         "beat_up_effect" => apply_beat_up_effect(state, ctx),
         "imprison_effect" => apply_imprison_effect(state, ctx),
         "healing_wish_effect" => apply_healing_wish_effect(state, ctx),
+        "revive_fainted" => apply_revive_fainted(state, effect, ctx),
         "strength_sap_effect" => apply_strength_sap_effect(state, ctx),
         "charge_attack" => apply_charge_attack(state, effect, ctx),
         "triple_axel_effect" => apply_triple_axel_effect(state, effect, ctx),
@@ -2540,6 +2541,63 @@ fn apply_healing_wish_effect(state: &BattleState, ctx: &EffectContext<'_>) -> Ve
     ]
 }
 
+fn apply_revive_fainted(
+    state: &BattleState,
+    effect: &Effect,
+    ctx: &mut EffectContext<'_>,
+) -> Vec<BattleEvent> {
+    let target_player_id = resolve_target(effect.data.get("target"), ctx);
+    let Some(player) = state.players.iter().find(|player| player.id == target_player_id) else {
+        return Vec::new();
+    };
+
+    let selected = ctx
+        .switch_slot
+        .and_then(|slot| {
+            player
+                .team
+                .get(slot)
+                .filter(|creature| slot != player.active_slot && creature.hp <= 0)
+                .map(|creature| (slot, creature))
+        })
+        .or_else(|| {
+            if ctx.switch_slot.is_some() {
+                return None;
+            }
+            player
+                .team
+                .iter()
+                .enumerate()
+                .find(|(slot, creature)| *slot != player.active_slot && creature.hp <= 0)
+        });
+
+    let Some((slot, creature)) = selected else {
+        return vec![BattleEvent::Log {
+            message: "しかし うまく きまらなかった！".to_string(),
+            meta: meta_with_move_source(
+                ctx.move_data.map(|m| m.id.as_str()),
+                Some(&ctx.attacker_player_id),
+            ),
+        }];
+    };
+
+    let ratio = value_f64(effect.data.get("ratioMaxHp"), state, ctx).unwrap_or(0.5);
+    let restored_hp = ((creature.max_hp as f64) * ratio).floor().max(1.0) as i32;
+    let mut meta = meta_with_move_source(
+        ctx.move_data.map(|m| m.id.as_str()),
+        Some(&ctx.attacker_player_id),
+    );
+    meta.insert("target".to_string(), Value::String(target_player_id.clone()));
+    meta.insert("slot".to_string(), Value::Number((slot as i64).into()));
+
+    vec![BattleEvent::ReviveTeamMember {
+        player_id: target_player_id,
+        slot,
+        hp: restored_hp,
+        meta,
+    }]
+}
+
 fn apply_strength_sap_effect(state: &BattleState, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
     let Some(target) = get_active_creature(state, &ctx.target_player_id) else {
         return Vec::new();
@@ -2932,7 +2990,7 @@ fn apply_run_away() -> Vec<BattleEvent> {
 
 fn resolve_target(value: Option<&Value>, ctx: &EffectContext<'_>) -> String {
     match value.and_then(|v| v.as_str()) {
-        Some("self") => ctx.attacker_player_id.clone(),
+        Some("self") | Some("user") => ctx.attacker_player_id.clone(),
         Some("all") => ctx.target_player_id.clone(),
         Some("target") | None => ctx.target_player_id.clone(),
         Some(other) => other.to_string(),

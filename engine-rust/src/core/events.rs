@@ -127,6 +127,12 @@ pub enum BattleEvent {
         target_id: String,
         meta: Map<String, Value>,
     },
+    ReviveTeamMember {
+        player_id: String,
+        slot: usize,
+        hp: i32,
+        meta: Map<String, Value>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -182,6 +188,7 @@ pub fn event_type(event: &BattleEvent) -> &str {
         BattleEvent::SwapStages { .. } => "swap_stages",
         BattleEvent::AverageStats { .. } => "average_stats",
         BattleEvent::SwapAttackDefense { .. } => "swap_attack_defense",
+        BattleEvent::ReviveTeamMember { .. } => "revive_team_member",
     }
 }
 
@@ -401,6 +408,14 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             active.item = Some(item_id.clone());
                         }
                     }
+                    if !stack {
+                        if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
+                        {
+                            next.log
+                                .push(format!("{}は すでに {}状態だ！", active.name, status_id));
+                            return next;
+                        }
+                    }
                     if is_exclusive_major_status(status_id)
                         && active
                             .statuses
@@ -409,14 +424,6 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     {
                         next.log.push("しかしうまく決まらなかった！".to_string());
                         return next;
-                    }
-                    if !stack {
-                        if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
-                        {
-                            next.log
-                                .push(format!("{}は すでに {}状態だ！", active.name, status_id));
-                            return next;
-                        }
                     }
                     active.statuses.push(Status {
                         id: status_id.clone(),
@@ -668,6 +675,32 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             "{}は {}を 繰り出した！",
                             player.name, incoming.name
                         ));
+                    }
+                }
+            }
+        }
+        BattleEvent::ReviveTeamMember {
+            player_id, slot, hp, ..
+        } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
+                if let Some(creature) = player.team.get_mut(*slot) {
+                    if creature.hp <= 0 {
+                        let restored = (*hp).clamp(1, creature.max_hp.max(1));
+                        creature.hp = restored;
+                        creature.statuses.retain(|status| status.id != "pending_switch");
+                        next.log.push(format!(
+                            "{}は さいきのいのりで 復活した！",
+                            creature.name
+                        ));
+                        next.log
+                            .push(format!("{}の HPが {}回復した！", creature.name, restored));
+
+                        if !player.team.iter().any(|member| member.hp <= 0) {
+                            player.last_fainted_ability = None;
+                            if let Some(effects) = next.field.sides.get_mut(player_id) {
+                                effects.retain(|effect| effect.id != "ally_fainted");
+                            }
+                        }
                     }
                 }
             }
@@ -1120,7 +1153,8 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
         | BattleEvent::SetStages { meta, .. }
         | BattleEvent::SwapStages { meta, .. }
         | BattleEvent::AverageStats { meta, .. }
-        | BattleEvent::SwapAttackDefense { meta, .. } => Some(meta),
+        | BattleEvent::SwapAttackDefense { meta, .. }
+        | BattleEvent::ReviveTeamMember { meta, .. } => Some(meta),
         _ => None,
     }
 }
