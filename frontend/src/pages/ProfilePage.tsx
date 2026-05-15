@@ -92,13 +92,34 @@ export default function ProfilePage() {
         setResettingRating(true);
         setMessage('');
         try {
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError) throw sessionError;
+            if (!sessionData.session) {
+                throw new Error('ログインセッションが見つかりません。再ログインしてください。');
+            }
+
             const { data, error } = await supabase.rpc('reset_season_ratings', { p_rating: 1500 });
             if (error) throw error;
+
+            const { count, error: verifyError } = await supabase
+                .from('profiles')
+                .select('id', { count: 'exact', head: true })
+                .neq('rating', 1500);
+            if (verifyError) throw verifyError;
+
             await refreshProfile();
+
+            const remaining = count ?? 0;
+            if (remaining > 0) {
+                setMessage(`RPCは完了しましたが、まだ${remaining}人のレートが1500以外です。`);
+                return;
+            }
+
             setMessage(`${Number(data ?? 0)}人のレートを1500にリセットしました。`);
         } catch (error) {
             console.error('[profile] Failed to reset season ratings:', error);
-            setMessage('レートリセットに失敗しました。管理者権限とDB migrationを確認してください。');
+            const detail = error instanceof Error ? error.message : '詳細不明';
+            setMessage(`レートリセットに失敗しました: ${detail}`);
         } finally {
             setResettingRating(false);
         }

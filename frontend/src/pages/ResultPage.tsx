@@ -12,6 +12,10 @@ interface BattleResult {
 interface RatingDelta {
     winnerDelta: number;
     loserDelta: number;
+    winnerEloDelta?: number;
+    loserEloDelta?: number;
+    winnerBonus?: number;
+    loserBonus?: number;
 }
 
 interface ResultLocationState {
@@ -46,6 +50,10 @@ export default function ResultPage() {
 
     const localPlayerId = result.localPlayerId ?? 'player';
     const isVictory = result.winner === localPlayerId;
+    const totalDelta = ratingDelta ? (isVictory ? ratingDelta.winnerDelta : ratingDelta.loserDelta) : 0;
+    const eloDelta = ratingDelta ? (isVictory ? ratingDelta.winnerEloDelta : ratingDelta.loserEloDelta) ?? totalDelta : 0;
+    const bonusDelta = ratingDelta ? (isVictory ? ratingDelta.winnerBonus : ratingDelta.loserBonus) ?? 0 : 0;
+    const formatDelta = (value: number) => value > 0 ? `+${value}` : String(value);
 
     return (
         <div className="min-h-dvh bg-white bg-grid-pattern flex flex-col items-center justify-center p-6 text-[#111111]">
@@ -64,9 +72,15 @@ export default function ResultPage() {
                 </p>
 
                 {ratingDelta && (
-                    <p className="text-xl font-bold mb-6 tabular-nums">
-                        {isVictory ? `レート +${ratingDelta.winnerDelta}` : `レート ${ratingDelta.loserDelta}`}
-                    </p>
+                    <div className="mb-6 rounded-md border border-[#111111] bg-[#FAFAFA] p-4 text-left">
+                        <p className="mb-3 text-center text-xl font-bold tabular-nums">
+                            レート変動: {formatDelta(totalDelta)}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 text-sm font-bold tabular-nums text-[#333333]">
+                            <span>Elo: {formatDelta(eloDelta)}</span>
+                            <span className="text-right">ボーナス: {formatDelta(bonusDelta)}</span>
+                        </div>
+                    </div>
                 )}
 
                 <div className="bg-[#FAFAFA] rounded-md border border-[#111111] p-4 mb-6 max-h-48 overflow-y-auto text-left">

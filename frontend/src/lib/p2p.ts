@@ -29,6 +29,7 @@ export interface OnlineSessionSnapshot {
     remoteSelectedDeck: DeckPokemon[] | null;
     latestState: BattleStateWire | null;
     latestActions: ActionWire[] | null;
+    latestBattleId: string | null;
     error: string | null;
 }
 
@@ -36,9 +37,9 @@ type OnlineMessage =
     | { type: 'hello'; role: OnlineRole; peerId: string; userId?: string | null; userName?: string | null; deck: DeckPokemon[] }
     | { type: 'start_battle' }
     | { type: 'team_selected'; deck: DeckPokemon[] }
-    | { type: 'battle_init'; state: BattleStateWire }
+    | { type: 'battle_init'; state: BattleStateWire; battleId?: string | null }
     | { type: 'action_submit'; actorId: OnlineRole; action: ActionWire }
-    | { type: 'battle_update'; state: BattleStateWire; actions: ActionWire[] }
+    | { type: 'battle_update'; state: BattleStateWire; actions: ActionWire[]; battleId?: string | null }
     | { type: 'ping'; ts: number }
     | { type: 'pong'; ts: number };
 
@@ -46,9 +47,9 @@ type OnlineSessionEvent =
     | { type: 'snapshot'; snapshot: OnlineSessionSnapshot }
     | { type: 'start_battle' }
     | { type: 'team_selected'; deck: DeckPokemon[] }
-    | { type: 'battle_init'; state: BattleStateWire }
+    | { type: 'battle_init'; state: BattleStateWire; battleId?: string | null }
     | { type: 'remote_action'; actorId: OnlineRole; action: ActionWire }
-    | { type: 'battle_update'; state: BattleStateWire; actions: ActionWire[] }
+    | { type: 'battle_update'; state: BattleStateWire; actions: ActionWire[]; battleId?: string | null }
     | { type: 'peer_left' }
     | { type: 'reconnected' }
     | { type: 'error'; message: string };
@@ -71,6 +72,7 @@ interface OnlineSessionState {
     remoteSelectedDeck: DeckPokemon[] | null;
     latestState: BattleStateWire | null;
     latestActions: ActionWire[] | null;
+    latestBattleId: string | null;
     error: string | null;
 }
 
@@ -289,6 +291,7 @@ function createInitialState(): OnlineSessionState {
         remoteSelectedDeck: null,
         latestState: null,
         latestActions: null,
+        latestBattleId: null,
         error: null,
     };
 }
@@ -337,6 +340,7 @@ function getSnapshot(): OnlineSessionSnapshot {
         remoteSelectedDeck: session.remoteSelectedDeck ? cloneDeck(session.remoteSelectedDeck) : null,
         latestState: session.latestState,
         latestActions: session.latestActions ? [...session.latestActions] : null,
+        latestBattleId: session.latestBattleId,
         error: session.error,
     };
 }
@@ -429,8 +433,9 @@ function handleIncomingMessage(raw: unknown): void {
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);
             session.latestActions = null;
+            session.latestBattleId = message.battleId ?? null;
             emitSnapshot();
-            emit({ type: 'battle_init', state: toPlainData(message.state) });
+            emit({ type: 'battle_init', state: toPlainData(message.state), battleId: message.battleId ?? null });
             return;
         case 'action_submit':
             emit({ type: 'remote_action', actorId: message.actorId, action: message.action });
@@ -439,11 +444,13 @@ function handleIncomingMessage(raw: unknown): void {
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);
             session.latestActions = toPlainData([...message.actions]);
+            session.latestBattleId = message.battleId ?? session.latestBattleId;
             emitSnapshot();
             emit({
                 type: 'battle_update',
                 state: toPlainData(message.state),
                 actions: toPlainData([...message.actions]),
+                battleId: message.battleId ?? session.latestBattleId,
             });
             return;
     }
@@ -896,13 +903,14 @@ export function sendTeamSelected(deck: DeckPokemon[]): void {
     sendMessage({ type: 'team_selected', deck: cloneDeck(deck) });
 }
 
-export function sendBattleInit(state: BattleStateWire): void {
+export function sendBattleInit(state: BattleStateWire, battleId?: string | null): void {
     session.status = 'in_battle';
     const plainState = toPlainData(state);
     session.latestState = plainState;
     session.latestActions = null;
+    session.latestBattleId = battleId ?? session.latestBattleId;
     emitSnapshot();
-    sendMessage({ type: 'battle_init', state: plainState });
+    sendMessage({ type: 'battle_init', state: plainState, battleId: session.latestBattleId });
 }
 
 export function sendBattleUpdate(state: BattleStateWire, actions: ActionWire[]): void {
@@ -912,7 +920,7 @@ export function sendBattleUpdate(state: BattleStateWire, actions: ActionWire[]):
     session.latestState = plainState;
     session.latestActions = plainActions;
     emitSnapshot();
-    sendMessage({ type: 'battle_update', state: plainState, actions: plainActions });
+    sendMessage({ type: 'battle_update', state: plainState, actions: plainActions, battleId: session.latestBattleId });
 }
 
 export function sendPlayerAction(action: ActionWire): void {

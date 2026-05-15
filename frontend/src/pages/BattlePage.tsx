@@ -8,7 +8,7 @@ import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 import { BattleLog } from '../components/BattleLog';
 import { getAbilityLabel } from './PokemonDetailPage';
 
-import { uploadGlobalBattleRecord, createBattleStatsId } from '../lib/globalBattleStats';
+import { uploadGlobalBattleRecord, createBattleStatsId, type RatingDeltaResult } from '../lib/globalBattleStats';
 import { useAuth } from '../contexts/AuthContext';
 
 import {
@@ -44,6 +44,15 @@ import {
 import type { SpeciesData, MoveData, DeckPokemon } from '../types/pokemon';
 
 const OPPONENT_TEAM_PREVIEW_SLOTS = 6;
+
+type RatingDeltaState = {
+    winnerDelta: number;
+    loserDelta: number;
+    winnerEloDelta: number;
+    loserEloDelta: number;
+    winnerBonus: number;
+    loserBonus: number;
+};
 
 type FieldEffectValue =
     | boolean
@@ -1025,6 +1034,17 @@ function getActionLogStartIndex(
     return index >= 0 ? index : Number.POSITIVE_INFINITY;
 }
 
+function toRatingDeltaState(result: RatingDeltaResult): RatingDeltaState {
+    return {
+        winnerDelta: result.winner_delta,
+        loserDelta: result.loser_delta,
+        winnerEloDelta: result.winner_elo_delta,
+        loserEloDelta: result.loser_elo_delta,
+        winnerBonus: result.winner_bonus,
+        loserBonus: result.loser_bonus,
+    };
+}
+
 function orderActionsByBattleLogs(
     actions: ActionWire[],
     state: BattleStateWire,
@@ -1124,7 +1144,7 @@ export default function BattlePage() {
     const opponentPreviewDeckRef = useRef<DeckPokemon[] | null>(null);
     const battleRecordSavedRef = useRef(false);
     const battleStatsIdRef = useRef<string>(createBattleStatsId());
-    const ratingDeltaRef = useRef<{ winnerDelta: number; loserDelta: number } | null>(null);
+    const ratingDeltaRef = useRef<RatingDeltaState | null>(null);
     const onlineRoleRef = useRef<OnlineRole | null>(onlineSnapshot.role);
     const pendingLocalActionRef = useRef<ActionWire | null>(null);
     const pendingRemoteActionRef = useRef<ActionWire | null>(null);
@@ -1258,7 +1278,7 @@ export default function BattlePage() {
             mode: battleMode,
         });
         if (result) {
-            ratingDeltaRef.current = { winnerDelta: result.winner_delta, loserDelta: result.loser_delta };
+            ratingDeltaRef.current = toRatingDeltaState(result);
         }
     }, [battleMode, onlineSnapshot.remoteUserId, user?.id]);
 
@@ -1562,7 +1582,6 @@ export default function BattlePage() {
             winnerSideForHost &&
             localDeckRef.current &&
             opponentDeckRef.current &&
-            onlineRoleRef.current === 'host' &&
             battleMode === 'player';
 
         if (shouldUploadStats) {
@@ -1689,6 +1708,9 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'battle_init') {
+                if (event.battleId) {
+                    battleStatsIdRef.current = event.battleId;
+                }
                 setRevealedOpponentSlots(new Set());
                 setBattleState(event.state);
                 setWaiting(false);
@@ -1697,6 +1719,9 @@ export default function BattlePage() {
             }
             if (event.type === 'battle_update') {
                 void (async () => {
+                    if (event.battleId) {
+                        battleStatsIdRef.current = event.battleId;
+                    }
                     const currentState = battleStateRef.current;
                     if (currentState) {
                         await playBattleResolution(currentState, event.state, event.actions);
@@ -1836,7 +1861,7 @@ export default function BattlePage() {
                 .then((state) => {
                     setRevealedOpponentSlots(new Set());
                     setBattleState(state);
-                    sendBattleInit(state);
+                    sendBattleInit(state, battleStatsIdRef.current);
                 })
                 .catch((error) => {
                     console.error('Failed to create online battle state:', error);
@@ -1855,13 +1880,16 @@ export default function BattlePage() {
             setLocalPlayerId('guest');
             setOpponentPlayerId('host');
             if (onlineSnapshot.latestState) {
+                if (onlineSnapshot.latestBattleId) {
+                    battleStatsIdRef.current = onlineSnapshot.latestBattleId;
+                }
                 setRevealedOpponentSlots(new Set());
                 setBattleState(onlineSnapshot.latestState);
             } else {
                 setStatusText('ホストが対戦を開始するのを待っています...');
             }
         }
-    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, species]);
+    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestBattleId, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, species]);
 
     useEffect(() => {
         if (battleMode !== 'ai' || waiting || !battleState) {

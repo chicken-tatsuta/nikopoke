@@ -20,7 +20,16 @@ export type GlobalBattleRecord = {
 
 };
 
-    type PokemonUsageStatsRow = {
+export type RatingDeltaResult = {
+    winner_delta: number;
+    loser_delta: number;
+    winner_elo_delta: number;
+    loser_elo_delta: number;
+    winner_bonus: number;
+    loser_bonus: number;
+};
+
+type PokemonUsageStatsRow = {
     species_id: string;
     used_count: number;
     win_count: number;
@@ -89,7 +98,14 @@ const { data, error } = await supabase.rpc('record_battle_result', {
     }
 
     const row = Array.isArray(data) ? data[0] : data;
-    return row ? { winner_delta: row.out_winner_delta ?? 0, loser_delta: row.out_loser_delta ?? 0 } : null;
+    return row ? {
+        winner_delta: Number(row.out_winner_delta ?? 0),
+        loser_delta: Number(row.out_loser_delta ?? 0),
+        winner_elo_delta: Number(row.out_winner_elo_delta ?? row.out_winner_delta ?? 0),
+        loser_elo_delta: Number(row.out_loser_elo_delta ?? row.out_loser_delta ?? 0),
+        winner_bonus: Number(row.out_winner_bonus ?? 0),
+        loser_bonus: Number(row.out_loser_bonus ?? 0),
+    } satisfies RatingDeltaResult : null;
 }
 
 export async function loadGlobalPokemonUsageStats(): Promise<Record<string, PokemonUsageStats>> {
