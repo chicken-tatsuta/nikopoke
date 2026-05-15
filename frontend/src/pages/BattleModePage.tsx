@@ -47,7 +47,7 @@ export default function BattleModePage() {
                             icon={<UsersRound className="size-7" strokeWidth={1.7} />}
                             title="プレイヤー戦"
                             label="VS PLAYER"
-                            body="デッキを準備して、オンラインロビーから対戦する。"
+                            body="デッキを準備して、オンラインロビーから対戦する。(レート戦)"
                         />
                     </div>
                 </section>

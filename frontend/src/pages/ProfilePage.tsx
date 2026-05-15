@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit3, FolderOpen, Save, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, Edit3, FolderOpen, RotateCcw, Save, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { USERNAME_MAX_LENGTH, useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { loadAllData } from '../lib/data';
 import { getPokemonPortraitSrc } from '../lib/pokemonImages';
+import { supabase } from '../lib/supabase';
 import { getAbilityLabel } from './PokemonDetailPage';
 import type { DeckPokemon, MoveData, SpeciesData } from '../types/pokemon';
 
 export default function ProfilePage() {
     const navigate = useNavigate();
-    const { profile, updateProfile, signOut } = useAuth();
+    const { profile, updateProfile, refreshProfile, signOut } = useAuth();
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
     const [username, setUsername] = useState(profile?.username ?? '');
     const [savingName, setSavingName] = useState(false);
+    const [resettingRating, setResettingRating] = useState(false);
     const [message, setMessage] = useState('');
 
     useEffect(() => {
@@ -78,6 +80,27 @@ export default function ProfilePage() {
         } catch (error) {
             console.error('[profile] Failed to delete saved deck:', error);
             setMessage('デッキの削除に失敗しました。');
+        }
+    };
+
+    const resetSeasonRatings = async () => {
+        if (!supabase || resettingRating) return;
+
+        const ok = window.confirm('全プレイヤーのレートを1500に戻します。勝敗数と累計勝率は残ります。実行しますか？');
+        if (!ok) return;
+
+        setResettingRating(true);
+        setMessage('');
+        try {
+            const { data, error } = await supabase.rpc('reset_season_ratings', { p_rating: 1500 });
+            if (error) throw error;
+            await refreshProfile();
+            setMessage(`${Number(data ?? 0)}人のレートを1500にリセットしました。`);
+        } catch (error) {
+            console.error('[profile] Failed to reset season ratings:', error);
+            setMessage('レートリセットに失敗しました。管理者権限とDB migrationを確認してください。');
+        } finally {
+            setResettingRating(false);
         }
     };
 
@@ -166,6 +189,26 @@ export default function ProfilePage() {
                                 <Edit3 className="size-4" />
                             </Link>
                         </div>
+
+                        {profile?.is_admin && (
+                            <div className="rounded-lg border border-[#111111] bg-[#F5EEE4] p-4">
+                                <div className="mb-3 flex items-center gap-2">
+                                    <ShieldCheck className="size-5" strokeWidth={1.8} />
+                                    <h2 className="text-base font-black tracking-[0.16em]">シーズン管理</h2>
+                                </div>
+                                <p className="text-xs font-bold leading-6 tracking-[0.08em] text-[#333333]">
+                                    全プレイヤーのレートだけを1500に戻します。勝敗数と累計勝率はそのまま残ります。
+                                </p>
+                                <button
+                                    onClick={() => void resetSeasonRatings()}
+                                    disabled={resettingRating}
+                                    className="mt-3 inline-flex w-full items-center justify-between rounded-md border border-[#111111] bg-white px-4 py-2 text-sm font-black tracking-[0.12em] transition-colors hover:bg-[#111111] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {resettingRating ? 'リセット中' : 'レートをリセット'}
+                                    <RotateCcw className="size-4" />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="min-w-0 space-y-6">

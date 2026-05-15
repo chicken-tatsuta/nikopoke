@@ -15,6 +15,7 @@ export type Profile = {
     rating: number;
     win_count: number;
     loss_count: number;
+    is_admin: boolean;
     current_deck: DeckPokemon[] | null;
     saved_decks: SavedDeck[];
 };
@@ -30,6 +31,7 @@ type AuthContextValue = {
     signUp: (email: string, password: string, username: string) => Promise<void>;
     signOut: () => Promise<void>;
     updateProfile: (updates: ProfileUpdates) => Promise<void>;
+    refreshProfile: () => Promise<void>;
 };
 
 export const USERNAME_MAX_LENGTH = 16;
@@ -55,6 +57,7 @@ function normalizeProfile(row: Profile): Profile {
     return {
         ...row,
         rating: Number(row.rating ?? 1500),
+        is_admin: Boolean(row.is_admin),
         current_deck: Array.isArray(row.current_deck) ? row.current_deck : null,
         saved_decks: Array.isArray(row.saved_decks) ? row.saved_decks : [],
     };
@@ -65,7 +68,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
 
     const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
 
@@ -142,9 +145,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .upsert({
                     id: data.user.id,
                     username: validUsername,
-                    rating: 1500,
-                    win_count: 0,
-                    loss_count: 0,
                     saved_decks: [],
                 });
 
@@ -176,11 +176,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from('profiles')
             .update(sanitizedUpdates)
             .eq('id', session.user.id)
-            .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
+            .select('*')
             .single();
 
         if (error) throw error;
         setProfile(normalizeProfile(data as Profile));
+    }, [session]);
+
+    const refreshProfile = useCallback(async () => {
+        if (!session?.user) {
+            setProfile(null);
+            return;
+        }
+
+        setProfile(await fetchProfile(session.user.id));
     }, [session]);
 
     const value = useMemo<AuthContextValue>(() => ({
@@ -192,7 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         updateProfile,
-    }), [loading, profile, session, signIn, signOut, signUp, updateProfile]);
+        refreshProfile,
+    }), [loading, profile, refreshProfile, session, signIn, signOut, signUp, updateProfile]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
