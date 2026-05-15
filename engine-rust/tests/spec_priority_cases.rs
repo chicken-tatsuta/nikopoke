@@ -1215,7 +1215,7 @@ fn p0_spec_prankster_status_move_fails_against_dark_target() {
     assert!(
         next.log
             .iter()
-            .any(|line| line.contains("しかし うまく きまらなかった")),
+            .any(|line| line.contains("しかし うまく 決まらなかった")),
         "blocked prankster move should log failure"
     );
 }

@@ -1104,6 +1104,7 @@ export default function BattlePage() {
     const [playback, setPlayback] = useState<BattlePlaybackState>(IDLE_PLAYBACK_STATE);
     const [battlePopup, setBattlePopup] = useState<BattlePopup | null>(null);
     const [revealedOpponentSlots, setRevealedOpponentSlots] = useState<Set<number>>(() => new Set());
+    const [activeMoveTooltipId, setActiveMoveTooltipId] = useState<string | null>(null);
     const logsRef = useRef<HTMLDivElement>(null);
     const battleStateRef = useRef<BattleStateWire | null>(null);
     const localPlayerIdRef = useRef(localPlayerId);
@@ -1122,6 +1123,17 @@ export default function BattlePage() {
     const playbackRef = useRef(false);
     const popupIdRef = useRef(0);
     const precomputedAiKeyRef = useRef<string | null>(null);
+    const moveLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const moveTooltipTriggeredRef = useRef(false);
+
+    const clearMoveLongPressTimer = useCallback(() => {
+        if (moveLongPressTimerRef.current) {
+            clearTimeout(moveLongPressTimerRef.current);
+            moveLongPressTimerRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => clearMoveLongPressTimer, [clearMoveLongPressTimer]);
 
     useEffect(() => {
         battleStateRef.current = battleState;
@@ -2349,7 +2361,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
 </div>
                     {commandMode === 'fight' ? (
                         <div>
-                            <div className="mb-2 grid grid-cols-2 gap-2">
+                            <div className="battle-move-grid mb-2 grid grid-cols-2 gap-2">
                                 {playerPokemon.moves.map((moveId) => {
                                     const move = moves[moveId];
                                     const rawPp = playerPokemon.movePp;
@@ -2389,10 +2401,41 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     return (
                                         <div key={moveId} className="group relative">
                                             <button
-                                                onClick={() => handleSelectMove(moveId)}
+                                                onPointerDown={(event) => {
+                                                    if (event.pointerType === 'mouse') return;
+                                                    clearMoveLongPressTimer();
+                                                    moveTooltipTriggeredRef.current = false;
+                                                    moveLongPressTimerRef.current = setTimeout(() => {
+                                                        moveTooltipTriggeredRef.current = true;
+                                                        setActiveMoveTooltipId(moveId);
+                                                    }, 420);
+                                                }}
+                                                onPointerUp={() => {
+                                                    clearMoveLongPressTimer();
+                                                    setActiveMoveTooltipId(null);
+                                                }}
+                                                onPointerCancel={() => {
+                                                    clearMoveLongPressTimer();
+                                                    setActiveMoveTooltipId(null);
+                                                }}
+                                                onPointerLeave={() => {
+                                                    clearMoveLongPressTimer();
+                                                    setActiveMoveTooltipId(null);
+                                                }}
+                                                onContextMenu={(event) => event.preventDefault()}
+                                                onClick={(event) => {
+                                                    if (moveTooltipTriggeredRef.current) {
+                                                        event.preventDefault();
+                                                        moveTooltipTriggeredRef.current = false;
+                                                        setActiveMoveTooltipId(null);
+                                                        return;
+                                                    }
+                                                    setActiveMoveTooltipId(null);
+                                                    handleSelectMove(moveId);
+                                                }}
                                                 disabled={interactionLocked || pp === 0}
                                                 className={cn(
-                                                    'min-h-[86px] w-full rounded-xl border p-2 text-left transition-all sm:min-h-0 sm:p-2.5',
+                                                    'battle-move-card min-h-[86px] w-full rounded-xl border p-2 text-left transition-all sm:min-h-0 sm:p-2.5',
                                                     interactionLocked || pp === 0
                                                         ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-3)] opacity-50'
                                                         : 'border-[var(--border)] bg-[var(--surface-3)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-4)]',
@@ -2422,19 +2465,22 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
     </div>
 </div>
                                     
-                                                <div className="flex flex-col gap-0.5 text-[11px] text-[var(--text-muted)] sm:flex-row sm:items-center sm:justify-between sm:text-xs">
+                                                <div className="move-card-meta flex flex-col gap-0.5 text-[11px] text-[var(--text-muted)] sm:flex-row sm:items-center sm:justify-between sm:text-xs">
                                                     <span>{categoryLabel}</span>
                                                     <span>
                                                     威力 {move.power ?? '-'} / 命中 {accuracyLabel}
                                                     </span>
                                                 </div>
                                     
-                                                <div className="mt-1 text-xs tabular-nums text-[var(--text-muted)]">
+                                                <div className="move-card-pp mt-1 text-xs tabular-nums text-[var(--text-muted)]">
                                                     PP: {pp}
                                                 </div>
                                             </button>
                                     
-                                            <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-2xl group-hover:block group-focus-within:block">
+                                            <div className={cn(
+                                                'move-detail-popover pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-2xl group-hover:block sm:group-focus-within:block',
+                                                activeMoveTooltipId === moveId && 'block'
+                                            )}>
                                                 <div className="mb-3 flex items-start justify-between gap-3">
                                                     <div>
                                                         <div className="text-sm font-bold text-[var(--text-primary)]">

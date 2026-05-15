@@ -256,3 +256,53 @@ body {
     radial-gradient(circle at 44% 78%, rgba(240, 249, 255, 0.12) 0 1.5px, transparent 2px);
   background-size: 72px 52px, 96px 64px, 84px 58px;
 }
+
+@media (max-width: 767px) {
+  .battle-move-grid {
+    gap: 0.65rem;
+  }
+
+  .battle-move-card {
+    min-height: 5.1rem;
+    padding: 0.85rem 1rem;
+    border-width: 1px;
+    border-radius: 1rem;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+  }
+
+  .battle-move-card .font-medium {
+    font-size: 1.08rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  .battle-move-card .rounded-full {
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .move-card-meta {
+    display: none;
+  }
+
+  .move-card-pp {
+    margin-top: 0.55rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .move-detail-popover {
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    width: auto;
+    max-height: min(52dvh, 24rem);
+    overflow: auto;
+    pointer-events: auto;
+    box-shadow: none;
+  }
+}

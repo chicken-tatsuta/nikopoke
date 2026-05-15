@@ -629,7 +629,7 @@ impl BattleEngine {
 
             if prankster_blocked_by_dark_type(&next, &player_id, &target_id, move_data) {
                 let events = vec![BattleEvent::Log {
-                    message: "しかし うまく きまらなかった！".to_string(),
+                    message: "しかし うまく 決まらなかった！".to_string(),
                     meta: Map::new(),
                 }];
                 next = apply_events(&next, &events);
