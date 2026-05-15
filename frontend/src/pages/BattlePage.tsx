@@ -1582,6 +1582,7 @@ export default function BattlePage() {
             winnerSideForHost &&
             localDeckRef.current &&
             opponentDeckRef.current &&
+            onlineRoleRef.current === 'host' &&
             battleMode === 'player';
 
         if (shouldUploadStats) {
@@ -1708,9 +1709,6 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'battle_init') {
-                if (event.battleId) {
-                    battleStatsIdRef.current = event.battleId;
-                }
                 setRevealedOpponentSlots(new Set());
                 setBattleState(event.state);
                 setWaiting(false);
@@ -1719,9 +1717,6 @@ export default function BattlePage() {
             }
             if (event.type === 'battle_update') {
                 void (async () => {
-                    if (event.battleId) {
-                        battleStatsIdRef.current = event.battleId;
-                    }
                     const currentState = battleStateRef.current;
                     if (currentState) {
                         await playBattleResolution(currentState, event.state, event.actions);
@@ -1861,7 +1856,7 @@ export default function BattlePage() {
                 .then((state) => {
                     setRevealedOpponentSlots(new Set());
                     setBattleState(state);
-                    sendBattleInit(state, battleStatsIdRef.current);
+                    sendBattleInit(state);
                 })
                 .catch((error) => {
                     console.error('Failed to create online battle state:', error);
@@ -1880,16 +1875,13 @@ export default function BattlePage() {
             setLocalPlayerId('guest');
             setOpponentPlayerId('host');
             if (onlineSnapshot.latestState) {
-                if (onlineSnapshot.latestBattleId) {
-                    battleStatsIdRef.current = onlineSnapshot.latestBattleId;
-                }
                 setRevealedOpponentSlots(new Set());
                 setBattleState(onlineSnapshot.latestState);
             } else {
                 setStatusText('ホストが対戦を開始するのを待っています...');
             }
         }
-    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestBattleId, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, species]);
+    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, species]);
 
     useEffect(() => {
         if (battleMode !== 'ai' || waiting || !battleState) {
