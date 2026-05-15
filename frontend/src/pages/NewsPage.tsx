@@ -7,8 +7,8 @@ import newsImageUrl from '../../image/news.jpg';
 const NEWS_ITEMS = [
     {
         date: '2026.05.15',
-        title: 'ニキダン通信対戦の調整を進めています',
-        body: 'ルームコードの自動生成、再接続処理、バトル中のログ表示を中心に、オンライン対戦を安定させる調整を行っています。',
+        title: 'Season1が始まりました',
+        body: '一週間の間、レートをあげるため四苦八苦してくれるとうれしいです。',
         tag: 'BATTLE',
     },
     {
