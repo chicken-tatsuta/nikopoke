@@ -300,7 +300,7 @@ function normalizeDeckPokemon(
 
 // Initialize and create battle state
 export async function createBattleState(playerDecks: {
-    [playerId: string]: { team: DeckPokemon[] }
+    [playerId: string]: { team: DeckPokemon[]; name?: string }
 }): Promise<BattleStateWire> {
     await initEngine();
     const { moves, learnsets } = await loadAllData();
@@ -324,7 +324,7 @@ export async function createBattleState(playerDecks: {
 
         players.push({
             id: playerId,
-            name: playerId,
+            name: playerData.name || playerId,
             team,
             activeSlot: 0,
         });

@@ -871,6 +871,15 @@ function firstAvailableSwitchSlot(state: BattleStateWire, playerId: string): num
     return slot >= 0 ? slot : null;
 }
 
+function firstFaintedBenchSlot(state: BattleStateWire, playerId: string): number | null {
+    const player = findPlayerInState(state, playerId);
+    if (!player) {
+        return null;
+    }
+    const slot = player.team.findIndex((creature, index) => index !== player.activeSlot && creature.hp <= 0);
+    return slot >= 0 ? slot : null;
+}
+
 function withSelfSwitchSlot(action: ActionWire, state: BattleStateWire, moves: MoveData): ActionWire {
     if (action.type !== 'move' || action.slot !== undefined || !moveHasEffect(moves[action.moveId ?? ''], 'self_switch')) {
         return action;
@@ -1082,7 +1091,7 @@ function parseAbilityPopup(
 
 export default function BattlePage() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [battleMode] = useState<'ai' | 'player'>(() =>
         sessionStorage.getItem('battleMode') === 'player' ? 'player' : 'ai',
     );
@@ -1097,6 +1106,7 @@ export default function BattlePage() {
     const [commandMode, setCommandMode] = useState<'fight' | 'pokemon'>('fight');
     const [focusedTeamSlot, setFocusedTeamSlot] = useState(0);
     const [pendingSelfSwitchMoveId, setPendingSelfSwitchMoveId] = useState<string | null>(null);
+    const [pendingRevivalMoveId, setPendingRevivalMoveId] = useState<string | null>(null);
     const [onlineSnapshot, setOnlineSnapshot] = useState(getOnlineSessionSnapshot());
     const [localPlayerId, setLocalPlayerId] = useState<string>('player');
     const [opponentPlayerId, setOpponentPlayerId] = useState<string>('ai');
@@ -1125,6 +1135,8 @@ export default function BattlePage() {
     const precomputedAiKeyRef = useRef<string | null>(null);
     const moveLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const moveTooltipTriggeredRef = useRef(false);
+    const localUserName = profile?.username
+        ?? (typeof user?.user_metadata?.username === 'string' ? user.user_metadata.username : null);
 
     const clearMoveLongPressTimer = useCallback(() => {
         if (moveLongPressTimerRef.current) {
@@ -1773,7 +1785,7 @@ export default function BattlePage() {
             resetBattlePersistenceState();
 
             createBattleState({
-                player: { team: playerDeck },
+                player: { team: playerDeck, name: localUserName ?? 'player' },
                 ai: { team: aiDeck },
             })
                 .then((state) => {
@@ -1818,8 +1830,8 @@ export default function BattlePage() {
             opponentPreviewDeckRef.current = selectedOpponentDeck;
             resetBattlePersistenceState();
             createBattleState({
-                host: { team: selectedPlayerDeck },
-                guest: { team: selectedOpponentDeck },
+                host: { team: selectedPlayerDeck, name: localUserName ?? 'host' },
+                guest: { team: selectedOpponentDeck, name: onlineSnapshot.remoteUserName ?? 'guest' },
             })
                 .then((state) => {
                     setRevealedOpponentSlots(new Set());
@@ -1849,7 +1861,7 @@ export default function BattlePage() {
                 setStatusText('ホストが対戦を開始するのを待っています...');
             }
         }
-    }, [battleMode, loading, navigate, onlineSnapshot.localDeck, onlineSnapshot.latestState, onlineSnapshot.remoteDeck, onlineSnapshot.role, resetBattlePersistenceState, species]);
+    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, species]);
 
     useEffect(() => {
         if (battleMode !== 'ai' || waiting || !battleState) {
@@ -1999,8 +2011,23 @@ export default function BattlePage() {
                 const slot = firstAvailableSwitchSlot(battleState, localPlayerIdRef.current);
                 if (slot !== null) {
                     setPendingSelfSwitchMoveId(moveId);
+                    setPendingRevivalMoveId(null);
+                    setFocusedTeamSlot(slot);
                     setCommandMode('pokemon');
                     setStatusText('交代先を選んでください。');
+                    setWaiting(false);
+                    return;
+                }
+            }
+
+            if (moveHasEffect(moves[moveId], 'revive_fainted')) {
+                const slot = firstFaintedBenchSlot(battleState, localPlayerIdRef.current);
+                if (slot !== null) {
+                    setPendingRevivalMoveId(moveId);
+                    setPendingSelfSwitchMoveId(null);
+                    setFocusedTeamSlot(slot);
+                    setCommandMode('pokemon');
+                    setStatusText('復活させるニキダンを選んでください。');
                     setWaiting(false);
                     return;
                 }
@@ -2044,14 +2071,25 @@ if (!aiAction) {
         const player = getPlayer(localPlayerIdRef.current);
         if (!player) return;
         if (index === player.activeSlot) return;
-        if (player.team[index].hp <= 0) return;
+        const pendingReviveMoveId = pendingRevivalMoveId;
+        if (pendingReviveMoveId) {
+            if (player.team[index].hp > 0) return;
+        } else if (player.team[index].hp <= 0) {
+            return;
+        }
 
         setWaiting(true);
         setCommandMode('fight');
 
         try {
             const pendingMoveId = pendingSelfSwitchMoveId;
-            const playerAction: ActionWire = pendingMoveId ? {
+            const playerAction: ActionWire = pendingReviveMoveId ? {
+                type: 'move',
+                playerId: localPlayerIdRef.current,
+                moveId: pendingReviveMoveId,
+                targetId: opponentPlayerIdRef.current,
+                slot: index,
+            } : pendingMoveId ? {
                 type: 'move',
                 playerId: localPlayerIdRef.current,
                 moveId: pendingMoveId,
@@ -2063,10 +2101,11 @@ if (!aiAction) {
                 slot: index
             };
             setPendingSelfSwitchMoveId(null);
+            setPendingRevivalMoveId(null);
             const forcedSwitch = needsForcedSwitch(battleState, localPlayerIdRef.current);
 
             if (battleMode === 'player') {
-                if (!pendingMoveId && forcedSwitch) {
+                if (!pendingMoveId && !pendingReviveMoveId && forcedSwitch) {
                     if (onlineSnapshot.role === 'host') {
                         await resolveForcedSwitch(playerAction, true);
                     } else {
@@ -2080,7 +2119,7 @@ if (!aiAction) {
                 return;
             }
 
-            if (!pendingMoveId && forcedSwitch) {
+            if (!pendingMoveId && !pendingReviveMoveId && forcedSwitch) {
                 const newState = replaceFaintedPokemon(battleState, localPlayerIdRef.current, index);
                 await playBattleResolution(battleState, newState, [playerAction]);
                 await finishBattle(newState);
@@ -2109,6 +2148,8 @@ if (!aiAction) {
 
         setWaiting(false);
     };
+
+    const selectingRevivalTarget = pendingRevivalMoveId !== null;
 
     if (loading) {
         return (
@@ -2183,8 +2224,10 @@ const mustSwitch = needsForcedSwitch(battleState, localPlayerId);
 const interactionLocked = waiting || playback.isPlaying;
 const battleStatusLabel = playback.isPlaying
     ? playback.label
-    : waiting
+        : waiting
         ? (statusText || 'ターン処理中')
+        : pendingRevivalMoveId
+            ? '復活先を選択中'
         : pendingSelfSwitchMoveId
             ? '交代先を選択中'
         : mustSwitch
@@ -2257,7 +2300,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                         <TeamIndicator team={player.team} activeSlot={player.activeSlot} species={species} isPlayer={true} />
                     </div>
 
-                    <div className="flex min-w-0 flex-col gap-2">
+                    <div className="flex min-w-0 flex-col gap-2 pt-12">
                         <PokemonStatus
                             key={aiPokemon.id}
                             creature={aiPokemon}
@@ -2331,6 +2374,7 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     <button
         onClick={() => {
             setPendingSelfSwitchMoveId(null);
+            setPendingRevivalMoveId(null);
             setCommandMode('fight');
         }}
         disabled={interactionLocked}
@@ -2346,7 +2390,11 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
     </button>
 
     <button
-        onClick={() => setCommandMode('pokemon')}
+        onClick={() => {
+            setPendingSelfSwitchMoveId(null);
+            setPendingRevivalMoveId(null);
+            setCommandMode('pokemon');
+        }}
         disabled={interactionLocked}
         className={cn(
             'rounded-lg p-2 text-sm font-medium transition-all',
@@ -2574,7 +2622,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                         <button
                             key={idx}
                             onClick={() => setFocusedTeamSlot(idx)}
-                            disabled={isFainted}
+                            disabled={selectingRevivalTarget ? isActive || !isFainted : isFainted}
                             className={cn(
                                 'w-full rounded-lg border p-2 text-left transition-all',
                                 focusedTeamSlot === idx
@@ -2582,7 +2630,9 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                     : isActive
                                         ? 'border-[var(--accent)]/50 bg-[var(--surface-3)]'
                                         : 'border-[var(--border)] bg-[var(--surface-3)] hover:border-[var(--border-hover)]',
-                                isFainted && 'opacity-50'
+                                selectingRevivalTarget
+                                    ? (!isFainted || isActive) && 'opacity-40'
+                                    : isFainted && 'opacity-50'
                             )}
                         >
                             <div className="flex items-center gap-2">
@@ -2635,6 +2685,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                 <button
                     onClick={() => {
                         setPendingSelfSwitchMoveId(null);
+                        setPendingRevivalMoveId(null);
                         setCommandMode('fight');
                     }}
                     disabled={mustSwitch}
@@ -2783,10 +2834,24 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 </div>
                                 <button
                                     onClick={() => handleSwitch(focusedTeamSlot)}
-                                    disabled={isActive || isFainted || interactionLocked}
+                                    disabled={
+                                        selectingRevivalTarget
+                                            ? isActive || !isFainted || interactionLocked
+                                            : isActive || isFainted || interactionLocked
+                                    }
                                     className="w-full rounded-md border border-[#111111] bg-[#F5EEE4] p-3 font-bold text-[#111111] disabled:opacity-40"
                                 >
-                                    {isActive ? '場に出ています' : isFainted ? 'ひんしです' : '交代する'}
+                                    {selectingRevivalTarget
+                                        ? isActive
+                                            ? '場に出ています'
+                                            : isFainted
+                                                ? '復活させる'
+                                                : 'ひんしではありません'
+                                        : isActive
+                                            ? '場に出ています'
+                                            : isFainted
+                                                ? 'ひんしです'
+                                                : '交代する'}
                                 </button>
                             </div>
                         </>

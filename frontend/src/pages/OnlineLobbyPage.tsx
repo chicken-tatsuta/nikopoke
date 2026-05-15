@@ -56,11 +56,10 @@ function describeStatus(role: string | null, status: string, hasRemoteDeck: bool
 
 export default function OnlineLobbyPage() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [species, setSpecies] = useState<SpeciesData>({});
     const [loadingSpecies, setLoadingSpecies] = useState(true);
     const [session, setSession] = useState(getOnlineSessionSnapshot());
-    const [hostCode, setHostCode] = useState('');
     const [joinCode, setJoinCode] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -116,8 +115,7 @@ export default function OnlineLobbyPage() {
         setBusy(true);
         setError(null);
         try {
-            const createdCode = await createHostSession(playerDeck, user?.id ?? null, hostCode);
-            setHostCode(createdCode);
+            await createHostSession(playerDeck, user?.id ?? null, profile?.username ?? null);
         } catch (createError) {
             const message = createError instanceof Error ? createError.message : 'ルーム作成に失敗しました。';
             setError(message);
@@ -137,7 +135,7 @@ export default function OnlineLobbyPage() {
         setBusy(true);
         setError(null);
         try {
-            await joinHostSession(joinCode, playerDeck, user?.id ?? null);
+            await joinHostSession(joinCode, playerDeck, user?.id ?? null, profile?.username ?? null);
         } catch (joinError) {
             const message = joinError instanceof Error ? joinError.message : 'ルーム参加に失敗しました。';
             setError(message);
@@ -172,7 +170,6 @@ export default function OnlineLobbyPage() {
     const handleReset = () => {
         clearOnlineSession();
         setSession(getOnlineSessionSnapshot());
-        setHostCode('');
         setJoinCode('');
         setBusy(false);
         setCopied(false);
@@ -200,7 +197,7 @@ export default function OnlineLobbyPage() {
                         </button>
                         <div>
                             <h1 className="text-lg font-semibold text-[var(--text-primary)]">オンライン対戦</h1>
-                                 <p className="text-sm text-[var(--text-muted)]">PeerJS で部屋を作って対戦します（30秒タイムアウト）</p>
+                                 <p className="text-sm text-[var(--text-muted)]">PeerJS で部屋を作って対戦します（45秒タイムアウト）</p>
                         </div>
                     </div>
                     <button
@@ -229,15 +226,8 @@ export default function OnlineLobbyPage() {
                         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-3)] p-4">
                             <h3 className="text-sm font-semibold text-[var(--text-primary)]">ルームを作成</h3>
                             <p className="mt-1 text-sm text-[var(--text-muted)]">
-                                好きなコードを決めて相手に共有します。空欄なら短いコードを自動で作ります。
+                                4桁のルームコードを自動で作成します。表示されたコードを相手に共有してください。
                             </p>
-                            <input
-                                value={hostCode}
-                                onChange={(event) => setHostCode(normalizeRoomCode(event.target.value))}
-                                disabled={busy || session.role === 'host'}
-                                placeholder="例: mori-123"
-                                className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                            />
                             <button
                                 onClick={handleCreateRoom}
                                 disabled={busy || session.role === 'host'}
@@ -257,7 +247,7 @@ export default function OnlineLobbyPage() {
                                 <input
                                     value={joinCode}
                                     onChange={(event) => setJoinCode(normalizeRoomCode(event.target.value))}
-                                    placeholder="例: mori-123"
+                                    placeholder="例: 1234"
                                     className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]"
                                 />
                                 <button
