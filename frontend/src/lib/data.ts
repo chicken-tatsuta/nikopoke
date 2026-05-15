@@ -5,15 +5,19 @@ let speciesCache: SpeciesData | null = null;
 let movesCache: MoveData | null = null;
 let learnsetsCache: Learnset | null = null;
 
+function dataUrl(path: string): string {
+    return `${path}?v=${encodeURIComponent(__APP_VERSION__)}`;
+}
+
 export async function loadSpecies(): Promise<SpeciesData> {
     if (speciesCache) return speciesCache;
 
-    const response = await fetch('/data/species.json');
+    const response = await fetch(dataUrl('/data/species.json'), { cache: 'no-cache' });
     const species = await response.json() as SpeciesData;
     let descriptions: Record<string, string> = {};
 
     try {
-        const descriptionsResponse = await fetch('/data/speciesDescriptions.json');
+        const descriptionsResponse = await fetch(dataUrl('/data/speciesDescriptions.json'), { cache: 'no-cache' });
         descriptions = await descriptionsResponse.json();
     } catch {
         descriptions = {};
@@ -34,7 +38,7 @@ export async function loadSpecies(): Promise<SpeciesData> {
 export async function loadMoves(): Promise<MoveData> {
     if (movesCache) return movesCache;
 
-    const response = await fetch('/data/moves.json');
+    const response = await fetch(dataUrl('/data/moves.json'), { cache: 'no-cache' });
     movesCache = await response.json();
     return movesCache!;
 }
@@ -42,7 +46,7 @@ export async function loadMoves(): Promise<MoveData> {
 export async function loadLearnsets(): Promise<Learnset> {
     if (learnsetsCache) return learnsetsCache;
 
-    const response = await fetch('/data/learnsets.json');
+    const response = await fetch(dataUrl('/data/learnsets.json'), { cache: 'no-cache' });
     learnsetsCache = await response.json();
     return learnsetsCache!;
 }
