@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { UserRound } from 'lucide-react';
+import { Menu, UserRound, X } from 'lucide-react';
 import { loadSpecies } from '../lib/data';
 import type { SpeciesData, Species } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
@@ -149,6 +149,15 @@ export default function HomePage() {
 }
 
 function HomeHeader({ profile }: { profile: { username: string; rating: number } | null }) {
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    const navItems = [
+        { label: 'トップ', to: '/home' },
+        { label: '図鑑', to: '/pokedex' },
+        { label: 'バトル', to: '/battle-mode' },
+        { label: 'ランキング', to: '/ranking' },
+    ];
+
     return (
         <header className="border-b border-[#111111] bg-white">
             <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-2.5 sm:px-8 lg:px-10">
@@ -157,11 +166,19 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
                     <span className="text-xl font-bold tracking-[0.2em]">Nikidan</span>
                 </Link>
 
+                <button
+                    type="button"
+                    className="grid size-10 place-items-center rounded-md border border-[#111111] bg-white md:hidden"
+                    onClick={() => setMobileMenuOpen(true)}
+                    aria-label="メニューを開く"
+                >
+                    <Menu className="size-5" strokeWidth={1.8} />
+                </button>
+
                 <nav className="hidden items-center gap-8 text-xs font-bold tracking-[0.16em] md:flex">
-                    <Link className="border-b border-[#111111] pb-1" to="/home">トップ</Link>
-                    <Link to="/pokedex">図鑑</Link>
-                    <Link to="/battle-mode">バトル</Link>
-                    <Link to="/ranking">ランキング</Link>
+                    {navItems.map((item) => (
+                        <Link key={item.to} to={item.to}>{item.label}</Link>
+                    ))}
                     <Link to="/profile" className="flex items-center gap-2 transition-colors hover:text-[#555555]">
                         <span className="grid size-7 place-items-center rounded-full border border-[#111111]">
                             <UserRound className="size-4" strokeWidth={1.8} />
@@ -174,6 +191,59 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
                     </Link>
                 </nav>
             </div>
+
+            {mobileMenuOpen && (
+                <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+                    <button
+                        type="button"
+                        className="absolute inset-0 bg-black/20"
+                        onClick={() => setMobileMenuOpen(false)}
+                        aria-label="メニューを閉じる"
+                    />
+                    <div className="absolute right-0 top-0 flex h-full w-[min(82vw,320px)] flex-col border-l border-[#111111] bg-white">
+                        <div className="flex items-center justify-between border-b border-[#111111] px-5 py-4">
+                            <span className="text-sm font-bold tracking-[0.22em]">MENU</span>
+                            <button
+                                type="button"
+                                className="grid size-9 place-items-center rounded-md border border-[#111111] bg-white"
+                                onClick={() => setMobileMenuOpen(false)}
+                                aria-label="メニューを閉じる"
+                            >
+                                <X className="size-5" strokeWidth={1.8} />
+                            </button>
+                        </div>
+
+                        <nav className="flex flex-col px-5 py-4 text-base font-bold tracking-[0.16em]">
+                            {navItems.map((item) => (
+                                <Link
+                                    key={item.to}
+                                    to={item.to}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="flex items-center justify-between border-b border-[#111111] py-4"
+                                >
+                                    <span>{item.label}</span>
+                                    <span className="text-xl leading-none">→</span>
+                                </Link>
+                            ))}
+                        </nav>
+
+                        <Link
+                            to="/profile"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="mx-5 mt-auto mb-5 flex items-center gap-3 rounded-lg border border-[#111111] bg-[#FAFAFA] px-4 py-3 font-bold tracking-[0.14em]"
+                        >
+                            <span className="grid size-10 shrink-0 place-items-center rounded-full border border-[#111111] bg-white">
+                                <UserRound className="size-5" strokeWidth={1.8} />
+                            </span>
+                            {profile ? (
+                                <span className="min-w-0 truncate text-sm tabular-nums">{profile.username} R{profile.rating}</span>
+                            ) : (
+                                <span className="text-sm">ログイン</span>
+                            )}
+                        </Link>
+                    </div>
+                </div>
+            )}
         </header>
     );
 }

@@ -8,8 +8,6 @@ type RankingProfile = {
     id: string;
     username: string;
     rating: number;
-    win_count: number;
-    loss_count: number;
 };
 
 export default function RankingPage() {
@@ -26,7 +24,7 @@ export default function RankingPage() {
 
         supabase
             .from('profiles')
-            .select('id, username, rating, win_count, loss_count')
+            .select('id, username, rating')
             .order('rating', { ascending: false })
             .limit(50)
             .then(({ data, error: loadError }) => {
@@ -65,12 +63,10 @@ export default function RankingPage() {
                 <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-white">
                     <div className="max-h-[calc(100dvh-150px)] overflow-auto">
                         <div className="min-w-[330px]">
-                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_64px_42px_42px] gap-2 border-b border-[var(--border)] bg-[#FAFAFA] px-3 py-3 text-xs font-bold tracking-[0.08em] text-[var(--text-muted)] sm:grid-cols-[64px_1fr_92px_80px_80px] sm:gap-3 sm:px-4">
+                            <div className="sticky top-0 z-10 grid grid-cols-[44px_minmax(0,1fr)_72px] gap-2 border-b border-[var(--border)] bg-[#FAFAFA] px-3 py-3 text-xs font-bold tracking-[0.08em] text-[var(--text-muted)] sm:grid-cols-[64px_1fr_110px] sm:gap-3 sm:px-4">
                                 <span>順位</span>
                                 <span>トレーナー</span>
                                 <span className="text-right">レート</span>
-                                <span className="text-right">勝利</span>
-                                <span className="text-right">敗北</span>
                             </div>
 
                             {loading ? (
@@ -88,7 +84,7 @@ export default function RankingPage() {
                                         return (
                                             <div
                                                 key={profile.id}
-                                                className={`grid grid-cols-[44px_minmax(0,1fr)_64px_42px_42px] gap-2 px-3 py-3 text-xs sm:grid-cols-[64px_1fr_92px_80px_80px] sm:gap-3 sm:px-4 sm:text-sm ${isCurrentUser
+                                                className={`grid grid-cols-[44px_minmax(0,1fr)_72px] gap-2 px-3 py-3 text-xs sm:grid-cols-[64px_1fr_110px] sm:gap-3 sm:px-4 sm:text-sm ${isCurrentUser
                                                     ? 'bg-[var(--accent-muted)] text-[var(--text-primary)]'
                                                     : 'text-[var(--text-secondary)]'
                                                     }`}
@@ -98,8 +94,6 @@ export default function RankingPage() {
                                                     {profile.username}
                                                 </span>
                                                 <span className="text-right font-semibold tabular-nums text-[var(--text-primary)]">{profile.rating ?? 1500}</span>
-                                                <span className="text-right tabular-nums">{profile.win_count}</span>
-                                                <span className="text-right tabular-nums">{profile.loss_count}</span>
                                             </div>
                                         );
                                     })}

@@ -301,11 +301,11 @@ export default function DeckBuilderPage() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-6 py-8">
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)]">
+            <main className="mx-auto max-w-7xl px-6 py-8 lg:h-[calc(100dvh-81px)] lg:overflow-hidden">
+                <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)] lg:overflow-hidden">
                     {/* Selected Pokemon */}
-                    <div>
-                        <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5 sticky top-24">
+                    <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-2">
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
                             <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
                             </h2>
@@ -401,7 +401,7 @@ export default function DeckBuilderPage() {
                     </div>
 
                     {/* Pokemon / Move Selection */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
                         {editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}

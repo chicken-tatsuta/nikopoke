@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit3, FolderOpen, Save, Trash2, UserRound } from 'lucide-react';
-import { useAuth, type SavedDeck } from '../contexts/AuthContext';
+import { USERNAME_MAX_LENGTH, useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { loadAllData } from '../lib/data';
 import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 import { getAbilityLabel } from './PokemonDetailPage';
@@ -38,6 +38,10 @@ export default function ProfilePage() {
     const handleSaveName = async () => {
         const nextName = username.trim();
         if (!nextName || nextName === profile?.username) return;
+        if (nextName.length > USERNAME_MAX_LENGTH) {
+            setMessage(`ユーザー名は${USERNAME_MAX_LENGTH}文字以内にしてください。`);
+            return;
+        }
 
         setSavingName(true);
         setMessage('');
@@ -105,7 +109,7 @@ export default function ProfilePage() {
                             {profile?.username ?? 'ユーザー'}
                         </h1>
                         <p className="mt-4 max-w-xl text-sm font-bold leading-7 tracking-[0.08em] text-[#333333]">
-                            作成したデッキを確認して、必要なら編集へ戻る。あなたの輝かしい戦績はこの右。
+                            作成したデッキを確認して、必要なら編集へ戻る。あなたの輝かしい戦績はこの右(スマホなら下)。
                         </p>
                     </div>
 
@@ -134,9 +138,13 @@ export default function ProfilePage() {
                             <label className="mb-2 block text-xs font-bold tracking-[0.12em] text-[#333333]">ユーザー名</label>
                             <input
                                 value={username}
-                                onChange={(event) => setUsername(event.target.value)}
+                                onChange={(event) => setUsername(event.target.value.slice(0, USERNAME_MAX_LENGTH))}
+                                maxLength={USERNAME_MAX_LENGTH}
                                 className="w-full rounded-md border border-[#111111] bg-white px-3 py-2 text-sm font-bold outline-none transition-colors focus:bg-[#F5EEE4]"
                             />
+                            <p className="mt-1 text-right text-[11px] font-bold tracking-[0.08em] text-[#666666]">
+                                {username.length}/{USERNAME_MAX_LENGTH}
+                            </p>
                             <button
                                 onClick={handleSaveName}
                                 disabled={savingName || !username.trim() || username.trim() === profile?.username}

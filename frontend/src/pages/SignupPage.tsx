@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { USERNAME_MAX_LENGTH, useAuth } from '../contexts/AuthContext';
 
 export default function SignupPage() {
     const navigate = useNavigate();
@@ -19,7 +19,11 @@ export default function SignupPage() {
         setError(null);
 
         try {
-            await signUp(email, password, username.trim());
+            const nextName = username.trim();
+            if (nextName.length > USERNAME_MAX_LENGTH) {
+                throw new Error(`ユーザー名は${USERNAME_MAX_LENGTH}文字以内にしてください。`);
+            }
+            await signUp(email, password, nextName);
             navigate('/home');
         } catch (signUpError) {
             const message = signUpError instanceof Error ? signUpError.message : '登録に失敗しました。';
@@ -51,12 +55,16 @@ export default function SignupPage() {
                         <span className="mb-1.5 block text-xs font-bold tracking-[0.12em] text-[#333333]">ユーザー名</span>
                         <input
                             value={username}
-                            onChange={(event) => setUsername(event.target.value)}
+                            onChange={(event) => setUsername(event.target.value.slice(0, USERNAME_MAX_LENGTH))}
                             required
                             minLength={2}
+                            maxLength={USERNAME_MAX_LENGTH}
                             autoComplete="username"
                             className="w-full rounded-md border border-[#111111] bg-white px-4 py-3 text-[#111111] outline-none transition-colors placeholder:text-[#777777] focus:bg-[#F5EEE4]"
                         />
+                        <span className="mt-1 block text-right text-[11px] font-bold tracking-[0.08em] text-[#666666]">
+                            {username.length}/{USERNAME_MAX_LENGTH}
+                        </span>
                     </label>
 
                     <label className="block">

@@ -32,7 +32,24 @@ type AuthContextValue = {
     updateProfile: (updates: ProfileUpdates) => Promise<void>;
 };
 
+export const USERNAME_MAX_LENGTH = 16;
+
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function normalizeUsername(username: string): string {
+    return username.trim();
+}
+
+function assertValidUsername(username: string) {
+    const normalized = normalizeUsername(username);
+    if (!normalized) {
+        throw new Error('ユーザー名を入力してください。');
+    }
+    if (normalized.length > USERNAME_MAX_LENGTH) {
+        throw new Error(`ユーザー名は${USERNAME_MAX_LENGTH}文字以内にしてください。`);
+    }
+    return normalized;
+}
 
 function normalizeProfile(row: Profile): Profile {
     return {
@@ -108,12 +125,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signUp = useCallback(async (email: string, password: string, username: string) => {
         if (!supabase) throw new Error('Supabase が設定されていません。');
+        const validUsername = assertValidUsername(username);
 
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
-                data: { username },
+                data: { username: validUsername },
             },
         });
         if (error) throw error;
@@ -123,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .from('profiles')
                 .upsert({
                     id: data.user.id,
-                    username,
+                    username: validUsername,
                     rating: 1500,
                     win_count: 0,
                     loss_count: 0,
@@ -149,9 +167,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!supabase) throw new Error('Supabase が設定されていません。');
         if (!session?.user) throw new Error('ログインが必要です。');
 
+        const sanitizedUpdates = { ...updates };
+        if (typeof sanitizedUpdates.username === 'string') {
+            sanitizedUpdates.username = assertValidUsername(sanitizedUpdates.username);
+        }
+
         const { data, error } = await supabase
             .from('profiles')
-            .update(updates)
+            .update(sanitizedUpdates)
             .eq('id', session.user.id)
             .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
             .single();
