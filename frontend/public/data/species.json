@@ -65,7 +65,7 @@
   "futo": {
     "abilities": [
       "insomnia",
-      "own_tempo"
+      "adaptability"
     ],
     "baseStats": {
       "atk": 115,
@@ -379,7 +379,7 @@
   },
   "touma": {
     "abilities": [
-      "opportunist",
+      "unburden",
       "lightning_rod"
     ],
     "baseStats": {

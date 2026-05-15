@@ -8,8 +8,10 @@ use crate::core::state::{Action, ActionType, BattleHistory, BattleState, BattleT
 use crate::core::statuses::{
     run_field_hooks, run_status_hooks, tick_field_effects, tick_statuses, StatusHookContext,
 };
-use crate::core::utils::{get_active_creature, get_active_creature_mut, stage_multiplier};
-use crate::data::moves::{MoveData, MoveDatabase};
+use crate::core::utils::{
+    get_active_creature, get_active_creature_mut, is_status_move, stage_multiplier,
+};
+use crate::data::moves::{Effect, MoveData, MoveDatabase};
 use crate::data::type_chart::TypeChart;
 use serde_json::{Map, Value};
 use std::collections::{HashSet, VecDeque};
@@ -77,6 +79,7 @@ impl BattleEngine {
                 active.volatile_data.remove("boostedThisTurn");
                 active.volatile_data.remove("actedThisTurn");
                 active.volatile_data.remove("selectedPriority");
+                active.volatile_data.remove("selectedMoveCategory");
             }
         }
         let log_start = next.log.len();
@@ -236,6 +239,21 @@ impl BattleEngine {
                     "selectedPriority".to_string(),
                     Value::Number(ordered_action.priority.into()),
                 );
+                if ordered_action.action.action_type != ActionType::Switch {
+                    if let Some(move_data) = ordered_action
+                        .action
+                        .move_id
+                        .as_deref()
+                        .and_then(|id| self.move_db.get(id))
+                    {
+                        if let Some(category) = move_data.category.as_deref() {
+                            active.volatile_data.insert(
+                                "selectedMoveCategory".to_string(),
+                                Value::String(category.to_string()),
+                            );
+                        }
+                    }
+                }
             }
         }
 
@@ -534,7 +552,11 @@ impl BattleEngine {
                 next = apply_event(&next, &event);
             }
 
-            if !move_data.steps.iter().any(|e| e.effect_type == "protect") {
+            if !move_data
+                .steps
+                .iter()
+                .any(|e| matches!(e.effect_type.as_str(), "protect" | "endure"))
+            {
                 if let Some(active) = get_active_creature(&next, &player_id) {
                     if active.volatile_data.get("protectSuccessCount").is_some() {
                         let event = BattleEvent::SetVolatile {
@@ -604,6 +626,23 @@ impl BattleEngine {
             let move_name = move_data.name.as_deref().unwrap_or(&move_id);
             next.log
                 .push(format!("{}の {}！", attacker_name, move_name));
+
+            if prankster_blocked_by_dark_type(&next, &player_id, &target_id, move_data) {
+                let events = vec![BattleEvent::Log {
+                    message: "しかし うまく 決まらなかった！".to_string(),
+                    meta: Map::new(),
+                }];
+                next = apply_events(&next, &events);
+                if let Some(active) = get_active_creature_mut(&mut next, &player_id) {
+                    active
+                        .volatile_data
+                        .insert("lastMoveFailed".to_string(), Value::Bool(true));
+                    active
+                        .volatile_data
+                        .insert("actedThisTurn".to_string(), Value::Bool(true));
+                }
+                continue;
+            }
 
             let mut events = apply_effects(&next, &move_data.steps, &mut effect_ctx);
 
@@ -994,6 +1033,82 @@ fn move_failed(events: &[BattleEvent]) -> bool {
     !has_progress
 }
 
+fn prankster_blocked_by_dark_type(
+    state: &BattleState,
+    attacker_id: &str,
+    target_id: &str,
+    move_data: &MoveData,
+) -> bool {
+    let Some(attacker) = get_active_creature(state, attacker_id) else {
+        return false;
+    };
+    if attacker.ability.as_deref() != Some("prankster") || !is_status_move(move_data) {
+        return false;
+    }
+    if !move_targets_opposing_active(move_data) {
+        return false;
+    }
+    get_active_creature(state, target_id).is_some_and(|target| {
+        effective_types_for_field(target)
+            .iter()
+            .any(|type_id| type_id == "dark")
+    })
+}
+
+fn move_targets_opposing_active(move_data: &MoveData) -> bool {
+    move_data.steps.iter().any(effect_targets_opposing_active)
+}
+
+fn effect_targets_opposing_active(effect: &Effect) -> bool {
+    if effect_is_opposing_active_effect(effect) {
+        let target = effect
+            .data
+            .get("target")
+            .and_then(|value| value.as_str())
+            .unwrap_or("target");
+        if matches!(target, "target" | "opponent" | "all") {
+            return true;
+        }
+    }
+
+    ["then", "else", "steps", "beforeSteps", "afterSteps"]
+        .iter()
+        .filter_map(|key| effect.data.get(*key))
+        .any(value_targets_opposing_active)
+}
+
+fn value_targets_opposing_active(value: &Value) -> bool {
+    match value {
+        Value::Array(items) => items.iter().any(value_targets_opposing_active),
+        Value::Object(_) => serde_json::from_value::<Effect>(value.clone())
+            .map(|effect| effect_targets_opposing_active(&effect))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn effect_is_opposing_active_effect(effect: &Effect) -> bool {
+    matches!(
+        effect.effect_type.as_str(),
+        "apply_status"
+            | "replace_status"
+            | "remove_status"
+            | "modify_stage"
+            | "clear_stages"
+            | "reset_stages"
+            | "set_ability"
+            | "swap_abilities"
+            | "set_item"
+            | "swap_items"
+            | "copy_stages"
+            | "swap_stages"
+            | "average_stages"
+            | "disable_move"
+            | "disable_last_move"
+            | "force_switch"
+    )
+}
+
 fn apply_switch_in_field_effects(
     mut state: BattleState,
     player_id: &str,
@@ -1022,6 +1137,22 @@ fn apply_switch_in_field_effects(
         .count();
     let mut spikes_logged = false;
     let mut toxic_spikes_handled = false;
+    if grounded
+        && toxic_spikes_layers > 0
+        && active.types.iter().any(|pokemon_type| pokemon_type == "poison")
+    {
+        let mut meta = Map::new();
+        meta.insert("sideId".to_string(), Value::String(player_id.to_string()));
+        events.push(BattleEvent::Log {
+            message: "足元の どくびしが 消え去った！".to_string(),
+            meta: Map::new(),
+        });
+        events.push(BattleEvent::RemoveFieldStatus {
+            status_id: "toxic_spikes".to_string(),
+            meta,
+        });
+        toxic_spikes_handled = true;
+    }
     for effect in effects {
         match effect.id.as_str() {
             "spikes" if grounded => {

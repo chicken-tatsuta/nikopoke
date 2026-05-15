@@ -290,8 +290,8 @@
   },
   "shell_smash": {
     "id": "shell_smash",
-    "name": "からにこもる",
-    "type": "water",
+    "name": "からをやぶる",
+    "type": "normal",
     "category": "status",
     "pp": 15,
     "effects": [
@@ -299,7 +299,11 @@
         "type": "modify_stage",
         "target": "self",
         "stages": {
-          "def": 1
+          "def": -1,
+          "spd": -1,
+          "atk": 2,
+          "spa": 2,
+          "spe": 2
         }
       }
     ]
@@ -365,12 +369,7 @@
     "priority": 4,
     "effects": [
       {
-        "type": "protect"
-      },
-      {
-        "type": "apply_status",
-        "statusId": "protect",
-        "target": "self"
+        "type": "endure"
       }
     ]
   },

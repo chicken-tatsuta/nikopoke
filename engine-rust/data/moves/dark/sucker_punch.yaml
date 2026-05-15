@@ -8,8 +8,15 @@ accuracy: 1.0
 priority: 1
 description: 相手より　先に　攻撃　できる。 相手が　だす技が 攻撃技でないと　失敗する。
 steps:
-- type: damage
-  power: 70
-  accuracy: 1.0
+- type: conditional
+  if:
+    type: target_selected_attacking_move
+  then:
+  - type: damage
+    power: 70
+    accuracy: 1.0
+  else:
+  - type: log
+    message: "しかし うまく きまらなかった！"
 tags:
 - contact

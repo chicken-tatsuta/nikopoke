@@ -11,6 +11,8 @@ export function getBestMoveMinimax(state: any, player_id: string, depth: number)
 
 export function getBestMoveVega(state: any, player_id: string, depth: number): any;
 
+export function getBestMoveVegaIterative(state: any, player_id: string, max_depth: number, node_budget: number): any;
+
 export function getBestMoveVegaWithBranch(state: any, player_id: string, depth: number, branch_limit: number): any;
 
 export function isBattleOver(state: any): boolean;
@@ -28,6 +30,7 @@ export interface InitOutput {
   readonly getBestMoveMCTS: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly getBestMoveMinimax: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly getBestMoveVega: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly getBestMoveVegaIterative: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
   readonly getBestMoveVegaWithBranch: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
   readonly isBattleOver: (a: number, b: number) => void;
   readonly replaceFaintedPokemon: (a: number, b: number, c: number, d: number, e: number) => void;

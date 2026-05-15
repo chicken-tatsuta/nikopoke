@@ -6,6 +6,7 @@ export const createCreature: (a: number, b: number, c: number, d: number) => voi
 export const getBestMoveMCTS: (a: number, b: number, c: number, d: number, e: number) => void;
 export const getBestMoveMinimax: (a: number, b: number, c: number, d: number, e: number) => void;
 export const getBestMoveVega: (a: number, b: number, c: number, d: number, e: number) => void;
+export const getBestMoveVegaIterative: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const getBestMoveVegaWithBranch: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const isBattleOver: (a: number, b: number) => void;
 export const replaceFaintedPokemon: (a: number, b: number, c: number, d: number, e: number) => void;

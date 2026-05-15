@@ -365,6 +365,7 @@ export default function TeamPreviewPage() {
     
         sessionStorage.setItem('selectedPlayerDeck', JSON.stringify(selectedTeam));
         sessionStorage.setItem('selectedOpponentDeck', JSON.stringify(selectedOpponentDeck));
+        sessionStorage.setItem('opponentPreviewDeck', JSON.stringify(opponentDeck));
         sessionStorage.setItem('aiLevel', aiLevel);
         navigate('/battle');
     };

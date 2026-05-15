@@ -1,6 +1,7 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
 use engine_rust::core::state::{
-    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    Status,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -144,6 +145,7 @@ impl CreatureBuilder {
             moves: self.moves,
             ability: self.ability,
             item: self.item,
+            evs: EVStats::default(),
             hp: self.hp,
             max_hp: self.max_hp,
             stages: StatStages::default(),

@@ -406,6 +406,30 @@ fn damage_move_with_priority(
     }
 }
 
+fn sucker_punch_move() -> MoveData {
+    MoveData {
+        id: "sucker_punch".to_string(),
+        name: Some("ふいうち".to_string()),
+        move_type: Some("dark".to_string()),
+        category: Some("physical".to_string()),
+        pp: Some(5),
+        power: Some(70),
+        accuracy: Some(1.0),
+        priority: Some(1),
+        description: None,
+        steps: vec![effect(
+            "conditional",
+            json!({
+                "if": { "type": "target_selected_attacking_move" },
+                "then": [{ "type": "damage", "power": 70, "accuracy": 1.0 }],
+                "else": [{ "type": "log", "message": "しかし うまく きまらなかった！" }]
+            }),
+        )],
+        tags: vec!["contact".to_string()],
+        crit_rate: None,
+    }
+}
+
 fn field_status_move(id: &str, status_id: &str) -> MoveData {
     MoveData {
         id: id.to_string(),
@@ -426,6 +450,26 @@ fn field_status_move(id: &str, status_id: &str) -> MoveData {
     }
 }
 
+fn status_stage_move(id: &str, target: &str, stat: &str, delta: i32) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "modify_stage",
+            json!({ "target": target, "stages": { stat: delta } }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
 fn protect_move(id: &str, priority: i32) -> MoveData {
     MoveData {
         id: id.to_string(),
@@ -438,6 +482,43 @@ fn protect_move(id: &str, priority: i32) -> MoveData {
         priority: Some(priority),
         description: None,
         steps: vec![effect("protect", json!({}))],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
+fn endure_move(id: &str, priority: i32) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(priority),
+        description: None,
+        steps: vec![effect("endure", json!({}))],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
+fn status_move(id: &str, status_id: &str) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "apply_status",
+            json!({ "statusId": status_id, "target": "target", "chance": 1 }),
+        )],
         tags: Vec::new(),
         crit_rate: None,
     }
@@ -893,6 +974,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -914,6 +996,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -1006,6 +1089,264 @@ fn p0_spec_priority_still_overrides_speed_order_under_trick_room() {
 
     assert_active_hp(&next, "p1", 100);
     assert_active_hp(&next, "p2", 0);
+}
+
+#[test]
+fn p0_spec_sucker_punch_hits_when_target_selected_physical_or_special_move() {
+    for category in ["physical", "special"] {
+        let engine = make_engine(vec![
+            sucker_punch_move(),
+            damage_move("strike", category, 40, None),
+        ]);
+        let state = battle_state(vec![
+            player(
+                "p1",
+                "P1",
+                vec![CreatureBuilder::new("c1", "Sucker")
+                    .moves(&["sucker_punch"])
+                    .build()],
+            ),
+            player(
+                "p2",
+                "P2",
+                vec![CreatureBuilder::new("c2", "Attacker")
+                    .moves(&["strike"])
+                    .build()],
+            ),
+        ]);
+
+        let next = run_turn_with_seed(
+            &engine,
+            &state,
+            &[
+                move_action("p1", "sucker_punch", "p2"),
+                move_action("p2", "strike", "p1"),
+            ],
+            7,
+        );
+
+        assert!(
+            active_hp(&next, "p2") < 100,
+            "sucker punch should hit when target selected {category}"
+        );
+    }
+}
+
+#[test]
+fn p0_spec_sucker_punch_fails_when_target_selected_status_move() {
+    let engine = make_engine(vec![sucker_punch_move(), wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Sucker")
+                .moves(&["sucker_punch"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Status")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "sucker_punch", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        8,
+    );
+
+    assert_active_hp(&next, "p2", 100);
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく きまらなかった")),
+        "failed sucker punch should be logged"
+    );
+}
+
+#[test]
+fn p0_spec_prankster_status_move_fails_against_dark_target() {
+    let engine = make_engine(vec![
+        status_stage_move("scary_prank", "target", "atk", -1),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Prankster")
+                .moves(&["scary_prank"])
+                .ability("prankster")
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "DarkTarget")
+                .types(&["dark"])
+                .moves(&["wait"])
+                .stats(50, 50, 50, 50, 200)
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "scary_prank", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        9,
+    );
+
+    let dark_target = &next.players[1].team[0];
+    assert_eq!(
+        dark_target.stages.atk, 0,
+        "prankster target status move should not affect dark targets"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく 決まらなかった")),
+        "blocked prankster move should log failure"
+    );
+}
+
+#[test]
+fn p0_spec_prankster_self_and_field_moves_still_work_against_dark_target() {
+    let engine = make_engine(vec![
+        status_stage_move("self_boost", "self", "atk", 1),
+        field_status_move("set_spikes", "spikes"),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Prankster")
+                .moves(&["self_boost", "set_spikes"])
+                .ability("prankster")
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "DarkTarget")
+                .types(&["dark"])
+                .moves(&["wait"])
+                .stats(50, 50, 50, 50, 200)
+                .build()],
+        ),
+    ]);
+
+    let after_boost = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "self_boost", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        10,
+    );
+    assert_eq!(
+        after_boost.players[0].team[0].stages.atk, 1,
+        "prankster self-target boost should still work"
+    );
+
+    let after_field = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "set_spikes", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        11,
+    );
+    assert_field_has_status(&after_field, "spikes");
+}
+
+#[test]
+fn p0_spec_poison_type_switch_in_absorbs_toxic_spikes() {
+    let engine = make_engine(vec![wait_move()]);
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Lead")
+                    .moves(&["wait"])
+                    .build(),
+                CreatureBuilder::new("c2", "PoisonSwitch")
+                    .types(&["poison"])
+                    .moves(&["wait"])
+                    .build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c3", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    state.field.sides.insert(
+        "p1".to_string(),
+        vec![
+            FieldEffect {
+                id: "toxic_spikes".to_string(),
+                remaining_turns: None,
+                data: HashMap::new(),
+            },
+            FieldEffect {
+                id: "toxic_spikes".to_string(),
+                remaining_turns: None,
+                data: HashMap::new(),
+            },
+        ],
+    );
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            switch_action("p1", 1),
+            move_action("p2", "wait", "p1"),
+        ],
+        12,
+    );
+
+    let active = &next.players[0].team[next.players[0].active_slot];
+    assert_eq!(active.id, "c2");
+    assert!(
+        !active
+            .statuses
+            .iter()
+            .any(|status| status.id == "poison" || status.id == "toxic"),
+        "poison type should absorb toxic spikes instead of being poisoned"
+    );
+    assert!(
+        !next
+            .field
+            .sides
+            .get("p1")
+            .is_some_and(|effects| effects.iter().any(|effect| effect.id == "toxic_spikes")),
+        "toxic spikes should be removed from the switching player's side"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("足元の どくびしが 消え去った！")),
+        "absorbing toxic spikes should be logged"
+    );
 }
 
 #[test]
@@ -1407,6 +1748,7 @@ fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -1459,6 +1801,7 @@ fn p0_spec_protect_chain_success_increments_counter() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -1609,6 +1952,133 @@ fn p0_spec_failed_protect_does_not_block_incoming_damage() {
         counter,
         Some(0),
         "failed protect should reset protectSuccessCount"
+    );
+}
+
+#[test]
+fn p0_spec_endure_survives_lethal_damage_at_one_hp() {
+    let engine = make_engine(vec![
+        endure_move("endure_plus4", 4),
+        damage_move("one_shot", "physical", 400, None),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Endurer")
+                .moves(&["endure_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Attacker")
+                .moves(&["one_shot"])
+                .stats(100, 50, 50, 50, 50)
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "endure_plus4", "p2"),
+        move_action("p2", "one_shot", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 120);
+
+    assert_active_hp(&next, "p1", 1);
+    assert!(
+        next.log.iter().any(|line| line.contains("こらえた")),
+        "endure should log that the user endured lethal damage"
+    );
+    assert!(
+        !next.players[0].team[0]
+            .statuses
+            .iter()
+            .any(|status| status.id == "pending_switch"),
+        "endure should prevent fainting from lethal damage"
+    );
+}
+
+#[test]
+fn p0_spec_endure_does_not_block_non_damage_status_moves() {
+    let engine = make_engine(vec![
+        endure_move("endure_plus4", 4),
+        status_move("poison_touch", "poison"),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Endurer")
+                .moves(&["endure_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Poisoner")
+                .moves(&["poison_touch"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "endure_plus4", "p2"),
+        move_action("p2", "poison_touch", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 121);
+
+    assert_active_has_status(&next, "p1", "poison");
+}
+
+#[test]
+fn p0_spec_endure_shares_protect_chain_counter() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![{
+                let mut c = CreatureBuilder::new("c1", "Guard").moves(&["wait"]).build();
+                c.volatile_data
+                    .insert("protectSuccessCount".to_string(), Value::Number(1.into()));
+                c
+            }],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+
+    let mut rng = || 0.4;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: None,
+        rng: &mut rng,
+        turn: 0,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        switch_slot: None,
+    };
+    let events = apply_effects(&state, &[effect("endure", json!({}))], &mut ctx);
+
+    let reset_seen = events.iter().any(|event| match event {
+        BattleEvent::SetVolatile { key, value, .. } => {
+            key == "protectSuccessCount" && value == &Value::Number(0.into())
+        }
+        _ => false,
+    });
+
+    assert!(
+        has_status_log(&events, "こらえられなかった") && reset_seen,
+        "endure should use the same consecutive-use failure odds as protect"
     );
 }
 
@@ -1850,6 +2320,7 @@ fn p0_manual_effects_must_not_be_silent_noop() {
                 ignore_immunity: false,
                 bypass_substitute: false,
                 ignore_substitute: false,
+                ignore_ability: false,
                 is_sound: false,
                 last_damage: None,
                 switch_slot: None,

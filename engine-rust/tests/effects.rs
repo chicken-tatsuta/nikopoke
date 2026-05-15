@@ -1,6 +1,7 @@
 use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
 use engine_rust::core::state::{
-    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+    Action, ActionType, BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    Status,
 };
 use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
 use engine_rust::data::moves::Effect;
@@ -18,6 +19,8 @@ fn make_creature(id: &str, name: &str) -> CreatureState {
         moves: vec!["tackle".to_string()],
         ability: Some("none".to_string()),
         item: None,
+
+        evs: EVStats::default(),
         hp: 100,
         max_hp: 100,
         stages: StatStages::default(),
@@ -30,6 +33,8 @@ fn make_creature(id: &str, name: &str) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+
+        weight_kg: 50.0,
     }
 }
 
@@ -60,12 +65,177 @@ fn make_state() -> BattleState {
     }
 }
 
+fn make_revival_state() -> BattleState {
+    let mut active = make_creature("c1", "Alpha");
+    active.hp = 80;
+    let mut fainted = make_creature("c2", "Beta");
+    fainted.hp = 0;
+    fainted.max_hp = 101;
+    fainted.statuses.push(Status {
+        id: "pending_switch".to_string(),
+        remaining_turns: None,
+        data: HashMap::new(),
+    });
+    let p1 = PlayerState {
+        id: "p1".to_string(),
+        name: "P1".to_string(),
+        team: vec![active, fainted],
+        active_slot: 0,
+        last_fainted_ability: Some("none".to_string()),
+    };
+    let p2 = PlayerState {
+        id: "p2".to_string(),
+        name: "P2".to_string(),
+        team: vec![make_creature("c3", "Gamma")],
+        active_slot: 0,
+        last_fainted_ability: None,
+    };
+    BattleState {
+        players: vec![p1, p2],
+        field: FieldState {
+            global: Vec::new(),
+            sides: HashMap::new(),
+        },
+        turn: 0,
+        log: Vec::new(),
+        history: None,
+    }
+}
+
 fn effect(effect_type: &str, data: Value) -> Effect {
     let map: Map<String, Value> = data.as_object().cloned().unwrap_or_default();
     Effect {
         effect_type: effect_type.to_string(),
         data: map,
     }
+}
+
+#[test]
+fn revival_blessing_restores_first_fainted_bench_member() {
+    let state = make_revival_state();
+    let mut rng = || 0.0;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: None,
+        rng: &mut rng,
+        turn: 0,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        switch_slot: None,
+    };
+
+    let events = apply_effects(
+        &state,
+        &[effect(
+            "revive_fainted",
+            json!({ "target": "user", "ratioMaxHp": 0.5 }),
+        )],
+        &mut ctx,
+    );
+    let next = apply_events(&state, &events);
+    let revived = &next.players[0].team[1];
+
+    assert_eq!(revived.hp, 50);
+    assert!(!revived
+        .statuses
+        .iter()
+        .any(|status| status.id == "pending_switch"));
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("さいきのいのりで 復活した")));
+}
+
+#[test]
+fn revival_blessing_uses_selected_fainted_slot() {
+    let mut state = make_revival_state();
+    let mut second_fainted = make_creature("c4", "Delta");
+    second_fainted.hp = 0;
+    second_fainted.max_hp = 120;
+    state.players[0].team.push(second_fainted);
+    let mut rng = || 0.0;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: None,
+        rng: &mut rng,
+        turn: 0,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        switch_slot: Some(2),
+    };
+
+    let events = apply_effects(
+        &state,
+        &[effect(
+            "revive_fainted",
+            json!({ "target": "user", "ratioMaxHp": 0.5 }),
+        )],
+        &mut ctx,
+    );
+    let next = apply_events(&state, &events);
+
+    assert_eq!(next.players[0].team[1].hp, 0);
+    assert_eq!(next.players[0].team[2].hp, 60);
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Deltaは さいきのいのりで 復活した")));
+}
+
+#[test]
+fn revival_blessing_fails_without_fainted_bench_member() {
+    let mut state = make_revival_state();
+    state.players[0].team[1].hp = 10;
+    let mut rng = || 0.0;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: None,
+        rng: &mut rng,
+        turn: 0,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        switch_slot: None,
+    };
+
+    let events = apply_effects(
+        &state,
+        &[effect(
+            "revive_fainted",
+            json!({ "target": "user", "ratioMaxHp": 0.5 }),
+        )],
+        &mut ctx,
+    );
+    let next = apply_events(&state, &events);
+
+    assert_eq!(next.players[0].team[1].hp, 10);
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("うまく きまらなかった")));
 }
 
 #[test]
@@ -84,6 +254,7 @@ fn modify_damage_scales_last_damage_event() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -117,6 +288,7 @@ fn crit_scales_last_damage_event() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -163,6 +335,7 @@ fn cure_all_status_clears_statuses() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -191,6 +364,7 @@ fn lock_move_forces_specific_move() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -229,6 +403,9 @@ fn lock_move_forces_specific_move() {
 #[test]
 fn self_switch_marks_pending_switch() {
     let mut state = make_state();
+    state.players[0]
+        .team
+        .push(make_creature("c1_bench", "Alpha Bench"));
     let mut rng = || 0.0;
     let type_chart = TypeChart::new();
     let mut ctx = EffectContext {
@@ -242,6 +419,7 @@ fn self_switch_marks_pending_switch() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -295,6 +473,7 @@ fn force_switch_randomly_switches_target() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -338,6 +517,7 @@ fn force_switch_with_only_one_pokemon_logs_failure() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,

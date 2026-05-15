@@ -381,7 +381,9 @@ class MlpAI {
             1,
         );
         const base = (((2 * attacker.level / 5 + 2) * power * attackStat / defenseStat) / 50) + 2;
-        const stab = attacker.types.includes(move.type) ? 1.5 : 1;
+        const stab = attacker.types.includes(move.type)
+            ? attacker.ability === 'adaptability' ? 2 : 1.5
+            : 1;
         const effectiveness = this.getTypeEffectiveness(move.type, defender.types);
         return Math.max(1, Math.floor(base * stab * effectiveness * 0.85));
     }

@@ -135,7 +135,7 @@
       "spe": 90
     },
     "abilities": [
-      "quick_feet",
+      "unburden",
       "lightning_rod"
     ]
   },
@@ -356,7 +356,7 @@
     },
     "abilities": [
       "insomnia",
-      "own_tempo"
+      "adaptability"
     ]
   },
   "makocchan": {

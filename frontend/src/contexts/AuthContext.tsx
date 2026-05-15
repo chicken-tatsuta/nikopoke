@@ -15,6 +15,7 @@ export type Profile = {
     rating: number;
     win_count: number;
     loss_count: number;
+    is_admin: boolean;
     current_deck: DeckPokemon[] | null;
     saved_decks: SavedDeck[];
 };
@@ -30,14 +31,33 @@ type AuthContextValue = {
     signUp: (email: string, password: string, username: string) => Promise<void>;
     signOut: () => Promise<void>;
     updateProfile: (updates: ProfileUpdates) => Promise<void>;
+    refreshProfile: () => Promise<void>;
 };
 
+export const USERNAME_MAX_LENGTH = 16;
+
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function normalizeUsername(username: string): string {
+    return username.trim();
+}
+
+function assertValidUsername(username: string) {
+    const normalized = normalizeUsername(username);
+    if (!normalized) {
+        throw new Error('ユーザー名を入力してください。');
+    }
+    if (normalized.length > USERNAME_MAX_LENGTH) {
+        throw new Error(`ユーザー名は${USERNAME_MAX_LENGTH}文字以内にしてください。`);
+    }
+    return normalized;
+}
 
 function normalizeProfile(row: Profile): Profile {
     return {
         ...row,
         rating: Number(row.rating ?? 1500),
+        is_admin: Boolean(row.is_admin),
         current_deck: Array.isArray(row.current_deck) ? row.current_deck : null,
         saved_decks: Array.isArray(row.saved_decks) ? row.saved_decks : [],
     };
@@ -48,7 +68,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
 
     const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
 
@@ -108,12 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signUp = useCallback(async (email: string, password: string, username: string) => {
         if (!supabase) throw new Error('Supabase が設定されていません。');
+        const validUsername = assertValidUsername(username);
 
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
-                data: { username },
+                data: { username: validUsername },
             },
         });
         if (error) throw error;
@@ -123,10 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .from('profiles')
                 .upsert({
                     id: data.user.id,
-                    username,
-                    rating: 1500,
-                    win_count: 0,
-                    loss_count: 0,
+                    username: validUsername,
                     saved_decks: [],
                 });
 
@@ -149,15 +167,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!supabase) throw new Error('Supabase が設定されていません。');
         if (!session?.user) throw new Error('ログインが必要です。');
 
+        const sanitizedUpdates = { ...updates };
+        if (typeof sanitizedUpdates.username === 'string') {
+            sanitizedUpdates.username = assertValidUsername(sanitizedUpdates.username);
+        }
+
         const { data, error } = await supabase
             .from('profiles')
-            .update(updates)
+            .update(sanitizedUpdates)
             .eq('id', session.user.id)
-            .select('id, username, rating, win_count, loss_count, current_deck, saved_decks')
+            .select('*')
             .single();
 
         if (error) throw error;
         setProfile(normalizeProfile(data as Profile));
+    }, [session]);
+
+    const refreshProfile = useCallback(async () => {
+        if (!session?.user) {
+            setProfile(null);
+            return;
+        }
+
+        setProfile(await fetchProfile(session.user.id));
     }, [session]);
 
     const value = useMemo<AuthContextValue>(() => ({
@@ -169,7 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         updateProfile,
-    }), [loading, profile, session, signIn, signOut, signUp, updateProfile]);
+        refreshProfile,
+    }), [loading, profile, refreshProfile, session, signIn, signOut, signUp, updateProfile]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

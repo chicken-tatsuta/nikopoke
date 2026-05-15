@@ -22,6 +22,7 @@ export interface OnlineSessionSnapshot {
     hostPeerId: string | null;
     remotePeerId: string | null;
     remoteUserId: string | null;
+    remoteUserName: string | null;
     localDeck: DeckPokemon[] | null;
     remoteDeck: DeckPokemon[] | null;
     localSelectedDeck: DeckPokemon[] | null;
@@ -32,7 +33,7 @@ export interface OnlineSessionSnapshot {
 }
 
 type OnlineMessage =
-    | { type: 'hello'; role: OnlineRole; peerId: string; userId?: string | null; deck: DeckPokemon[] }
+    | { type: 'hello'; role: OnlineRole; peerId: string; userId?: string | null; userName?: string | null; deck: DeckPokemon[] }
     | { type: 'start_battle' }
     | { type: 'team_selected'; deck: DeckPokemon[] }
     | { type: 'battle_init'; state: BattleStateWire }
@@ -61,7 +62,9 @@ interface OnlineSessionState {
     hostPeerId: string | null;
     remotePeerId: string | null;
     localUserId: string | null;
+    localUserName: string | null;
     remoteUserId: string | null;
+    remoteUserName: string | null;
     localDeck: DeckPokemon[] | null;
     remoteDeck: DeckPokemon[] | null;
     localSelectedDeck: DeckPokemon[] | null;
@@ -72,8 +75,18 @@ interface OnlineSessionState {
 }
 
 const listeners = new Set<(event: OnlineSessionEvent) => void>();
-const JOIN_TIMEOUT_MS = 30000;
-const ROOM_CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+const JOIN_TIMEOUT_MS = 45000;
+const ROOM_LOOKUP_RETRY_COUNT = 12;
+const ROOM_LOOKUP_RETRY_DELAY_MS = 500;
+const PEER_CONNECT_RETRY_COUNT = 5;
+const PEER_CONNECT_RETRY_DELAY_MS = 1200;
+const CREATE_ROOM_CODE_RETRY_COUNT = 12;
+
+function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+    });
+}
 
 // --- ICE Servers (TURN / STUN) ---
 
@@ -215,7 +228,11 @@ function scheduleReconnect(): void {
             }
 
             if (session.role === 'guest' && session.hostPeerId) {
-                const conn = session.peer.connect(session.hostPeerId, { reliable: true });
+                const targetPeerId = session.remotePeerId ?? await lookupRoomCodeWithRetry(session.hostPeerId);
+                if (!targetPeerId) {
+                    throw new Error('ホストの接続先が見つかりませんでした。');
+                }
+                const conn = session.peer.connect(targetPeerId, { reliable: true });
                 attachConnection(conn);
                 await new Promise<void>((resolve, reject) => {
                     const timeoutId = setTimeout(() => reject(new Error('timeout')), 10_000);
@@ -263,7 +280,9 @@ function createInitialState(): OnlineSessionState {
         hostPeerId: null,
         remotePeerId: null,
         localUserId: null,
+        localUserName: null,
         remoteUserId: null,
+        remoteUserName: null,
         localDeck: null,
         remoteDeck: null,
         localSelectedDeck: null,
@@ -311,6 +330,7 @@ function getSnapshot(): OnlineSessionSnapshot {
         hostPeerId: session.hostPeerId,
         remotePeerId: session.remotePeerId,
         remoteUserId: session.remoteUserId,
+        remoteUserName: session.remoteUserName,
         localDeck: session.localDeck ? cloneDeck(session.localDeck) : null,
         remoteDeck: session.remoteDeck ? cloneDeck(session.remoteDeck) : null,
         localSelectedDeck: session.localSelectedDeck ? cloneDeck(session.localSelectedDeck) : null,
@@ -363,6 +383,7 @@ function sendHello(): void {
         role: session.role,
         peerId: session.localPeerId,
         userId: session.localUserId,
+        userName: session.localUserName,
         deck: cloneDeck(session.localDeck),
     });
 }
@@ -387,6 +408,7 @@ function handleIncomingMessage(raw: unknown): void {
         case 'hello':
             session.remotePeerId = message.peerId;
             session.remoteUserId = message.userId ?? null;
+            session.remoteUserName = message.userName ?? null;
             session.remoteDeck = cloneDeck(message.deck);
             if (session.status !== 'in_battle') {
                 session.status = 'ready';
@@ -462,6 +484,11 @@ function attachConnection(connection: DataConnection): void {
         }
         session.connection = null;
 
+        if (session.status === 'joining') {
+            emitSnapshot();
+            return;
+        }
+
         if (session.status === 'in_battle' || session.status === 'connected' || session.status === 'ready') {
             session.status = 'disconnected';
             emitSnapshot();
@@ -476,6 +503,9 @@ function attachConnection(connection: DataConnection): void {
 
     connection.on('error', (error) => {
         console.error('[p2p] connection error', error);
+        if (session.status === 'joining' && isRetryablePeerError(error)) {
+            return;
+        }
         if (session.connection === connection) {
             setError(error.message);
         }
@@ -489,6 +519,9 @@ function setupPeerCommon(peer: Peer): void {
 
     peer.on('error', (error) => {
         console.error('[p2p] peer error', error);
+        if (session.status === 'joining' && isRetryablePeerError(error)) {
+            return;
+        }
         setError(error.message);
     });
 
@@ -542,10 +575,40 @@ export function validateRoomCode(code: string): string | null {
 }
 
 function createReadableRoomCode(): string {
-    const suffix = Array.from({ length: 4 }, () =>
-        ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)],
-    ).join('');
-    return `niko-${suffix}`;
+    return Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+}
+
+async function lookupRoomCodeWithRetry(roomCode: string): Promise<string | null> {
+    for (let attempt = 0; attempt <= ROOM_LOOKUP_RETRY_COUNT; attempt += 1) {
+        const peerId = await lookupRoomCode(roomCode);
+        if (peerId) {
+            if (attempt > 0) {
+                console.log('[p2p] room lookup succeeded after retry', { roomCode, attempt });
+            }
+            return peerId;
+        }
+        if (attempt < ROOM_LOOKUP_RETRY_COUNT) {
+            await delay(ROOM_LOOKUP_RETRY_DELAY_MS);
+        }
+    }
+    return null;
+}
+
+function isRetryablePeerError(error: Error): boolean {
+    const type = 'type' in error ? String((error as Error & { type?: unknown }).type ?? '') : '';
+    const message = error.message.toLowerCase();
+    return (
+        type === 'peer-unavailable' ||
+        type === 'network' ||
+        message.includes('could not connect') ||
+        message.includes('peer-unavailable') ||
+        message.includes('is not available')
+    );
+}
+
+function isRoomCodeTakenError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('既に使われています') || message.toLowerCase().includes('already');
 }
 
 
@@ -572,69 +635,100 @@ export function clearOnlineSession(): void {
 export async function createHostSession(
     deck: DeckPokemon[],
     userId?: string | null,
+    userName?: string | null,
     requestedRoomCode?: string,
 ): Promise<string> {
     clearOnlineSession();
 
-    const roomCode = normalizeRoomCode(requestedRoomCode || createReadableRoomCode());
-    const validationError = validateRoomCode(roomCode);
-    if (validationError) throw new Error(validationError);
+    const fixedRoomCode = requestedRoomCode ? normalizeRoomCode(requestedRoomCode) : null;
+    if (fixedRoomCode) {
+        const validationError = validateRoomCode(fixedRoomCode);
+        if (validationError) throw new Error(validationError);
+    }
 
     session.role = 'host';
     session.status = 'hosting';
     session.localDeck = cloneDeck(deck);
     session.localUserId = userId ?? null;
+    session.localUserName = userName ?? null;
     emitSnapshot();
 
     const iceServers = await buildIceServers();
     const peerOptions = buildPeerOptions(iceServers);
 
-    // Use a random UUID as the actual PeerID to avoid collisions
-    const peerId = crypto.randomUUID();
+    const attempts = fixedRoomCode ? 1 : CREATE_ROOM_CODE_RETRY_COUNT;
+    let lastError: Error | null = null;
 
-    const peer = new Peer(peerId, peerOptions);
-    session.peer = peer;
-    emitSnapshot();
-    setupPeerCommon(peer);
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const roomCode = fixedRoomCode ?? createReadableRoomCode();
+        const validationError = validateRoomCode(roomCode);
+        if (validationError) throw new Error(validationError);
+        session.status = 'hosting';
+        session.error = null;
+        emitSnapshot();
 
-    return await new Promise<string>((resolve, reject) => {
-        peer.on('open', async () => {
-            try {
-                // Register the code → peerId mapping (no-op if Supabase not configured)
-                await registerRoomCode(roomCode, peerId);
-            } catch (error) {
-                peer.destroy();
-                const message = error instanceof Error ? error.message : 'ルーム登録に失敗しました。';
-                setError(message);
-                reject(new Error(message));
-                return;
+        // Use a random UUID as the actual PeerID to avoid collisions.
+        const peerId = crypto.randomUUID();
+
+        const peer = new Peer(peerId, peerOptions);
+        session.peer = peer;
+        emitSnapshot();
+        setupPeerCommon(peer);
+
+        try {
+            return await new Promise<string>((resolve, reject) => {
+                peer.on('open', async () => {
+                    try {
+                        // Register the code → peerId mapping (no-op if Supabase not configured).
+                        await registerRoomCode(roomCode, peerId);
+                    } catch (error) {
+                        peer.destroy();
+                        const message = error instanceof Error ? error.message : 'ルーム登録に失敗しました。';
+                        reject(new Error(message));
+                        return;
+                    }
+
+                    session.localPeerId = peerId;
+                    session.hostPeerId = roomCode; // share the user-friendly code, not the UUID.
+                    session.error = null;
+                    emitSnapshot();
+                    resolve(roomCode); // return the user-friendly code.
+                });
+
+                peer.on('connection', (connection) => {
+                    if (session.connection && session.connection.open) {
+                        connection.on('open', () => connection.close());
+                        return;
+                    }
+                    attachConnection(connection);
+                });
+
+                peer.on('error', (error) => {
+                    reject(error);
+                });
+            });
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error('ルーム作成に失敗しました。');
+            try { peer.destroy(); } catch { /* ignore */ }
+            if (!fixedRoomCode && isRoomCodeTakenError(lastError) && attempt < attempts - 1) {
+                console.warn('[p2p] generated room code was already taken, retrying', { roomCode, attempt });
+                continue;
             }
+            setError(lastError.message);
+            throw lastError;
+        }
+    }
 
-            session.localPeerId = peerId;
-            session.hostPeerId = roomCode; // share the user-friendly code, not the UUID
-            session.error = null;
-            emitSnapshot();
-            resolve(roomCode); // return the user-friendly code
-        });
-
-        peer.on('connection', (connection) => {
-            if (session.connection && session.connection.open) {
-                connection.on('open', () => connection.close());
-                return;
-            }
-            attachConnection(connection);
-        });
-
-        peer.on('error', (error) => {
-            reject(error);
-        });
-    });
+    const message = lastError?.message ?? 'ルームコードの自動生成に失敗しました。もう一度試してください。';
+    setError(message);
+    throw new Error(message);
 }
 
 export async function joinHostSession(
     hostPeerId: string,
     deck: DeckPokemon[],
     userId?: string | null,
+    userName?: string | null,
 ): Promise<void> {
     clearOnlineSession();
 
@@ -647,27 +741,28 @@ export async function joinHostSession(
     session.hostPeerId = roomCode;
     session.localDeck = cloneDeck(deck);
     session.localUserId = userId ?? null;
+    session.localUserName = userName ?? null;
     emitSnapshot();
 
     const iceServers = await buildIceServers();
     const peerOptions = buildPeerOptions(iceServers);
 
     // Resolve the room code to an actual PeerID via Supabase.
-    // Fall back to using the code directly as PeerID (legacy mode) if Supabase is not configured.
-    let resolvedPeerId = roomCode;
-    const lookedUpPeerId = await lookupRoomCode(roomCode);
+    const lookedUpPeerId = await lookupRoomCodeWithRetry(roomCode);
     if (lookedUpPeerId) {
-        resolvedPeerId = lookedUpPeerId;
-    } else if (lookedUpPeerId === null) {
-        // lookup succeeded but returned null → code not found
+        console.log('[p2p] room code resolved', { roomCode, peerId: lookedUpPeerId });
+    } else {
         throw new Error(
             `ルームコード "${roomCode}" が見つかりませんでした。コードが正しいか、ホストがルームを作成したままかを確認してください。`,
         );
     }
-    // If lookup returns undefined (Supabase not configured), fall through with roomCode as peerId.
+    const resolvedPeerId = lookedUpPeerId;
 
     return await new Promise<void>((resolve, reject) => {
         let resolved = false;
+        let connectionAttempt = 0;
+        let connectToHost: (() => void) | null = null;
+        let retryScheduledForAttempt = 0;
 
         const rejectOnce = (error: Error): void => {
             if (resolved) return;
@@ -687,33 +782,98 @@ export async function joinHostSession(
         const peer = new Peer(peerOptions);
         session.peer = peer;
         emitSnapshot();
-        setupPeerCommon(peer);
+            setupPeerCommon(peer);
 
         peer.on('open', (peerId) => {
             console.log('[p2p] guest peer open', peerId);
             session.localPeerId = peerId;
             emitSnapshot();
 
-            const connection = peer.connect(resolvedPeerId, {
-                reliable: true,
-            });
+            const connect = () => {
+                if (resolved || peer.destroyed) {
+                    return;
+                }
+                connectionAttempt += 1;
+                const connection = peer.connect(resolvedPeerId, {
+                    reliable: true,
+                });
 
-            console.log('[p2p] connecting to host peer', resolvedPeerId);
-            attachConnection(connection);
+                console.log('[p2p] connecting to host peer', {
+                    roomCode,
+                    resolvedPeerId,
+                    attempt: connectionAttempt,
+                });
+                attachConnection(connection);
 
-            connection.on('open', () => {
-                if (resolved) return;
-                resolved = true;
-                window.clearTimeout(timeoutId);
-                resolve();
-            });
+                let attemptFinished = false;
+                const retryConnection = (reason: unknown): void => {
+                    if (resolved || attemptFinished) {
+                        return;
+                    }
+                    attemptFinished = true;
+                    if (connectionAttempt < PEER_CONNECT_RETRY_COUNT) {
+                        retryScheduledForAttempt = connectionAttempt;
+                        console.warn('[p2p] connection attempt failed, retrying', {
+                            roomCode,
+                            resolvedPeerId,
+                            attempt: connectionAttempt,
+                            reason,
+                        });
+                        window.setTimeout(connect, PEER_CONNECT_RETRY_DELAY_MS);
+                        return;
+                    }
+                    const message = reason instanceof Error
+                        ? reason.message
+                        : 'ホストへの接続に失敗しました。もう一度ルームを作り直して試してください。';
+                    rejectOnce(new Error(message));
+                };
 
-            connection.on('error', (error) => {
-                rejectOnce(error);
-            });
+                connection.on('open', () => {
+                    if (resolved) return;
+                    attemptFinished = true;
+                    resolved = true;
+                    window.clearTimeout(timeoutId);
+                    resolve();
+                });
+
+                connection.on('error', (error) => {
+                    if (isRetryablePeerError(error)) {
+                        retryConnection(error);
+                        return;
+                    }
+                    rejectOnce(error);
+                });
+
+                connection.on('close', () => {
+                    if (!resolved && session.status === 'joining') {
+                        retryConnection(new Error('接続が開く前に切断されました。'));
+                    }
+                });
+            };
+
+            connectToHost = connect;
+            connect();
         });
 
         peer.on('error', (error) => {
+            if (
+                !resolved &&
+                connectToHost &&
+                connectionAttempt > 0 &&
+                connectionAttempt < PEER_CONNECT_RETRY_COUNT &&
+                retryScheduledForAttempt !== connectionAttempt &&
+                isRetryablePeerError(error)
+            ) {
+                retryScheduledForAttempt = connectionAttempt;
+                console.warn('[p2p] peer error during connect, retrying', {
+                    roomCode,
+                    resolvedPeerId,
+                    attempt: connectionAttempt,
+                    error,
+                });
+                window.setTimeout(connectToHost, PEER_CONNECT_RETRY_DELAY_MS);
+                return;
+            }
             rejectOnce(error);
         });
     });

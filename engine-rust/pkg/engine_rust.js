@@ -315,6 +315,31 @@ export function getBestMoveVega(state, player_id, depth) {
 /**
  * @param {any} state
  * @param {string} player_id
+ * @param {number} max_depth
+ * @param {number} node_budget
+ * @returns {any}
+ */
+export function getBestMoveVegaIterative(state, player_id, max_depth, node_budget) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(player_id, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.getBestMoveVegaIterative(retptr, addHeapObject(state), ptr0, len0, max_depth, node_budget);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * @param {any} state
+ * @param {string} player_id
  * @param {number} depth
  * @param {number} branch_limit
  * @returns {any}

@@ -2905,7 +2905,7 @@ endure:
   pp: 10
   priority: 4
   steps:
-    - type: protect
+    - type: endure
   tags: []
   type: normal
 energy_ball:
@@ -7981,8 +7981,9 @@ revival_blessing:
   pp: 1
   priority: 0
   steps:
-    - message: さいきのいのりは まだ実装されていない！
-      type: log
+    - ratioMaxHp: 0.5
+      target: user
+      type: revive_fainted
   tags: []
   type: normal
 roar:
@@ -8756,19 +8757,23 @@ shell_fortify:
 shell_smash:
   accuracy: null
   category: status
-  description: 自分の『ぼうぎょ』ランクを1段階上げる。
+  description: 殻を　やぶって　自分の　防御 特防を　さげるが　攻撃　特攻 素早さを　ぐーんと　あげる。
   id: shell_smash
-  name: からにこもる
+  name: からをやぶる
   power: null
-  pp: 40
+  pp: 15
   priority: 0
   steps:
     - stages:
-        def: 1
+        atk: 2
+        def: -1
+        spa: 2
+        spd: -1
+        spe: 2
       target: self
       type: modify_stage
   tags: []
-  type: water
+  type: normal
 shift_gear:
   accuracy: null
   category: status
@@ -9546,9 +9551,16 @@ sucker_punch:
   pp: 5
   priority: 1
   steps:
-    - accuracy: 1
-      power: 70
-      type: damage
+    - else:
+        - message: しかし うまく きまらなかった！
+          type: log
+      if:
+        type: target_selected_attacking_move
+      then:
+        - accuracy: 1
+          power: 70
+          type: damage
+      type: conditional
   tags:
     - contact
   type: dark

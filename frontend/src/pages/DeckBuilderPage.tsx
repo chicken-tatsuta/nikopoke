@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, X, ArrowLeft, Swords, Sliders, FolderOpen, Save } from 'lucide-react';
 import { loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
-import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats } from '../types/pokemon';
+import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats, BaseStats } from '../types/pokemon';
 import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
 import { useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { getAbilityLabel } from './PokemonDetailPage';
 import { EMPTY_EVS, EV_KEYS, EV_STAT_MAX, EV_TOTAL_MAX, evTotal, normalizeEvs } from '../lib/evs';
+import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 
 
 const DECK_SIZE = 6;
@@ -60,12 +61,10 @@ function getEffectivenessLabel(mult: number): string | null {
 }
 
 function getEffectivenessClass(mult: number): string {
-  if (mult === 0) return 'bg-slate-800 text-white border border-slate-700';
-  if (mult >= 4) return 'bg-pink-100 text-pink-700 border border-pink-200';
-  if (mult >= 2) return 'bg-red-100 text-red-700 border border-red-200';
-  if (mult <= 0.25) return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
-  if (mult < 1) return 'bg-blue-100 text-blue-700 border border-blue-200';
-  return 'bg-slate-100 text-slate-500 border border-slate-200';
+  if (mult === 0) return 'bg-white text-[#111111] border border-[#111111]';
+  if (mult >= 2) return 'bg-[#F5EEE4] text-[#111111] border border-[#111111]';
+  if (mult < 1) return 'bg-white text-[#111111] border border-[#111111]';
+  return 'bg-[#FAFAFA] text-[#666666] border border-[#111111]';
 }
 
 export default function DeckBuilderPage() {
@@ -87,6 +86,8 @@ export default function DeckBuilderPage() {
     const [editingEVIndex, setEditingEVIndex] = useState<number | null>(null);
     const [editingEVs, setEditingEVs] = useState<EVStats>(EMPTY_EVS);
     const [selectedPresetName, setSelectedPresetName] = useState('');
+    const editorPaneRef = useRef<HTMLDivElement | null>(null);
+    const isEditing = editingEVIndex !== null || editingIndex !== null;
 
     useEffect(() => {
         loadAllData().then(({ species, moves, learnsets }) => {
@@ -157,6 +158,30 @@ export default function DeckBuilderPage() {
             }
         }
     }, [deckInitialized, loading, selectedPokemon, updateProfile, user]);
+
+    useEffect(() => {
+        if (!isEditing) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            const editorPane = editorPaneRef.current;
+            if (!editorPane) {
+                return;
+            }
+
+            editorPane.scrollTo({ top: 0, behavior: 'smooth' });
+
+            const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+            if (!isDesktop) {
+                const headerOffset = 84;
+                const top = editorPane.getBoundingClientRect().top + window.scrollY - headerOffset;
+                window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+            }
+        }, 40);
+
+        return () => window.clearTimeout(timer);
+    }, [editingEVIndex, editingIndex, isEditing]);
 
     const handleRemovePokemon = (index: number) => {
         setSelectedPokemon(selectedPokemon.filter((_, i) => i !== index));
@@ -302,11 +327,11 @@ export default function DeckBuilderPage() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-6 py-8">
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)]">
+            <main className="mx-auto max-w-7xl px-6 py-8 lg:h-[calc(100dvh-81px)] lg:overflow-hidden">
+                <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)] lg:overflow-hidden">
                     {/* Selected Pokemon */}
-                    <div>
-                        <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5 sticky top-24">
+                    <div className={`${isEditing ? 'order-2 lg:order-none' : ''} lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
                             <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
                             </h2>
@@ -402,7 +427,7 @@ export default function DeckBuilderPage() {
                     </div>
 
                     {/* Pokemon / Move Selection */}
-                    <div className="min-w-0">
+                    <div ref={editorPaneRef} className={`${isEditing ? 'order-1 lg:order-none' : ''} min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
                         {editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}
@@ -418,27 +443,38 @@ export default function DeckBuilderPage() {
                                 learnsets={learnsets}
                                 selectedMoves={editingMoves}
                                 onToggleMove={handleToggleMove}
+                                onReset={() => setEditingMoves([])}
                                 onSave={handleSaveMoves}
                                 onCancel={() => setEditingIndex(null)}
                             />
                         ) : (
                             <div>
-                                <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">ポケモン選択</h2>
+                                <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">ニキダン選択</h2>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {speciesList.map((mon) => {
                                         const isSelected = selectedPokemon.some(p => p.speciesId === mon.id);
+                                        const portraitSrc = getPokemonPortraitSrc(mon.id, mon.name);
                                         return (
                                             <button
                                                 key={mon.id}
                                                 onClick={() => handleSelectPokemon(mon)}
                                                 disabled={isSelected || selectedPokemon.length >= DECK_SIZE}
-                                                className={`p-4 rounded-xl border text-left transition-all ${isSelected
+                                                className={`group relative p-4 rounded-xl border text-left transition-all ${isSelected
                                                     ? 'bg-[var(--accent-muted)] border-[var(--accent)]/50'
                                                     : selectedPokemon.length >= DECK_SIZE
                                                         ? 'bg-[var(--surface-2)] border-[var(--border)] opacity-50 cursor-not-allowed'
                                                         : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)] card-hover'
                                                     }`}
                                             >
+                                                <StatHoverPanel stats={mon.baseStats} className="left-3 right-3 top-3" />
+                                                <div className="mb-3 aspect-square overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
+                                                    <img
+                                                        src={portraitSrc}
+                                                        alt={mon.name}
+                                                        className="size-full object-cover"
+                                                        draggable={false}
+                                                    />
+                                                </div>
                                                 <h3 className="font-semibold text-[var(--text-primary)]">{mon.name}</h3>
                                                 <div className="flex gap-1 mt-2">
                                                     {mon.type.map((t) => (
@@ -535,6 +571,36 @@ function sanitizeDeckPokemon(
     };
 }
 
+const STAT_ROWS: Array<{ key: keyof BaseStats; label: string }> = [
+    { key: 'hp', label: 'H' },
+    { key: 'atk', label: 'A' },
+    { key: 'def', label: 'B' },
+    { key: 'spa', label: 'C' },
+    { key: 'spd', label: 'D' },
+    { key: 'spe', label: 'S' },
+];
+
+function StatHoverPanel({ stats, className = '' }: { stats: BaseStats; className?: string }) {
+    return (
+        <div
+            className={`pointer-events-none absolute z-30 rounded-lg border border-[#111111] bg-white/95 p-2 opacity-0 shadow-[0_8px_24px_rgba(17,17,17,0.12)] backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${className}`}
+        >
+            <div className="mb-1 flex items-center justify-between border-b border-[#111111] pb-1 text-[10px] font-bold tracking-[0.12em] text-[#111111]">
+                <span>HABCDS</span>
+                <span className="tabular-nums">{STAT_ROWS.reduce((sum, row) => sum + stats[row.key], 0)}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1">
+                {STAT_ROWS.map(({ key, label }) => (
+                    <div key={key} className="grid grid-cols-[auto_1fr] items-center gap-1 text-[10px] font-bold text-[#111111]">
+                        <span>{label}</span>
+                        <span className="text-right tabular-nums">{stats[key]}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function SelectedPokemonCard({
     pokemon,
     species,
@@ -553,14 +619,28 @@ function SelectedPokemonCard({
     onAbilityChange: (ability: string) => void;
 }) {
     const totalEvs = evTotal(pokemon.evs);
+    const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
 
     return (
-        <div className="flex h-full min-w-0 flex-col">
-            <div className="mb-2 flex items-start justify-between gap-2">
-                <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
-                <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ポケモンを削除">
-                    <X className="size-4 text-red-400" />
-                </button>
+        <div className="group relative flex h-full min-w-0 flex-col">
+            <StatHoverPanel stats={species.baseStats} className="left-2 right-2 top-2" />
+            <div className="mb-3 flex items-start gap-3">
+                <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)]">
+                    <img
+                        src={portraitSrc}
+                        alt={species.name}
+                        className="size-full object-cover"
+                        draggable={false}
+                    />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                        <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--text-primary)]">{species.name}</h3>
+                        <button onClick={onRemove} className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors" aria-label="ニキダンを削除">
+                            <X className="size-4 text-red-400" />
+                        </button>
+                    </div>
+                </div>
             </div>
             <div className="mb-3 flex flex-wrap gap-1">
                 {species.type.map((t) => (
@@ -631,6 +711,7 @@ function MoveSelector({
     learnsets,
     selectedMoves,
     onToggleMove,
+    onReset,
     onSave,
     onCancel,
 }: {
@@ -639,6 +720,7 @@ function MoveSelector({
     learnsets: Learnset;
     selectedMoves: string[];
     onToggleMove: (moveId: string) => void;
+    onReset: () => void;
     onSave: () => void;
     onCancel: () => void;
 }) {
@@ -646,23 +728,32 @@ function MoveSelector({
 
     return (
         <div>
-            <div className="flex items-center justify-between mb-5">
-                <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                    {species.name}の技を選択 <span className="text-[var(--text-muted)] font-normal">({selectedMoves.length}/4)</span>
-                </h2>
-                <div className="flex gap-2">
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 bg-[var(--surface-3)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-4)] transition-colors"
-                    >
-                        キャンセル
-                    </button>
-                    <button
-                        onClick={onSave}
-                        className="px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:bg-[var(--accent-hover)] transition-colors"
-                    >
-                        保存
-                    </button>
+            <div className="sticky top-[73px] z-30 -mx-1 mb-5 border-b border-[var(--border)] bg-[var(--surface-1)] px-1 py-3 shadow-[0_10px_0_var(--surface-1)] lg:top-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <h2 className="text-base font-semibold leading-tight text-[var(--text-primary)]">
+                        {species.name}の技を選択 <span className="text-[var(--text-muted)] font-normal">({selectedMoves.length}/4)</span>
+                    </h2>
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+                        <button
+                            onClick={onReset}
+                            disabled={selectedMoves.length === 0}
+                            className="min-h-11 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                        >
+                            リセット
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            className="min-h-11 rounded-lg bg-[var(--surface-3)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-4)] sm:px-4"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            onClick={onSave}
+                            className="min-h-11 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] sm:px-4"
+                        >
+                            保存
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -790,29 +881,38 @@ function EVEditor({
 
     return (
         <div>
-            <div className="flex items-center justify-between mb-5">
-                <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                    {species.name}のEVを編集
-                    <span className="text-[var(--text-muted)] font-normal ml-2">({total}/{EV_TOTAL_MAX})</span>
-                </h2>
-                <div className="flex gap-2">
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 bg-[var(--surface-3)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-4)] transition-colors"
-                    >
-                        キャンセル
-                    </button>
-                    <button
-                        onClick={onSave}
-                        className="px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:bg-[var(--accent-hover)] transition-colors"
-                    >
-                        保存
-                    </button>
+            <div className="sticky top-[73px] z-30 -mx-1 mb-5 border-b border-[var(--border)] bg-[var(--surface-1)] px-1 py-3 shadow-[0_10px_0_var(--surface-1)] lg:top-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <h2 className="text-base font-semibold leading-tight text-[var(--text-primary)]">
+                        {species.name}のEVを編集
+                        <span className="ml-2 text-[var(--text-muted)] font-normal">({total}/{EV_TOTAL_MAX})</span>
+                    </h2>
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+                        <button
+                            onClick={() => onEVChange(EMPTY_EVS)}
+                            disabled={total === 0}
+                            className="min-h-11 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                        >
+                            リセット
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            className="min-h-11 rounded-lg bg-[var(--surface-3)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-4)] sm:px-4"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            onClick={onSave}
+                            className="min-h-11 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] sm:px-4"
+                        >
+                            保存
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {remaining < 0 && (
-                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                <div className="mb-4 p-3 bg-[#F5EEE4] border border-[#111111] rounded-lg text-[#111111] text-sm">
                     合計が{EV_TOTAL_MAX}を超えています
                 </div>
             )}
@@ -847,14 +947,6 @@ function EVEditor({
                 ))}
             </div>
 
-            <div className="mt-4 flex justify-center gap-2">
-                <button
-                    onClick={() => onEVChange(EMPTY_EVS)}
-                    className="px-3 py-1.5 bg-[var(--surface-3)] text-[var(--text-muted)] rounded-lg text-sm hover:bg-[var(--surface-4)] transition-colors"
-                >
-                    リセット
-                </button>
-            </div>
         </div>
     );
 }

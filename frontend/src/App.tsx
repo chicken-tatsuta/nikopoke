@@ -2,15 +2,19 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import type { ReactNode } from 'react';
 import TitlePage from './pages/TitlePage';
 import HomePage from './pages/HomePage';
+import BattleModePage from './pages/BattleModePage';
 import DeckBuilderPage from './pages/DeckBuilderPage';
 import BattlePage from './pages/BattlePage';
 import OnlineLobbyPage from './pages/OnlineLobbyPage';
 import ResultPage from './pages/ResultPage';
+import PokedexPage from './pages/PokedexPage';
 import PokemonDetailPage from './pages/PokemonDetailPage';
 import TeamPreviewPage from './pages/TeamPreviewPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import RankingPage from './pages/RankingPage';
+import ProfilePage from './pages/ProfilePage';
+import NewsPage from './pages/NewsPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import './index.css';
 
@@ -41,13 +45,17 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/ranking" element={<ProtectedRoute><RankingPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/news" element={<ProtectedRoute><NewsPage /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><TitlePage /></ProtectedRoute>} />
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/battle-mode" element={<ProtectedRoute><BattleModePage /></ProtectedRoute>} />
           <Route path="/deck-builder" element={<ProtectedRoute><DeckBuilderPage /></ProtectedRoute>} />
           <Route path="/team-preview" element={<ProtectedRoute><TeamPreviewPage /></ProtectedRoute>} />
           <Route path="/online-lobby" element={<ProtectedRoute><OnlineLobbyPage /></ProtectedRoute>} />
           <Route path="/battle" element={<ProtectedRoute><BattlePage /></ProtectedRoute>} />
           <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
+          <Route path="/pokedex" element={<ProtectedRoute><PokedexPage /></ProtectedRoute>} />
           <Route path="/pokedex/:speciesId" element={<ProtectedRoute><PokemonDetailPage /></ProtectedRoute>} />
           <Route path="*" element={<ProtectedRoute><Navigate to="/home" replace /></ProtectedRoute>} />
         </Routes>

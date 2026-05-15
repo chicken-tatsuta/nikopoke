@@ -83,7 +83,12 @@ pub fn apply_events(state: &BattleState, events: &[BattleEvent]) -> BattleState 
 fn clamp_damage_events_to_remaining_hp(state: &BattleState, events: &mut [BattleEvent]) {
     let mut simulated_state = state.clone();
     for event in events.iter_mut() {
-        if let BattleEvent::Damage { target_id, amount, meta } = event {
+        if let BattleEvent::Damage {
+            target_id,
+            amount,
+            meta,
+        } = event
+        {
             if *amount > 0 {
                 *amount = actual_positive_damage_amount(&simulated_state, target_id, meta, *amount);
             }
@@ -111,7 +116,11 @@ fn actual_positive_damage_amount(
         .unwrap_or(false);
     let is_self = source == Some(target_id);
     if !bypass_substitute && !is_self {
-        if let Some(substitute) = active.statuses.iter().find(|status| status.id == "substitute") {
+        if let Some(substitute) = active
+            .statuses
+            .iter()
+            .find(|status| status.id == "substitute")
+        {
             let substitute_hp = substitute
                 .data
                 .get("hp")
@@ -151,6 +160,7 @@ fn apply_effect(
     let effect_type = effect.effect_type.as_str();
     match effect_type {
         "protect" => apply_protect(state, effect, ctx),
+        "endure" => apply_endure(state, effect, ctx),
         "damage" => apply_damage(state, effect, ctx),
         "heal_last_damage" => apply_last_damage_ratio(state, effect, ctx, true),
         "recoil_last_damage" => apply_last_damage_ratio(state, effect, ctx, false),
@@ -192,6 +202,7 @@ fn apply_effect(
         "beat_up_effect" => apply_beat_up_effect(state, ctx),
         "imprison_effect" => apply_imprison_effect(state, ctx),
         "healing_wish_effect" => apply_healing_wish_effect(state, ctx),
+        "revive_fainted" => apply_revive_fainted(state, effect, ctx),
         "strength_sap_effect" => apply_strength_sap_effect(state, ctx),
         "charge_attack" => apply_charge_attack(state, effect, ctx),
         "triple_axel_effect" => apply_triple_axel_effect(state, effect, ctx),
@@ -293,6 +304,23 @@ fn apply_protect(
     effect: &Effect,
     ctx: &mut EffectContext<'_>,
 ) -> Vec<BattleEvent> {
+    apply_protect_family(state, effect, ctx, "protect")
+}
+
+fn apply_endure(
+    state: &BattleState,
+    effect: &Effect,
+    ctx: &mut EffectContext<'_>,
+) -> Vec<BattleEvent> {
+    apply_protect_family(state, effect, ctx, "endure")
+}
+
+fn apply_protect_family(
+    state: &BattleState,
+    effect: &Effect,
+    ctx: &mut EffectContext<'_>,
+    default_status_id: &str,
+) -> Vec<BattleEvent> {
     let Some(attacker) = get_active_creature(state, &ctx.attacker_player_id) else {
         return Vec::new();
     };
@@ -309,9 +337,14 @@ fn apply_protect(
     }
 
     if (ctx.rng)() > chance {
+        let message = if default_status_id == "endure" {
+            format!("{}は こらえられなかった！", attacker.name)
+        } else {
+            format!("{}の まもりは 失敗した！", attacker.name)
+        };
         return vec![
             BattleEvent::Log {
-                message: format!("{}の まもりは 失敗した！", attacker.name),
+                message,
                 meta: meta_with_move_source(
                     ctx.move_data.map(|m| m.id.as_str()),
                     Some(&ctx.attacker_player_id),
@@ -337,7 +370,7 @@ fn apply_protect(
                 .data
                 .get("statusId")
                 .and_then(|v| v.as_str())
-                .unwrap_or("protect")
+                .unwrap_or(default_status_id)
                 .to_string(),
             duration: Some(1),
             stack: false,
@@ -2139,7 +2172,12 @@ fn apply_ohko(
         .unwrap_or(0.3);
     let required_type = effect.data.get("requiredType").and_then(|v| v.as_str());
     let attacker_has_required_type = required_type
-        .map(|required| attacker.types.iter().any(|ty| ty.eq_ignore_ascii_case(required)))
+        .map(|required| {
+            attacker
+                .types
+                .iter()
+                .any(|ty| ty.eq_ignore_ascii_case(required))
+        })
         .unwrap_or(true);
     let mut accuracy = if attacker_has_required_type {
         base_accuracy
@@ -2150,7 +2188,12 @@ fn apply_ohko(
             .and_then(|v| v.as_f64())
             .unwrap_or(base_accuracy)
     };
-    if effect.data.get("levelScaling").and_then(|v| v.as_bool()).unwrap_or(true) {
+    if effect
+        .data
+        .get("levelScaling")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+    {
         accuracy += (attacker.level as f64 - target.level as f64) / 100.0;
     }
     accuracy = accuracy.clamp(0.0, 1.0);
@@ -2498,6 +2541,63 @@ fn apply_healing_wish_effect(state: &BattleState, ctx: &EffectContext<'_>) -> Ve
     ]
 }
 
+fn apply_revive_fainted(
+    state: &BattleState,
+    effect: &Effect,
+    ctx: &mut EffectContext<'_>,
+) -> Vec<BattleEvent> {
+    let target_player_id = resolve_target(effect.data.get("target"), ctx);
+    let Some(player) = state.players.iter().find(|player| player.id == target_player_id) else {
+        return Vec::new();
+    };
+
+    let selected = ctx
+        .switch_slot
+        .and_then(|slot| {
+            player
+                .team
+                .get(slot)
+                .filter(|creature| slot != player.active_slot && creature.hp <= 0)
+                .map(|creature| (slot, creature))
+        })
+        .or_else(|| {
+            if ctx.switch_slot.is_some() {
+                return None;
+            }
+            player
+                .team
+                .iter()
+                .enumerate()
+                .find(|(slot, creature)| *slot != player.active_slot && creature.hp <= 0)
+        });
+
+    let Some((slot, creature)) = selected else {
+        return vec![BattleEvent::Log {
+            message: "しかし うまく きまらなかった！".to_string(),
+            meta: meta_with_move_source(
+                ctx.move_data.map(|m| m.id.as_str()),
+                Some(&ctx.attacker_player_id),
+            ),
+        }];
+    };
+
+    let ratio = value_f64(effect.data.get("ratioMaxHp"), state, ctx).unwrap_or(0.5);
+    let restored_hp = ((creature.max_hp as f64) * ratio).floor().max(1.0) as i32;
+    let mut meta = meta_with_move_source(
+        ctx.move_data.map(|m| m.id.as_str()),
+        Some(&ctx.attacker_player_id),
+    );
+    meta.insert("target".to_string(), Value::String(target_player_id.clone()));
+    meta.insert("slot".to_string(), Value::Number((slot as i64).into()));
+
+    vec![BattleEvent::ReviveTeamMember {
+        player_id: target_player_id,
+        slot,
+        hp: restored_hp,
+        meta,
+    }]
+}
+
 fn apply_strength_sap_effect(state: &BattleState, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
     let Some(target) = get_active_creature(state, &ctx.target_player_id) else {
         return Vec::new();
@@ -2707,10 +2807,23 @@ fn apply_self_switch(state: &BattleState, ctx: &EffectContext<'_>) -> Vec<Battle
     }
 
     let mut events = Vec::new();
-    if ctx.move_data.is_some_and(|move_data| move_data.id == "baton_pass") {
+    if ctx
+        .move_data
+        .is_some_and(|move_data| move_data.id == "baton_pass")
+    {
         events.push(BattleEvent::SetVolatile {
             target_id: ctx.attacker_player_id.clone(),
             key: "batonPass".to_string(),
+            value: Value::Bool(true),
+        });
+    }
+    if ctx
+        .move_data
+        .is_some_and(|move_data| move_data.id == "shed_tail")
+    {
+        events.push(BattleEvent::SetVolatile {
+            target_id: ctx.attacker_player_id.clone(),
+            key: "shedTail".to_string(),
             value: Value::Bool(true),
         });
     }
@@ -2877,7 +2990,7 @@ fn apply_run_away() -> Vec<BattleEvent> {
 
 fn resolve_target(value: Option<&Value>, ctx: &EffectContext<'_>) -> String {
     match value.and_then(|v| v.as_str()) {
-        Some("self") => ctx.attacker_player_id.clone(),
+        Some("self") | Some("user") => ctx.attacker_player_id.clone(),
         Some("all") => ctx.target_player_id.clone(),
         Some("target") | None => ctx.target_player_id.clone(),
         Some(other) => other.to_string(),
@@ -3367,6 +3480,13 @@ fn evaluate_condition(state: &BattleState, cond: Option<&Value>, ctx: &EffectCon
                     .and_then(|v| v.as_i64())
                     .is_some_and(|priority| priority > 0)
             }),
+        "target_selected_attacking_move" => get_active_creature(state, &ctx.target_player_id)
+            .map_or(false, |c| {
+                c.volatile_data
+                    .get("selectedMoveCategory")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|category| matches!(category, "physical" | "special"))
+            }),
         "target_has_not_acted_this_turn" => get_active_creature(state, &ctx.target_player_id)
             .map_or(false, |c| {
                 !c.volatile_data
@@ -3693,7 +3813,13 @@ fn calc_damage(
             .iter()
             .any(|t| t.eq_ignore_ascii_case(move_type))
         {
-            modifier *= 1.5;
+            let stab_multiplier =
+                if !ctx.ignore_ability && attacker.ability.as_deref() == Some("adaptability") {
+                    2.0
+                } else {
+                    1.5
+                };
+            modifier *= stab_multiplier;
         }
         let gravity_active = state.field.global.iter().any(|e| e.id == "gravity");
         let magnet_rise_active = target.statuses.iter().any(|s| s.id == "magnet_rise");
@@ -3834,7 +3960,9 @@ fn stage_value(stages: &crate::core::state::StatStages, stat: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::state::{create_battle_state, CreatureState, EVStats, PlayerState, StatStages};
+    use crate::core::state::{
+        create_battle_state, CreatureState, EVStats, PlayerState, StatStages,
+    };
     use serde_json::json;
 
     fn test_creature(id: &str) -> CreatureState {
@@ -4011,12 +4139,44 @@ mod tests {
         let mut rng = || 0.0;
         let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
 
-        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+        let events = apply_effects(
+            &state,
+            &[effect(json!({ "type": "self_switch" }))],
+            &mut ctx,
+        );
 
         assert!(events.iter().any(|event| matches!(
             event,
             BattleEvent::SetVolatile { target_id, key, value }
                 if target_id == "player" && key == "batonPass" && value.as_bool() == Some(true)
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::ApplyStatus { target_id, status_id, .. }
+                if target_id == "player" && status_id == "pending_switch"
+        )));
+    }
+
+    #[test]
+    fn shed_tail_self_switch_marks_next_switch_to_carry_substitute() {
+        let mut state = test_state();
+        state.players[0].team.push(test_creature("bench"));
+        let type_chart = TypeChart::new();
+        let mut move_data = test_move();
+        move_data.id = "shed_tail".to_string();
+        let mut rng = || 0.0;
+        let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
+
+        let events = apply_effects(
+            &state,
+            &[effect(json!({ "type": "self_switch" }))],
+            &mut ctx,
+        );
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BattleEvent::SetVolatile { target_id, key, value }
+                if target_id == "player" && key == "shedTail" && value.as_bool() == Some(true)
         )));
         assert!(events.iter().any(|event| matches!(
             event,
@@ -4035,7 +4195,11 @@ mod tests {
         let mut ctx = effect_context(&mut rng, &type_chart, &move_data);
         ctx.switch_slot = Some(1);
 
-        let events = apply_effects(&state, &[effect(json!({ "type": "self_switch" }))], &mut ctx);
+        let events = apply_effects(
+            &state,
+            &[effect(json!({ "type": "self_switch" }))],
+            &mut ctx,
+        );
 
         assert!(events.iter().any(|event| matches!(
             event,

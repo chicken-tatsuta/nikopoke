@@ -97,6 +97,9 @@ fn collect_effect_summary(effects: &[Effect], summary: &mut EffectSummary) {
                     }
                 }
             }
+            "revive_fainted" => {
+                summary.has_heal = true;
+            }
             "self_switch" | "replace_pokemon" | "force_switch" => {
                 summary.has_switch = true;
             }

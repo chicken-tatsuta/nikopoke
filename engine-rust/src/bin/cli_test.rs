@@ -969,7 +969,11 @@ fn calc_damage_breakdown(
         .iter()
         .any(|t| t.to_lowercase() == move_type.to_lowercase())
     {
-        1.5
+        if attacker.ability.as_deref() == Some("adaptability") {
+            2.0
+        } else {
+            1.5
+        }
     } else {
         1.0
     };

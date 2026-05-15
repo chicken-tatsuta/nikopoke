@@ -52,7 +52,7 @@ eiraku:
 futo:
   abilities:
     - insomnia
-    - own_tempo
+    - adaptability
   baseStats:
     atk: 115
     def: 80
@@ -306,7 +306,7 @@ tomoki:
   weight_kg: 48
 touma:
   abilities:
-    - opportunist
+    - unburden
     - lightning_rod
   baseStats:
     atk: 120

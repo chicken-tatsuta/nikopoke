@@ -1,7 +1,7 @@
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::{apply_event, BattleEvent};
 use engine_rust::core::state::{
-    Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, FieldState,
+    Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, EVStats, FieldState,
     PlayerState, StatStages, Status,
 };
 use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
@@ -26,6 +26,8 @@ fn create_test_state() -> BattleState {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+
+            evs: EVStats::default(),
             ability: None,
             volatile_data: HashMap::new(),
             ability_data: HashMap::new(),
@@ -35,6 +37,8 @@ fn create_test_state() -> BattleState {
             sp_attack: 10,
             sp_defense: 10,
             speed: 10,
+
+            weight_kg: 50.0,
         }],
         active_slot: 0,
         last_fainted_ability: None,
@@ -208,6 +212,7 @@ fn test_protect_reset_on_failure() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,
@@ -252,6 +257,8 @@ fn test_parental_bond() {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+
+            evs: EVStats::default(),
             ability: None,
             volatile_data: HashMap::new(),
             ability_data: HashMap::new(),
@@ -261,6 +268,8 @@ fn test_parental_bond() {
             sp_attack: 10,
             sp_defense: 10,
             speed: 10,
+
+            weight_kg: 50.0,
         }],
         active_slot: 0,
         last_fainted_ability: None,
@@ -280,6 +289,7 @@ fn test_parental_bond() {
         ignore_immunity: false,
         bypass_substitute: false,
         ignore_substitute: false,
+        ignore_ability: false,
         is_sound: false,
         last_damage: None,
         switch_slot: None,

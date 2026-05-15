@@ -2,9 +2,11 @@ use crate::core::abilities::{
     ability_label, get_weather, is_weather_id, modify_stages_with_ability, run_ability_check_hook,
     AbilityCheckContext, WeatherKind,
 };
-use crate::core::state::{BattleState, StatStages, Status};
+use crate::core::state::{BattleState, CreatureState, StatStages, Status};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+
+const BATON_PASS_STATUS_IDS: &[&str] = &["aqua_ring", "ingrain"];
 
 #[derive(Clone, Debug)]
 pub enum BattleEvent {
@@ -125,6 +127,12 @@ pub enum BattleEvent {
         target_id: String,
         meta: Map<String, Value>,
     },
+    ReviveTeamMember {
+        player_id: String,
+        slot: usize,
+        hp: i32,
+        meta: Map<String, Value>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -180,6 +188,7 @@ pub fn event_type(event: &BattleEvent) -> &str {
         BattleEvent::SwapStages { .. } => "swap_stages",
         BattleEvent::AverageStats { .. } => "average_stats",
         BattleEvent::SwapAttackDefense { .. } => "swap_attack_defense",
+        BattleEvent::ReviveTeamMember { .. } => "revive_team_member",
     }
 }
 
@@ -231,14 +240,28 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             }
                         }
                     }
-                    let new_hp = active.hp - *amount;
+                    let mut effective_amount = *amount;
+                    let is_move_damage = meta.and_then(|meta| meta.get("moveId")).is_some();
+                    let endured = is_move_damage
+                        && effective_amount > 0
+                        && active.hp > 0
+                        && active.hp - effective_amount <= 0
+                        && active.statuses.iter().any(|s| s.id == "endure");
+                    if endured {
+                        effective_amount = (active.hp - 1).max(0);
+                        next.log.push(format!("{}は こらえた！", active.name));
+                    } else if effective_amount > 0 {
+                        effective_amount = effective_amount.min(active.hp.max(0));
+                    }
+
+                    let new_hp = active.hp - effective_amount;
                     active.hp = new_hp.clamp(0, active.max_hp);
-                    if *amount > 0 {
+                    if effective_amount > 0 {
                         if let Some(meta) = event_meta(event) {
                             if meta.get("moveId").is_some() {
                                 active.volatile_data.insert(
                                     "lastDamageTakenAmount".to_string(),
-                                    Value::Number((*amount).into()),
+                                    Value::Number(effective_amount.into()),
                                 );
                                 if let Some(category) = meta_get_string(meta, "category") {
                                     active.volatile_data.insert(
@@ -269,11 +292,17 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         active
                             .volatile_data
                             .insert("damagedThisTurn".to_string(), Value::Bool(true));
-                        next.log
-                            .push(format!("{}は {}ダメージ 受けた！", active.name, amount));
+                        next.log.push(format!(
+                            "{}は {}ダメージ 受けた！",
+                            active.name, effective_amount
+                        ));
                     } else if *amount < 0 {
                         next.log
                             .push(format!("{}の HPが {}回復した！", active.name, -amount));
+                    } else if endured {
+                        active
+                            .volatile_data
+                            .insert("damagedThisTurn".to_string(), Value::Bool(true));
                     } else {
                         next.log
                             .push(format!("{}には 効かないようだ……", active.name));
@@ -379,6 +408,14 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             active.item = Some(item_id.clone());
                         }
                     }
+                    if !stack {
+                        if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
+                        {
+                            next.log
+                                .push(format!("{}は すでに {}状態だ！", active.name, status_id));
+                            return next;
+                        }
+                    }
                     if is_exclusive_major_status(status_id)
                         && active
                             .statuses
@@ -388,19 +425,14 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         next.log.push("しかしうまく決まらなかった！".to_string());
                         return next;
                     }
-                    if !stack {
-                        if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
-                        {
-                            next.log
-                                .push(format!("{}は すでに {}状態だ！", active.name, status_id));
-                            return next;
-                        }
-                    }
                     active.statuses.push(Status {
                         id: status_id.clone(),
                         remaining_turns: *duration,
                         data: data.clone(),
                     });
+                    if status_id == "item" || status_id == "berry" {
+                        update_unburden_after_item_change(active, false);
+                    }
                 }
             }
         }
@@ -411,9 +443,11 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
+                    let had_item = creature_has_item(active);
                     active.statuses.retain(|s| s.id != *status_id);
                     if status_id == "item" || status_id == "berry" {
                         active.item = None;
+                        update_unburden_after_item_change(active, had_item);
                     }
                 }
             }
@@ -546,14 +580,36 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
                 if *slot < player.team.len() {
                     let mut baton_pass_stages = None;
+                    let mut baton_pass_statuses: Vec<Status> = Vec::new();
+                    let mut shed_tail_substitute = None;
                     if let Some(outgoing) = player.team.get_mut(player.active_slot) {
-                        if outgoing
+                        let is_baton_pass = outgoing
                             .volatile_data
                             .get("batonPass")
                             .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        if is_baton_pass {
+                            baton_pass_stages = Some(outgoing.stages.clone());
+                            baton_pass_statuses = outgoing
+                                .statuses
+                                .iter()
+                                .filter(|status| {
+                                    BATON_PASS_STATUS_IDS.contains(&status.id.as_str())
+                                })
+                                .cloned()
+                                .collect();
+                        }
+                        if outgoing
+                            .volatile_data
+                            .get("shedTail")
+                            .and_then(|v| v.as_bool())
                             .unwrap_or(false)
                         {
-                            baton_pass_stages = Some(outgoing.stages.clone());
+                            shed_tail_substitute = outgoing
+                                .statuses
+                                .iter()
+                                .find(|status| status.id == "substitute")
+                                .cloned();
                         }
                         outgoing.stages = StatStages::default();
                         // Non-volatile statuses that persist on switch.
@@ -584,6 +640,16 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             incoming.stages = stages;
                         }
                         incoming.statuses.retain(|s| s.id != "pending_switch");
+                        if !baton_pass_statuses.is_empty() {
+                            incoming.statuses.retain(|status| {
+                                !BATON_PASS_STATUS_IDS.contains(&status.id.as_str())
+                            });
+                            incoming.statuses.extend(baton_pass_statuses);
+                        }
+                        if let Some(substitute) = shed_tail_substitute {
+                            incoming.statuses.retain(|s| s.id != "substitute");
+                            incoming.statuses.push(substitute);
+                        }
                         incoming.volatile_data.insert(
                             "turnEntered".to_string(),
                             Value::Number((next.turn as i64).into()),
@@ -609,6 +675,32 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             "{}は {}を 繰り出した！",
                             player.name, incoming.name
                         ));
+                    }
+                }
+            }
+        }
+        BattleEvent::ReviveTeamMember {
+            player_id, slot, hp, ..
+        } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
+                if let Some(creature) = player.team.get_mut(*slot) {
+                    if creature.hp <= 0 {
+                        let restored = (*hp).clamp(1, creature.max_hp.max(1));
+                        creature.hp = restored;
+                        creature.statuses.retain(|status| status.id != "pending_switch");
+                        next.log.push(format!(
+                            "{}は さいきのいのりで 復活した！",
+                            creature.name
+                        ));
+                        next.log
+                            .push(format!("{}の HPが {}回復した！", creature.name, restored));
+
+                        if !player.team.iter().any(|member| member.hp <= 0) {
+                            player.last_fainted_ability = None;
+                            if let Some(effects) = next.field.sides.get_mut(player_id) {
+                                effects.retain(|effect| effect.id != "ally_fainted");
+                            }
+                        }
                     }
                 }
             }
@@ -655,7 +747,8 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     };
                     next.log.push(message);
                     if ability_id.as_deref() == Some("slow_start") {
-                        next.log.push(format!("{}は 調子が 上がらない！", active.name));
+                        next.log
+                            .push(format!("{}は 調子が 上がらない！", active.name));
                     }
                 }
             }
@@ -701,10 +794,12 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
+                    let had_item = creature_has_item(active);
                     active
                         .statuses
                         .retain(|s| s.id != "item" && s.id != "berry");
                     active.item = item_id.clone();
+                    update_unburden_after_item_change(active, had_item);
                 }
             }
         }
@@ -716,6 +811,8 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             if let (Some(left_idx), Some(right_idx)) = (left_idx, right_idx) {
                 let left_slot = next.players[left_idx].active_slot;
                 let right_slot = next.players[right_idx].active_slot;
+                let left_had_item = creature_has_item(&next.players[left_idx].team[left_slot]);
+                let right_had_item = creature_has_item(&next.players[right_idx].team[right_slot]);
                 let left_item = next.players[left_idx].team[left_slot].item.clone();
                 let right_item = next.players[right_idx].team[right_slot].item.clone();
                 next.players[left_idx].team[left_slot]
@@ -726,6 +823,14 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     .retain(|s| s.id != "item" && s.id != "berry");
                 next.players[left_idx].team[left_slot].item = right_item;
                 next.players[right_idx].team[right_slot].item = left_item;
+                update_unburden_after_item_change(
+                    &mut next.players[left_idx].team[left_slot],
+                    left_had_item,
+                );
+                update_unburden_after_item_change(
+                    &mut next.players[right_idx].team[right_slot],
+                    right_had_item,
+                );
             }
         }
         BattleEvent::SetStages {
@@ -1048,15 +1153,39 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
         | BattleEvent::SetStages { meta, .. }
         | BattleEvent::SwapStages { meta, .. }
         | BattleEvent::AverageStats { meta, .. }
-        | BattleEvent::SwapAttackDefense { meta, .. } => Some(meta),
+        | BattleEvent::SwapAttackDefense { meta, .. }
+        | BattleEvent::ReviveTeamMember { meta, .. } => Some(meta),
         _ => None,
+    }
+}
+
+fn creature_has_item(creature: &CreatureState) -> bool {
+    creature.item.is_some()
+        || creature
+            .statuses
+            .iter()
+            .any(|status| status.id == "item" || status.id == "berry")
+}
+
+fn update_unburden_after_item_change(creature: &mut CreatureState, had_item: bool) {
+    if creature.ability.as_deref() != Some("unburden") {
+        return;
+    }
+    if creature_has_item(creature) {
+        creature.ability_data.remove("unburdenActivated");
+    } else if had_item {
+        creature
+            .ability_data
+            .insert("unburdenActivated".to_string(), Value::Bool(true));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::state::{BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages};
+    use crate::core::state::{
+        BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages, Status,
+    };
     use std::collections::HashMap;
 
     fn test_creature(id: &str) -> CreatureState {
@@ -1132,6 +1261,88 @@ mod tests {
     }
 
     #[test]
+    fn baton_pass_switch_carries_aqua_ring_and_ingrain_to_incoming_creature() {
+        let mut state = test_state();
+        state.players[0].team[0].statuses.push(Status {
+            id: "aqua_ring".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0].statuses.push(Status {
+            id: "ingrain".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0].statuses.push(Status {
+            id: "protect".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0]
+            .volatile_data
+            .insert("batonPass".to_string(), Value::Bool(true));
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        let outgoing = &next.players[0].team[0];
+        let incoming = &next.players[0].team[1];
+        assert!(!outgoing
+            .statuses
+            .iter()
+            .any(|status| status.id == "aqua_ring" || status.id == "ingrain"));
+        assert!(incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "aqua_ring"));
+        assert!(incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "ingrain"));
+        assert!(!incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "protect"));
+    }
+
+    #[test]
+    fn shed_tail_switch_carries_substitute_to_incoming_creature() {
+        let mut state = test_state();
+        state.players[0].team[0].statuses.push(Status {
+            id: "substitute".to_string(),
+            remaining_turns: None,
+            data: HashMap::from([("hp".to_string(), Value::Number(25.into()))]),
+        });
+        state.players[0].team[0]
+            .volatile_data
+            .insert("shedTail".to_string(), Value::Bool(true));
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        let outgoing = &next.players[0].team[0];
+        let incoming = &next.players[0].team[1];
+        assert!(!outgoing
+            .statuses
+            .iter()
+            .any(|status| status.id == "substitute"));
+        assert!(incoming.statuses.iter().any(|status| {
+            status.id == "substitute"
+                && status.data.get("hp").and_then(|value| value.as_i64()) == Some(25)
+        }));
+    }
+
+    #[test]
     fn normal_switch_resets_stat_stages_without_carrying_them() {
         let mut state = test_state();
         state.players[0].team[0].stages.atk = 2;
@@ -1148,5 +1359,36 @@ mod tests {
         assert_eq!(next.players[0].team[0].stages.atk, 0);
         assert_eq!(next.players[0].team[1].stages.atk, 0);
         assert_eq!(next.players[0].team[1].stages.spe, 0);
+    }
+
+    #[test]
+    fn damage_log_and_tracking_are_capped_to_remaining_hp() {
+        let mut state = test_state();
+        state.players[0].team[0].hp = 68;
+
+        let mut meta = Map::new();
+        meta.insert("moveId".to_string(), Value::String("heavy_hit".to_string()));
+        let next = apply_event(
+            &state,
+            &BattleEvent::Damage {
+                target_id: "player".to_string(),
+                amount: 100,
+                meta,
+            },
+        );
+
+        let active = &next.players[0].team[0];
+        assert_eq!(active.hp, 0);
+        assert_eq!(
+            active
+                .volatile_data
+                .get("lastDamageTakenAmount")
+                .and_then(|value| value.as_i64()),
+            Some(68)
+        );
+        assert!(
+            next.log.iter().any(|line| line.contains("68ダメージ")),
+            "damage log should show actual HP lost, not raw incoming damage"
+        );
     }
 }

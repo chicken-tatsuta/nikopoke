@@ -38,7 +38,7 @@ export default function ResultPage() {
 
     if (!result) {
         return (
-            <div className="min-h-dvh bg-[var(--surface-1)] flex items-center justify-center">
+            <div className="min-h-dvh bg-white flex items-center justify-center">
                 <div className="text-[var(--text-muted)] text-lg">読み込み中...</div>
             </div>
         );
@@ -48,35 +48,29 @@ export default function ResultPage() {
     const isVictory = result.winner === localPlayerId;
 
     return (
-        <div className="min-h-dvh bg-[var(--surface-0)] bg-grid-pattern flex flex-col items-center justify-center p-6">
-            {/* Result Card */}
-            <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-8 text-center max-w-md w-full">
-                {/* Trophy Icon */}
-                <div className={`mx-auto size-20 rounded-full flex items-center justify-center mb-6
-                    ${isVictory ? 'bg-amber-500/20' : 'bg-[var(--surface-3)]'}`}
+        <div className="min-h-dvh bg-white bg-grid-pattern flex flex-col items-center justify-center p-6 text-[#111111]">
+            <div className="bg-white border border-[#111111] rounded-lg p-7 text-center max-w-md w-full">
+                <div className={`mx-auto size-16 rounded-full border border-[#111111] flex items-center justify-center mb-6
+                    ${isVictory ? 'bg-[#F5EEE4]' : 'bg-white'}`}
                 >
-                    <Trophy className={`size-10 ${isVictory ? 'text-amber-400' : 'text-[var(--text-muted)]'}`} />
+                    <Trophy className="size-8 text-[#111111]" />
                 </div>
 
-                {/* Result Text */}
-                <h1 className={`text-balance text-4xl font-black mb-2
-                    ${isVictory ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}
-                >
-                    {isVictory ? 'VICTORY!' : 'DEFEAT...'}
+                <h1 className="text-balance text-4xl font-black mb-2 tracking-[0.16em]">
+                    {isVictory ? '勝利' : '敗北'}
                 </h1>
-                <p className="text-[var(--text-secondary)] mb-2">
-                    {isVictory ? 'おめでとう！勝利しました！' : '残念、敗北しました...'}
+                <p className="text-[var(--text-secondary)] mb-2 font-semibold">
+                    {isVictory ? '対戦記録に勝利として保存されました。' : '対戦記録に敗北として保存されました。'}
                 </p>
 
                 {ratingDelta && (
-                    <p className={`text-xl font-bold mb-6 ${isVictory ? 'text-amber-400' : 'text-red-400'}`}>
+                    <p className="text-xl font-bold mb-6 tabular-nums">
                         {isVictory ? `レート +${ratingDelta.winnerDelta}` : `レート ${ratingDelta.loserDelta}`}
                     </p>
                 )}
 
-                {/* Battle Log Summary */}
-                <div className="bg-[var(--surface-3)] rounded-xl p-4 mb-6 max-h-48 overflow-y-auto text-left">
-                    <h3 className="text-xs font-medium text-[var(--text-muted)] mb-2 uppercase tracking-wide">バトルログ</h3>
+                <div className="bg-[#FAFAFA] rounded-md border border-[#111111] p-4 mb-6 max-h-48 overflow-y-auto text-left">
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] mb-2 uppercase tracking-[0.16em]">バトルログ</h3>
                     {result.logs.slice(-10).map((log, i) => (
                         <p key={i} className="text-xs text-[var(--text-secondary)] py-1.5 border-b border-[var(--border)] last:border-0">
                             {log}
@@ -84,7 +78,6 @@ export default function ResultPage() {
                     ))}
                 </div>
 
-                {/* Action Buttons */}
                 <div className="space-y-3">
                     <button
                         onClick={() => {
@@ -95,9 +88,8 @@ export default function ResultPage() {
                             }
                             navigate('/deck-builder?mode=ai');
                         }}
-                        className="w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2
-                            bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] 
-                            shadow-lg shadow-[var(--accent)]/20 transition-all"
+                        className="w-full py-3.5 rounded-md border border-[#111111] font-bold flex items-center justify-center gap-2
+                            bg-[#F5EEE4] text-[#111111] hover:bg-white transition-all"
                     >
                         <RotateCcw className="size-5" />
                         もう一度バトル
@@ -110,8 +102,8 @@ export default function ResultPage() {
                             }
                             navigate('/home');
                         }}
-                        className="w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2
-                            bg-[var(--surface-3)] text-[var(--text-primary)] hover:bg-[var(--surface-4)] transition-all"
+                        className="w-full py-3.5 rounded-md border border-[#111111] font-bold flex items-center justify-center gap-2
+                            bg-white text-[var(--text-primary)] hover:bg-[#F5EEE4] transition-all"
                     >
                         <Home className="size-5" />
                         ホームに戻る
