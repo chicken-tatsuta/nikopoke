@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, X, ArrowLeft, Swords, Sliders, FolderOpen, Save } from 'lucide-react';
 import { loadAllData, getTypeColor } from '../lib/data';
@@ -86,6 +86,8 @@ export default function DeckBuilderPage() {
     const [editingEVIndex, setEditingEVIndex] = useState<number | null>(null);
     const [editingEVs, setEditingEVs] = useState<EVStats>(EMPTY_EVS);
     const [selectedPresetName, setSelectedPresetName] = useState('');
+    const editorPaneRef = useRef<HTMLDivElement | null>(null);
+    const isEditing = editingEVIndex !== null || editingIndex !== null;
 
     useEffect(() => {
         loadAllData().then(({ species, moves, learnsets }) => {
@@ -156,6 +158,30 @@ export default function DeckBuilderPage() {
             }
         }
     }, [deckInitialized, loading, selectedPokemon, updateProfile, user]);
+
+    useEffect(() => {
+        if (!isEditing) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            const editorPane = editorPaneRef.current;
+            if (!editorPane) {
+                return;
+            }
+
+            editorPane.scrollTo({ top: 0, behavior: 'smooth' });
+
+            const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+            if (!isDesktop) {
+                const headerOffset = 84;
+                const top = editorPane.getBoundingClientRect().top + window.scrollY - headerOffset;
+                window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+            }
+        }, 40);
+
+        return () => window.clearTimeout(timer);
+    }, [editingEVIndex, editingIndex, isEditing]);
 
     const handleRemovePokemon = (index: number) => {
         setSelectedPokemon(selectedPokemon.filter((_, i) => i !== index));
@@ -282,8 +308,6 @@ export default function DeckBuilderPage() {
         );
     }
 
-    const isEditing = editingEVIndex !== null || editingIndex !== null;
-
     return (
         <div className="min-h-dvh bg-[var(--surface-1)]">
             {/* Header */}
@@ -403,7 +427,7 @@ export default function DeckBuilderPage() {
                     </div>
 
                     {/* Pokemon / Move Selection */}
-                    <div className={`${isEditing ? 'order-1 lg:order-none' : ''} min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
+                    <div ref={editorPaneRef} className={`${isEditing ? 'order-1 lg:order-none' : ''} min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
                         {editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}

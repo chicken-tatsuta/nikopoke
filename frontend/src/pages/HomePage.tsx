@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, UserRound, X } from 'lucide-react';
+import { Menu, Newspaper, UserRound, X } from 'lucide-react';
 import { loadSpecies } from '../lib/data';
 import type { SpeciesData, Species } from '../types/pokemon';
 import type { PokemonUsageStats } from '../lib/battleStats';
@@ -103,6 +103,13 @@ export default function HomePage() {
                             <div className="flex flex-wrap gap-3">
                                 <PrimaryLink to="/pokedex">図鑑を見る</PrimaryLink>
                                 <PrimaryLink to="/battle-mode">バトルをはじめる</PrimaryLink>
+                                <Link
+                                    to="/news"
+                                    className="inline-flex min-w-40 items-center justify-between gap-6 rounded-md border border-white bg-transparent px-5 py-2.5 text-sm font-bold tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-[#111111]"
+                                >
+                                    おしらせ
+                                    <span className="text-xl leading-none">→</span>
+                                </Link>
                             </div>
                         </div>
                     </section>
@@ -148,7 +155,7 @@ export default function HomePage() {
     );
 }
 
-function HomeHeader({ profile }: { profile: { username: string; rating: number } | null }) {
+export function HomeHeader({ profile }: { profile: { username: string; rating: number } | null }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const navItems = [
@@ -156,6 +163,7 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
         { label: '図鑑', to: '/pokedex' },
         { label: 'バトル', to: '/battle-mode' },
         { label: 'ランキング', to: '/ranking' },
+        { label: 'おしらせ', to: '/news' },
     ];
 
     return (
@@ -226,6 +234,14 @@ function HomeHeader({ profile }: { profile: { username: string; rating: number }
                                 </Link>
                             ))}
                         </nav>
+
+                        <div className="mx-5 mt-2 rounded-lg border border-[#111111] bg-[#F5EEE4] px-4 py-3 text-xs font-bold leading-relaxed tracking-[0.08em]">
+                            <div className="mb-1 flex items-center gap-2">
+                                <Newspaper className="size-4" strokeWidth={1.8} />
+                                NIKIDAN NEWS
+                            </div>
+                            最新のおしらせを確認できます。
+                        </div>
 
                         <Link
                             to="/profile"

@@ -14,6 +14,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import RankingPage from './pages/RankingPage';
 import ProfilePage from './pages/ProfilePage';
+import NewsPage from './pages/NewsPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import './index.css';
 
@@ -45,6 +46,7 @@ function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/ranking" element={<ProtectedRoute><RankingPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/news" element={<ProtectedRoute><NewsPage /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><TitlePage /></ProtectedRoute>} />
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/battle-mode" element={<ProtectedRoute><BattleModePage /></ProtectedRoute>} />
