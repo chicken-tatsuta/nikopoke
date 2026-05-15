@@ -282,6 +282,8 @@ export default function DeckBuilderPage() {
         );
     }
 
+    const isEditing = editingEVIndex !== null || editingIndex !== null;
+
     return (
         <div className="min-h-dvh bg-[var(--surface-1)]">
             {/* Header */}
@@ -304,7 +306,7 @@ export default function DeckBuilderPage() {
             <main className="mx-auto max-w-7xl px-6 py-8 lg:h-[calc(100dvh-81px)] lg:overflow-hidden">
                 <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(520px,560px)_minmax(0,1fr)] lg:overflow-hidden">
                     {/* Selected Pokemon */}
-                    <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-2">
+                    <div className={`${isEditing ? 'order-2 lg:order-none' : ''} lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
                         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-5">
                             <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">
                                 選択中 <span className="text-[var(--text-muted)] font-normal">({selectedPokemon.length}/{DECK_SIZE})</span>
@@ -401,7 +403,7 @@ export default function DeckBuilderPage() {
                     </div>
 
                     {/* Pokemon / Move Selection */}
-                    <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
+                    <div className={`${isEditing ? 'order-1 lg:order-none' : ''} min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
                         {editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}
@@ -702,30 +704,32 @@ function MoveSelector({
 
     return (
         <div>
-            <div className="sticky top-[105px] z-20 mb-5 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-1)] py-3">
-                <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                    {species.name}の技を選択 <span className="text-[var(--text-muted)] font-normal">({selectedMoves.length}/4)</span>
-                </h2>
-                <div className="flex shrink-0 gap-2">
-                    <button
-                        onClick={onReset}
-                        disabled={selectedMoves.length === 0}
-                        className="px-4 py-2 bg-white text-[var(--text-primary)] rounded-lg border border-[var(--border)] hover:bg-[var(--surface-3)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        リセット
-                    </button>
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 bg-[var(--surface-3)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-4)] transition-colors"
-                    >
-                        キャンセル
-                    </button>
-                    <button
-                        onClick={onSave}
-                        className="px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:bg-[var(--accent-hover)] transition-colors"
-                    >
-                        保存
-                    </button>
+            <div className="sticky top-[73px] z-30 -mx-1 mb-5 border-b border-[var(--border)] bg-[var(--surface-1)] px-1 py-3 shadow-[0_10px_0_var(--surface-1)] lg:top-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <h2 className="text-base font-semibold leading-tight text-[var(--text-primary)]">
+                        {species.name}の技を選択 <span className="text-[var(--text-muted)] font-normal">({selectedMoves.length}/4)</span>
+                    </h2>
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+                        <button
+                            onClick={onReset}
+                            disabled={selectedMoves.length === 0}
+                            className="min-h-11 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                        >
+                            リセット
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            className="min-h-11 rounded-lg bg-[var(--surface-3)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-4)] sm:px-4"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            onClick={onSave}
+                            className="min-h-11 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] sm:px-4"
+                        >
+                            保存
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -853,24 +857,33 @@ function EVEditor({
 
     return (
         <div>
-            <div className="sticky top-[105px] z-20 mb-5 flex items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-1)] py-3">
-                <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                    {species.name}のEVを編集
-                    <span className="text-[var(--text-muted)] font-normal ml-2">({total}/{EV_TOTAL_MAX})</span>
-                </h2>
-                <div className="flex shrink-0 gap-2">
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 bg-[var(--surface-3)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-4)] transition-colors"
-                    >
-                        キャンセル
-                    </button>
-                    <button
-                        onClick={onSave}
-                        className="px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:bg-[var(--accent-hover)] transition-colors"
-                    >
-                        保存
-                    </button>
+            <div className="sticky top-[73px] z-30 -mx-1 mb-5 border-b border-[var(--border)] bg-[var(--surface-1)] px-1 py-3 shadow-[0_10px_0_var(--surface-1)] lg:top-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <h2 className="text-base font-semibold leading-tight text-[var(--text-primary)]">
+                        {species.name}のEVを編集
+                        <span className="ml-2 text-[var(--text-muted)] font-normal">({total}/{EV_TOTAL_MAX})</span>
+                    </h2>
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+                        <button
+                            onClick={() => onEVChange(EMPTY_EVS)}
+                            disabled={total === 0}
+                            className="min-h-11 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                        >
+                            リセット
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            className="min-h-11 rounded-lg bg-[var(--surface-3)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-4)] sm:px-4"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            onClick={onSave}
+                            className="min-h-11 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] sm:px-4"
+                        >
+                            保存
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -910,14 +923,6 @@ function EVEditor({
                 ))}
             </div>
 
-            <div className="mt-4 flex justify-center gap-2">
-                <button
-                    onClick={() => onEVChange(EMPTY_EVS)}
-                    className="px-3 py-1.5 bg-[var(--surface-3)] text-[var(--text-muted)] rounded-lg text-sm hover:bg-[var(--surface-4)] transition-colors"
-                >
-                    リセット
-                </button>
-            </div>
         </div>
     );
 }
