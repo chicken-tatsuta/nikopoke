@@ -12829,6 +12829,7 @@
     "priority": 0,
     "steps": [
       {
+        "maxStacks": 3,
         "side": false,
         "stack": true,
         "statusId": "spikes",
