@@ -846,7 +846,7 @@ fn match_status(
                     .to_string();
                 StatusHookResult {
                     event_transforms: vec![EventTransform {
-                        transform_type: "replace_event".to_string(),
+                        transform_type: "filter_stage_drops".to_string(),
                         from: Some("modify_stage".to_string()),
                         target_type: None,
                         target_id: Some(owner_side),
