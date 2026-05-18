@@ -242,6 +242,152 @@ fn adaptability_uses_double_stab_damage() {
 }
 
 #[test]
+fn cotton_down_triggers_on_contact_attack_damage() {
+    let mut move_db = MoveDatabase::new();
+    move_db.insert(MoveData {
+        id: "contact_hit".to_string(),
+        name: Some("Contact Hit".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("physical".to_string()),
+        pp: Some(10),
+        power: Some(40),
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![effect("damage", json!({ "power": 40, "accuracy": 1.0 }))],
+        tags: vec!["contact".to_string()],
+        crit_rate: None,
+    });
+    move_db.insert(MoveData {
+        id: "wait".to_string(),
+        name: Some("Wait".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+
+    let state = make_state(
+        make_creature("c1", "Alpha", None, vec!["contact_hit".to_string()]),
+        make_creature("c2", "Beta", Some("cotton_down"), vec!["wait".to_string()]),
+    );
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("contact_hit".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+        Action {
+            player_id: "p2".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("wait".to_string()),
+            target_id: Some("p1".to_string()),
+            slot: None,
+            priority: None,
+        },
+    ];
+
+    let mut rng = || 0.0;
+    let engine = BattleEngine::new(move_db, TypeChart::new());
+    let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+
+    assert_eq!(next.players[0].team[0].stages.spe, -1);
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Betaの 特性『わたげ』")));
+}
+
+#[test]
+fn cotton_down_does_not_trigger_from_drain_recovery_or_non_contact_damage() {
+    let mut move_db = MoveDatabase::new();
+    move_db.insert(MoveData {
+        id: "draining_beam".to_string(),
+        name: Some("Draining Beam".to_string()),
+        move_type: Some("grass".to_string()),
+        category: Some("special".to_string()),
+        pp: Some(10),
+        power: Some(50),
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![
+            effect("damage", json!({ "power": 50, "accuracy": 1.0 })),
+            effect(
+                "heal_last_damage",
+                json!({ "target": "self", "ratio": 0.5 }),
+            ),
+        ],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+    move_db.insert(MoveData {
+        id: "wait".to_string(),
+        name: Some("Wait".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+
+    let mut cotton_user = make_creature(
+        "c1",
+        "Alpha",
+        Some("cotton_down"),
+        vec!["draining_beam".to_string()],
+    );
+    cotton_user.hp = 60;
+    let state = make_state(
+        cotton_user,
+        make_creature("c2", "Beta", None, vec!["wait".to_string()]),
+    );
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("draining_beam".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+        Action {
+            player_id: "p2".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("wait".to_string()),
+            target_id: Some("p1".to_string()),
+            slot: None,
+            priority: None,
+        },
+    ];
+
+    let mut rng = || 0.0;
+    let engine = BattleEngine::new(move_db, TypeChart::new());
+    let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+
+    assert!(next.players[0].team[0].hp > 60);
+    assert_eq!(next.players[1].team[0].stages.spe, 0);
+    assert!(!next
+        .log
+        .iter()
+        .any(|line| line.contains("Alphaの 特性『わたげ』")));
+}
+
+#[test]
 fn shadow_tag_traps_other_creature() {
     let state = make_state(
         make_creature("c1", "Alpha", Some("shadow_tag"), vec![]),

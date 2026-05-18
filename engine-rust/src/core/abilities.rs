@@ -933,7 +933,16 @@ fn after_cotton_down(
     creature_name: &str,
 ) -> Vec<BattleEvent> {
     match event {
-        BattleEvent::Damage { target_id, .. } if target_id == player_id => {
+        BattleEvent::Damage {
+            target_id,
+            amount,
+            meta,
+        } if target_id == player_id
+            && *amount > 0
+            && event_meta_flag_raw(meta, "contact")
+            && event_meta_move_id(event).is_some()
+            && event_meta_source(event).is_some_and(|source_id| source_id != player_id) =>
+        {
             let mut events = vec![BattleEvent::Log {
                 message: format!(
                     "{}の 特性『{}』！",
