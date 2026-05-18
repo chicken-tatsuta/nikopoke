@@ -314,6 +314,18 @@ fn mist_filters_only_stage_drops_from_shell_smash() {
         .log
         .iter()
         .any(|line| line.contains("しろいきりが 能力下降を 防いだ")));
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Mon1の こうげきが ぐーんと 上がった")));
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Mon1の とくこうが ぐーんと 上がった")));
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Mon1の すばやさが ぐーんと 上がった")));
 }
 
 #[test]

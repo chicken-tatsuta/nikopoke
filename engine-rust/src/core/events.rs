@@ -479,9 +479,11 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             stages,
             clamp,
             fail_if_no_change,
+            show_event,
             ..
         } => {
             let adjusted = modify_stages_with_ability(&next, target_id, stages);
+            let mut stage_messages = Vec::new();
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
                     let mut changed = false;
@@ -489,6 +491,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     for (key, delta) in adjusted {
                         let stage_ref = stage_ref_mut(&mut active.stages, &key);
                         if let Some(stage_ref) = stage_ref {
+                            let old_val = *stage_ref;
                             let mut new_val = *stage_ref + delta;
                             if *clamp {
                                 new_val = new_val.clamp(-6, 6);
@@ -496,6 +499,13 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             if new_val != *stage_ref {
                                 *stage_ref = new_val;
                                 changed = true;
+                                if *show_event {
+                                    stage_messages.push(stage_change_message(
+                                        &active.name,
+                                        &key,
+                                        new_val - old_val,
+                                    ));
+                                }
                             }
                         }
                     }
@@ -509,6 +519,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     }
                 }
             }
+            next.log.extend(stage_messages);
         }
         BattleEvent::ClearStages { target_id, .. } | BattleEvent::ResetStages { target_id, .. } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
@@ -1035,6 +1046,33 @@ fn stage_ref_mut<'a>(stages: &'a mut StatStages, key: &str) -> Option<&'a mut i3
         "evasion" | "eva" => Some(&mut stages.evasion),
         "crit" => Some(&mut stages.crit),
         _ => None,
+    }
+}
+
+fn stage_label(key: &str) -> &str {
+    match key {
+        "atk" => "こうげき",
+        "def" => "ぼうぎょ",
+        "spa" => "とくこう",
+        "spd" => "とくぼう",
+        "spe" => "すばやさ",
+        "accuracy" | "acc" => "めいちゅう",
+        "evasion" | "eva" => "かいひ",
+        "crit" => "きゅうしょ",
+        _ => "能力",
+    }
+}
+
+fn stage_change_message(name: &str, key: &str, delta: i32) -> String {
+    let label = stage_label(key);
+    if delta >= 2 {
+        format!("{}の {}が ぐーんと 上がった！", name, label)
+    } else if delta > 0 {
+        format!("{}の {}が 上がった！", name, label)
+    } else if delta <= -2 {
+        format!("{}の {}が がくっと 下がった！", name, label)
+    } else {
+        format!("{}の {}が 下がった！", name, label)
     }
 }
 
