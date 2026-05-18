@@ -1,11 +1,12 @@
+use engine_rust::core::battle::{BattleEngine, BattleOptions};
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::{apply_event, BattleEvent};
 use engine_rust::core::state::{
-    Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, EVStats, FieldState,
-    PlayerState, StatStages, Status,
+    Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, EVStats,
+    FieldEffect, FieldState, PlayerState, StatStages, Status,
 };
 use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
-use engine_rust::data::moves::Effect;
+use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -187,6 +188,132 @@ fn test_protect_event_transform() {
         .expect("Should have damage transform");
 
     assert_eq!(transform.except_source_id.as_deref(), Some("p1"));
+}
+
+#[test]
+fn mist_filters_only_stage_drops_from_shell_smash() {
+    let mut move_db = MoveDatabase::new();
+    move_db.insert(MoveData {
+        id: "shell_smash".to_string(),
+        name: Some("からをやぶる".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(15),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![Effect {
+            effect_type: "modify_stage".to_string(),
+            data: serde_json::json!({
+                "target": "self",
+                "stages": {
+                    "def": -1,
+                    "spd": -1,
+                    "atk": 2,
+                    "spa": 2,
+                    "spe": 2
+                }
+            })
+            .as_object()
+            .cloned()
+            .unwrap(),
+        }],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+    move_db.insert(MoveData {
+        id: "wait".to_string(),
+        name: Some("Wait".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: Vec::new(),
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+
+    let mut state = create_test_state();
+    state.players[0].team[0].moves = vec!["shell_smash".to_string()];
+    state.players.push(PlayerState {
+        id: "p2".to_string(),
+        name: "Player 2".to_string(),
+        team: vec![CreatureState {
+            id: "c2".to_string(),
+            species_id: "test_mon_2".to_string(),
+            name: "Mon2".to_string(),
+            level: 50,
+            types: vec!["normal".to_string()],
+            max_hp: 100,
+            hp: 100,
+            moves: vec!["wait".to_string()],
+            stages: StatStages::default(),
+            statuses: Vec::new(),
+            item: None,
+            evs: EVStats::default(),
+            ability: None,
+            volatile_data: HashMap::new(),
+            ability_data: HashMap::new(),
+            move_pp: HashMap::new(),
+            attack: 10,
+            defense: 10,
+            sp_attack: 10,
+            sp_defense: 10,
+            speed: 5,
+            weight_kg: 50.0,
+        }],
+        active_slot: 0,
+        last_fainted_ability: None,
+    });
+    state.field.sides.insert(
+        "p1".to_string(),
+        vec![FieldEffect {
+            id: "mist".to_string(),
+            remaining_turns: Some(5),
+            data: HashMap::new(),
+        }],
+    );
+
+    let engine = BattleEngine::new(move_db, TypeChart::new());
+    let mut rng = || 0.99;
+    let next = engine.step_battle(
+        &state,
+        &[
+            Action {
+                player_id: "p1".to_string(),
+                action_type: ActionType::Move,
+                move_id: Some("shell_smash".to_string()),
+                target_id: Some("p1".to_string()),
+                slot: None,
+                priority: None,
+            },
+            Action {
+                player_id: "p2".to_string(),
+                action_type: ActionType::Move,
+                move_id: Some("wait".to_string()),
+                target_id: Some("p1".to_string()),
+                slot: None,
+                priority: None,
+            },
+        ],
+        &mut rng,
+        BattleOptions::default(),
+    );
+
+    let stages = &next.players[0].team[0].stages;
+    assert_eq!(stages.atk, 2);
+    assert_eq!(stages.spa, 2);
+    assert_eq!(stages.spe, 2);
+    assert_eq!(stages.def, 0);
+    assert_eq!(stages.spd, 0);
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("しろいきりが 能力下降を 防いだ")));
 }
 
 #[test]

@@ -1144,7 +1144,10 @@ fn apply_switch_in_field_effects(
     let mut toxic_spikes_handled = false;
     if grounded
         && toxic_spikes_layers > 0
-        && active.types.iter().any(|pokemon_type| pokemon_type == "poison")
+        && active
+            .types
+            .iter()
+            .any(|pokemon_type| pokemon_type == "poison")
     {
         let mut meta = Map::new();
         meta.insert("sideId".to_string(), Value::String(player_id.to_string()));
@@ -1555,16 +1558,44 @@ fn apply_event_transforms(
         if cancelled {
             continue;
         }
+        let mut transformed_event = event.clone();
+        let mut stage_drop_logs = Vec::new();
+        for transform in transforms {
+            if transform.transform_type != "filter_stage_drops"
+                || !matches_transform(&transformed_event, transform)
+            {
+                continue;
+            }
+            let BattleEvent::ModifyStage { stages, meta, .. } = &mut transformed_event else {
+                continue;
+            };
+            let original_len = stages.len();
+            stages.retain(|_, value| *value >= 0);
+            if stages.len() != original_len {
+                stage_drop_logs.extend(transform.to.clone());
+                if !stages.values().any(|value| *value < 0) {
+                    meta.remove("stageDrop");
+                }
+            }
+        }
+        result.extend(stage_drop_logs);
+        if let BattleEvent::ModifyStage { stages, .. } = &transformed_event {
+            if stages.is_empty() {
+                continue;
+            }
+        }
         let mut replaced = false;
         for transform in transforms {
-            if transform.transform_type == "replace_event" && matches_transform(event, transform) {
+            if transform.transform_type == "replace_event"
+                && matches_transform(&transformed_event, transform)
+            {
                 result.extend(transform.to.clone());
                 replaced = true;
                 break;
             }
         }
         if !replaced {
-            result.push(event.clone());
+            result.push(transformed_event);
         }
     }
     result
