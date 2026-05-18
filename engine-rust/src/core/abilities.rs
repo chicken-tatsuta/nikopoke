@@ -939,7 +939,6 @@ fn after_cotton_down(
             meta,
         } if target_id == player_id
             && *amount > 0
-            && event_meta_flag_raw(meta, "contact")
             && event_meta_move_id(event).is_some()
             && event_meta_source(event).is_some_and(|source_id| source_id != player_id) =>
         {

@@ -242,20 +242,20 @@ fn adaptability_uses_double_stab_damage() {
 }
 
 #[test]
-fn cotton_down_triggers_on_contact_attack_damage() {
+fn cotton_down_triggers_on_attack_damage() {
     let mut move_db = MoveDatabase::new();
     move_db.insert(MoveData {
-        id: "contact_hit".to_string(),
-        name: Some("Contact Hit".to_string()),
+        id: "non_contact_hit".to_string(),
+        name: Some("Non Contact Hit".to_string()),
         move_type: Some("normal".to_string()),
-        category: Some("physical".to_string()),
+        category: Some("special".to_string()),
         pp: Some(10),
         power: Some(40),
         accuracy: Some(1.0),
         priority: Some(0),
         description: None,
         steps: vec![effect("damage", json!({ "power": 40, "accuracy": 1.0 }))],
-        tags: vec!["contact".to_string()],
+        tags: Vec::new(),
         crit_rate: None,
     });
     move_db.insert(MoveData {
@@ -274,14 +274,14 @@ fn cotton_down_triggers_on_contact_attack_damage() {
     });
 
     let state = make_state(
-        make_creature("c1", "Alpha", None, vec!["contact_hit".to_string()]),
+        make_creature("c1", "Alpha", None, vec!["non_contact_hit".to_string()]),
         make_creature("c2", "Beta", Some("cotton_down"), vec!["wait".to_string()]),
     );
     let actions = vec![
         Action {
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
-            move_id: Some("contact_hit".to_string()),
+            move_id: Some("non_contact_hit".to_string()),
             target_id: Some("p2".to_string()),
             slot: None,
             priority: None,
@@ -308,7 +308,7 @@ fn cotton_down_triggers_on_contact_attack_damage() {
 }
 
 #[test]
-fn cotton_down_does_not_trigger_from_drain_recovery_or_non_contact_damage() {
+fn cotton_down_does_not_trigger_from_drain_recovery() {
     let mut move_db = MoveDatabase::new();
     move_db.insert(MoveData {
         id: "draining_beam".to_string(),
