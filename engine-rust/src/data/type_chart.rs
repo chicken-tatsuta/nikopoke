@@ -32,13 +32,13 @@ impl TypeChart {
         add_entry(
             "fire",
             &["grass", "ice", "bug", "steel"],
-            &["grass", "ice", "bug", "steel", "fairy"],
+            &["fire", "grass", "ice", "bug", "steel", "fairy"],
             &["water", "ground", "rock"],
         );
         add_entry(
             "water",
             &["fire", "ground", "rock"],
-            &["steel", "fire", "water"],
+            &["steel", "fire", "water", "ice"],
             &["electric", "grass"],
         );
         add_entry(
@@ -50,7 +50,7 @@ impl TypeChart {
         add_entry(
             "grass",
             &["water", "ground", "rock"],
-            &["ground", "water", "grass"],
+            &["ground", "water", "grass", "electric"],
             &["fire", "ice", "poison", "flying", "bug"],
         );
         add_entry(
@@ -68,7 +68,7 @@ impl TypeChart {
         add_entry(
             "poison",
             &["grass", "fairy"],
-            &["grass", "fighting", "poison", "bug"],
+            &["grass", "fighting", "poison", "bug", "fairy"],
             &["ground", "psychic"],
         );
         add_entry(
@@ -126,7 +126,7 @@ impl TypeChart {
                 "normal", "flying", "rock", "bug", "steel", "grass", "psychic", "ice", "dragon",
                 "fairy",
             ],
-            &["fire", "water", "ground"],
+            &["fire", "fighting", "ground"],
         );
         add_entry(
             "fairy",
@@ -173,5 +173,29 @@ impl TypeChart {
             }
         }
         multiplier
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TypeChart;
+
+    fn types(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn type_chart_matches_attack_to_defense_table_for_regression_edges() {
+        let chart = TypeChart::new();
+
+        assert_eq!(chart.effectiveness("fire", &types(&["fire"])), 0.5);
+        assert_eq!(chart.effectiveness("ice", &types(&["water"])), 0.5);
+        assert_eq!(chart.effectiveness("electric", &types(&["grass"])), 0.5);
+        assert_eq!(chart.effectiveness("fighting", &types(&["steel"])), 2.0);
+        assert_eq!(chart.effectiveness("water", &types(&["steel"])), 1.0);
+        assert_eq!(chart.effectiveness("electric", &types(&["steel"])), 1.0);
+        assert_eq!(chart.effectiveness("fire", &types(&["steel"])), 2.0);
+        assert_eq!(chart.effectiveness("ground", &types(&["steel"])), 2.0);
+        assert_eq!(chart.effectiveness("poison", &types(&["steel"])), 0.0);
     }
 }

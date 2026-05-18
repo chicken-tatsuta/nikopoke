@@ -522,7 +522,7 @@ fn apply_damage(
                 });
             } else if eff > 0.0 && eff < 1.0 {
                 events.push(BattleEvent::Log {
-                    message: "効果は 今ひとつの ようだ……".to_string(),
+                    message: "効果は いまひとつの ようだ……".to_string(),
                     meta: Map::new(),
                 });
             }
@@ -959,6 +959,14 @@ fn apply_modify_stage(effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<Battl
             }
         }
     }
+    let has_stage_drop = stages.values().any(|delta| *delta < 0);
+    let mut meta = meta_with_move_source(
+        ctx.move_data.map(|m| m.id.as_str()),
+        Some(&ctx.attacker_player_id),
+    );
+    if has_stage_drop {
+        meta.insert("stageDrop".to_string(), Value::Bool(true));
+    }
     vec![BattleEvent::ModifyStage {
         target_id,
         stages,
@@ -977,10 +985,7 @@ fn apply_modify_stage(effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<Battl
             .get("show_event")
             .and_then(|v| v.as_bool())
             .unwrap_or(true),
-        meta: meta_with_move_source(
-            ctx.move_data.map(|m| m.id.as_str()),
-            Some(&ctx.attacker_player_id),
-        ),
+        meta,
     }]
 }
 
@@ -1896,14 +1901,42 @@ fn apply_field_status(
         };
         data.insert("sideId".to_string(), Value::String(side_id));
     }
+    let stack = effect
+        .data
+        .get("stack")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if stack {
+        if let Some(max_stacks) = effect.data.get("maxStacks").and_then(|v| v.as_u64()) {
+            let current_stacks = if data.get("scope").and_then(|v| v.as_str()) == Some("side") {
+                data.get("sideId")
+                    .and_then(|v| v.as_str())
+                    .and_then(|side_id| state.field.sides.get(side_id))
+                    .map(|effects| effects.iter().filter(|field| field.id == status_id).count())
+                    .unwrap_or(0)
+            } else {
+                state
+                    .field
+                    .global
+                    .iter()
+                    .filter(|field| field.id == status_id)
+                    .count()
+            };
+            if current_stacks >= max_stacks as usize {
+                return vec![BattleEvent::Log {
+                    message: "しかし うまく きまらなかった！".to_string(),
+                    meta: meta_with_move_source(
+                        ctx.move_data.map(|m| m.id.as_str()),
+                        Some(&ctx.attacker_player_id),
+                    ),
+                }];
+            }
+        }
+    }
     let apply_event = BattleEvent::ApplyFieldStatus {
         status_id,
         duration: value_i32(effect.data.get("duration"), state, ctx),
-        stack: effect
-            .data
-            .get("stack")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
+        stack,
         data,
         meta: meta_with_move_source(
             ctx.move_data.map(|m| m.id.as_str()),

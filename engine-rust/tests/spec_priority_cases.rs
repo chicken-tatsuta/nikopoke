@@ -450,6 +450,52 @@ fn field_status_move(id: &str, status_id: &str) -> MoveData {
     }
 }
 
+fn side_field_status_move(id: &str, status_id: &str) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "apply_field_status",
+            json!({ "statusId": status_id, "duration": 5, "stack": false, "side": true }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
+fn side_stack_field_status_move(id: &str, status_id: &str, max_stacks: i32) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "apply_field_status",
+            json!({
+                "statusId": status_id,
+                "duration": null,
+                "stack": true,
+                "side": false,
+                "maxStacks": max_stacks
+            }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
 fn status_stage_move(id: &str, target: &str, stat: &str, delta: i32) -> MoveData {
     MoveData {
         id: id.to_string(),
@@ -549,6 +595,15 @@ fn field_status_count(state: &BattleState, status_id: &str) -> usize {
         .iter()
         .filter(|effect| effect.id == status_id)
         .count()
+}
+
+fn side_field_status_count(state: &BattleState, side_id: &str, status_id: &str) -> usize {
+    state
+        .field
+        .sides
+        .get(side_id)
+        .map(|effects| effects.iter().filter(|effect| effect.id == status_id).count())
+        .unwrap_or(0)
 }
 
 fn effects_from_value(value: Option<&Value>) -> Vec<Effect> {
@@ -931,6 +986,69 @@ fn p0_spec_field_status_non_stack_replaces_existing_copy() {
         field_status_count(&next, "reflect"),
         1,
         "non-stack field status should keep only one copy after reapplication"
+    );
+}
+
+#[test]
+fn p0_spec_mist_blocks_only_opponent_stat_drops() {
+    let engine = make_engine(vec![
+        side_field_status_move("set_mist", "mist"),
+        status_stage_move("lower_target_atk", "target", "atk", -1),
+        status_stage_move("raise_target_atk", "target", "atk", 1),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "MistSide")
+                .moves(&["set_mist", "wait"])
+                .stats(50, 50, 50, 50, 100)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["lower_target_atk", "raise_target_atk"])
+                .stats(50, 50, 50, 50, 80)
+                .build()],
+        ),
+    ]);
+
+    let with_mist = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "set_mist", "p2"),
+            move_action("p2", "lower_target_atk", "p1"),
+        ],
+        30,
+    );
+    assert_eq!(
+        with_mist.players[0].team[0].stages.atk, 0,
+        "mist should block opponent stat drops"
+    );
+    assert!(
+        with_mist
+            .log
+            .iter()
+            .any(|line| line.contains("しろいきりが 能力下降を 防いだ")),
+        "mist should log a blocked stat drop"
+    );
+
+    let after_boost = run_turn_with_seed(
+        &engine,
+        &with_mist,
+        &[
+            move_action("p1", "wait", "p2"),
+            move_action("p2", "raise_target_atk", "p1"),
+        ],
+        31,
+    );
+    assert_eq!(
+        after_boost.players[0].team[0].stages.atk, 1,
+        "mist should not block opponent stat boosts"
     );
 }
 
@@ -1347,6 +1465,116 @@ fn p0_spec_poison_type_switch_in_absorbs_toxic_spikes() {
             .any(|line| line.contains("足元の どくびしが 消え去った！")),
         "absorbing toxic spikes should be logged"
     );
+}
+
+#[test]
+fn p0_spec_spikes_stacks_up_to_three_layers_and_then_fails() {
+    let engine = make_engine(vec![
+        side_stack_field_status_move("set_spikes", "spikes", 3),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter")
+                .moves(&["set_spikes"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Target").moves(&["wait"]).build()],
+        ),
+    ]);
+    let turns = vec![
+        vec![
+            move_action("p1", "set_spikes", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        vec![
+            move_action("p1", "set_spikes", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        vec![
+            move_action("p1", "set_spikes", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        vec![
+            move_action("p1", "set_spikes", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+    ];
+
+    let next = run_turns_with_seed(&engine, state, &turns, 13);
+
+    assert_eq!(
+        side_field_status_count(&next, "p2", "spikes"),
+        3,
+        "spikes should not stack beyond three layers"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく きまらなかった！")),
+        "fourth spikes should fail"
+    );
+}
+
+#[test]
+fn p0_spec_spikes_switch_in_damage_scales_by_layer_count() {
+    let engine = make_engine(vec![wait_move()]);
+
+    for (layers, expected_hp) in [(1, 105), (2, 100), (3, 90), (4, 90)] {
+        let mut state = battle_state(vec![
+            player(
+                "p1",
+                "P1",
+                vec![
+                    CreatureBuilder::new("c1", "Lead")
+                        .moves(&["wait"])
+                        .build(),
+                    CreatureBuilder::new("c2", "Incoming")
+                        .moves(&["wait"])
+                        .hp(120, 120)
+                        .build(),
+                ],
+            ),
+            player(
+                "p2",
+                "P2",
+                vec![CreatureBuilder::new("c3", "Opponent")
+                    .moves(&["wait"])
+                    .build()],
+            ),
+        ]);
+        state.field.sides.insert(
+            "p1".to_string(),
+            (0..layers)
+                .map(|_| FieldEffect {
+                    id: "spikes".to_string(),
+                    remaining_turns: None,
+                    data: HashMap::new(),
+                })
+                .collect(),
+        );
+
+        let next = run_turn_with_seed(
+            &engine,
+            &state,
+            &[
+                switch_action("p1", 1),
+                move_action("p2", "wait", "p1"),
+            ],
+            14,
+        );
+
+        let active = &next.players[0].team[next.players[0].active_slot];
+        assert_eq!(
+            active.hp, expected_hp,
+            "{layers} spikes layer(s) should leave the switch-in at {expected_hp} HP"
+        );
+    }
 }
 
 #[test]

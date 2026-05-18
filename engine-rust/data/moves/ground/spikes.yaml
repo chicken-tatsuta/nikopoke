@@ -12,4 +12,5 @@ steps:
   statusId: spikes
   side: false
   stack: true
+  maxStacks: 3
 tags: []

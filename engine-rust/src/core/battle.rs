@@ -1135,7 +1135,12 @@ fn apply_switch_in_field_effects(
         .iter()
         .filter(|effect| effect.id == "toxic_spikes")
         .count();
-    let mut spikes_logged = false;
+    let spikes_layers = effects
+        .iter()
+        .filter(|effect| effect.id == "spikes")
+        .count()
+        .min(3);
+    let mut spikes_handled = false;
     let mut toxic_spikes_handled = false;
     if grounded
         && toxic_spikes_layers > 0
@@ -1156,18 +1161,23 @@ fn apply_switch_in_field_effects(
     for effect in effects {
         match effect.id.as_str() {
             "spikes" if grounded => {
-                if !spikes_logged {
+                if !spikes_handled {
                     events.push(BattleEvent::Log {
                         message: format!("まきびしが 相手の {}に くいこんだ！", active.name),
                         meta: Map::new(),
                     });
-                    spikes_logged = true;
+                    let denominator = match spikes_layers {
+                        0 | 1 => 8,
+                        2 => 6,
+                        _ => 4,
+                    };
+                    events.push(BattleEvent::Damage {
+                        target_id: player_id.to_string(),
+                        amount: (active.max_hp / denominator).max(1),
+                        meta: Map::new(),
+                    });
+                    spikes_handled = true;
                 }
-                events.push(BattleEvent::Damage {
-                    target_id: player_id.to_string(),
-                    amount: (active.max_hp / 8).max(1),
-                    meta: Map::new(),
-                });
             }
             "stealth_rock" => {
                 let effectiveness =

@@ -9216,7 +9216,8 @@ spikes:
   pp: 20
   priority: 0
   steps:
-    - side: false
+    - maxStacks: 3
+      side: false
       stack: true
       statusId: spikes
       type: apply_field_status

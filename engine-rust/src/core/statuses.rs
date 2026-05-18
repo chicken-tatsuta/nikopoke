@@ -852,9 +852,9 @@ fn match_status(
                         target_id: Some(owner_side),
                         except_source_id: Some(player_id.to_string()),
                         require_absent_meta: None,
-                        require_present_meta: None,
+                        require_present_meta: Some("stageDrop".to_string()),
                         to: vec![BattleEvent::Log {
-                            message: "しろいきりが 能力変化を 防いだ！".to_string(),
+                            message: "しろいきりが 能力下降を 防いだ！".to_string(),
                             meta: Map::new(),
                         }],
                         priority: 1,
