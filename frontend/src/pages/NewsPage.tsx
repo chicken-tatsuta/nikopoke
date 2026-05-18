@@ -6,10 +6,10 @@ import newsImageUrl from '../../image/news.jpg';
 
 const NEWS_ITEMS = [
     {
-        date: '2026.05.17',
-        title: 'いたずらごころに関するバグを修正しました',
-        body: '悪タイプの敵を対象に変化技を打てていたバグを修正しました。',
-        tag: 'BATTLE',
+        date: '2026.05.18',
+        title: 'わざ「みちづれ」に関するバグを修正しました',
+        body: '次のターンの自分の行動までみちづれが効くよう修正しました。',
+        tag: 'MOVE',
     },
     {
         date: '2026.05.17',
