@@ -1,5 +1,7 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages,
+};
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{json, Map, Value};
@@ -35,6 +37,7 @@ fn make_creature(id: &str, name: &str, moves: Vec<String>, speed: i32) -> Creatu
         sp_attack: 50,
         sp_defense: 50,
         speed,
+        weight_kg: 60.0,
     }
 }
 
@@ -43,7 +46,7 @@ fn random_move_uses_self_moves_and_consumes_pp() {
     let mut move_db = MoveDatabase::new();
     move_db.insert(MoveData {
         id: "metronome".to_string(),
-        name: Some("Metronome".to_string()),
+        name: Some("ゆびをふる".to_string()),
         move_type: Some("normal".to_string()),
         category: Some("status".to_string()),
         pp: Some(1),
@@ -57,7 +60,7 @@ fn random_move_uses_self_moves_and_consumes_pp() {
     });
     move_db.insert(MoveData {
         id: "tackle".to_string(),
-        name: Some("Tackle".to_string()),
+        name: Some("たいあたり".to_string()),
         move_type: Some("normal".to_string()),
         category: Some("physical".to_string()),
         pp: Some(1),
@@ -73,7 +76,12 @@ fn random_move_uses_self_moves_and_consumes_pp() {
     let p1 = PlayerState {
         id: "p1".to_string(),
         name: "P1".to_string(),
-        team: vec![make_creature("c1", "Alpha", vec!["tackle".to_string()], 100)],
+        team: vec![make_creature(
+            "c1",
+            "Alpha",
+            vec!["tackle".to_string()],
+            100,
+        )],
         active_slot: 0,
         last_fainted_ability: None,
     };
@@ -119,6 +127,10 @@ fn random_move_uses_self_moves_and_consumes_pp() {
 
     let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
     assert_eq!(next.players[1].team[0].hp, 50);
+    assert!(next
+        .log
+        .iter()
+        .any(|log| log == "ゆびをふったら たいあたりが でた！"));
     let p1_after = &next.players[0].team[0];
     assert_eq!(p1_after.move_pp.get("metronome").copied(), Some(0));
     assert_eq!(p1_after.move_pp.get("tackle").copied(), Some(0));

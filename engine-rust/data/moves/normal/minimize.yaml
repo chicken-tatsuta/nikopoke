@@ -12,4 +12,7 @@ steps:
   target: self
   stages:
     evasion: 2
+- type: apply_status
+  statusId: minimize
+  target: self
 tags: []

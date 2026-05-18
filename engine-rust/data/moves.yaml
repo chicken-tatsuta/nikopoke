@@ -57,8 +57,7 @@ pain_split:
   priority: 0
   description: 自分の　ＨＰと　相手の　ＨＰを あわせて　それを　自分と　相手で なかよく　わける。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: pain_split_effect
   tags: []
 swagger:
   id: swagger
@@ -137,8 +136,7 @@ after_you:
   priority: 0
   description: 相手の　行動を　サポートして 自分の　行動の　あとに 続けて　動けるように　する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: after_you_effect
   tags: []
 noble_roar:
   id: noble_roar
@@ -200,8 +198,9 @@ disable:
   priority: 0
   description: 相手の　動きを　とめて 直前に　だしていた　技を ４ターンの　あいだ　使えなくする。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: disable_last_move
+    target: target
+    duration: 4
   tags: []
 shell_smash:
   id: shell_smash
@@ -234,8 +233,10 @@ focus_energy:
   priority: 0
   description: 深く　息を　吸い　気合を　こめる。 自分の　攻撃が 急所に　当たりやすくなる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: modify_stage
+    target: self
+    stages:
+      crit: 2
   tags: []
 tickle:
   id: tickle
@@ -265,8 +266,10 @@ mean_look:
   priority: 0
   description: 吸いこまれるような　黒い　まなざしで じっと　みつめて　相手を 戦闘から　逃げられなくする。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: trapped
+    target: target
+    duration: null
   tags: []
 endure:
   id: endure
@@ -356,8 +359,12 @@ safeguard:
   priority: 0
   description: ５ターンの　あいだ 不思議な　力に　守られて 状態異常に　ならなくなる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_field_status
+    statusId: safeguard
+    duration: 5
+    data:
+      scope: side
+      sideId: self
   tags: []
 psych_up:
   id: psych_up
@@ -370,8 +377,7 @@ psych_up:
   priority: 0
   description: 自分に　暗示を　かけることで 能力変化の　状態を 相手と　同じにする。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: copy_stages
   tags: []
 recover:
   id: recover
@@ -437,6 +443,9 @@ minimize:
     target: self
     stages:
       evasion: 2
+  - type: apply_status
+    statusId: minimize
+    target: self
   tags: []
 supersonic:
   id: supersonic
@@ -464,8 +473,7 @@ acupressure:
   priority: 0
   description: つぼおしで　体を　活性化させる。 能力の　どれか　１つを ぐーんと　あげる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: random_stage_boost
   tags: []
 swords_dance:
   id: swords_dance
@@ -510,8 +518,9 @@ entrainment:
   priority: 0
   description: 不思議な　リズムで　おどる。 動きを　まねさせて　自分と　相手の 特性を　同じに　する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: set_ability
+    target: target
+    fromUserAbility: true
   tags: []
 slack_off:
   id: slack_off
@@ -588,8 +597,8 @@ happy_hour:
   priority: 0
   description: ハッピータイムの　技を　使うと 戦闘の　あとで　もらえる お金が　倍になる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: log
+    message: みんなのきぶんがよくなった！
   tags: []
 splash:
   id: splash
@@ -602,8 +611,8 @@ splash:
   priority: 0
   description: '攻撃もせずに　ピョン　ピョンと 跳ねるだけで　なにも　おこらない……。 '
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: log
+    message: 何もおこらなかった！
   tags: []
 belly_drum:
   id: belly_drum
@@ -616,8 +625,7 @@ belly_drum:
   priority: 0
   description: 自分の　ＨＰを　最大ＨＰの 半分　減らして　自分の　攻撃を 最大に　あげる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: set_atk_max
   tags: []
 baton_pass:
   id: baton_pass
@@ -800,8 +808,12 @@ lock_on:
   priority: 0
   description: 照準を　しっかり　あわせて 次の　攻撃が　必ず 相手に　当たるように　する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: lock_on
+    target: self
+    duration: 2
+    data:
+      targetId: target
   tags: []
 thrash:
   id: thrash
@@ -830,8 +842,9 @@ super_fang:
   priority: 0
   description: 鋭い　前歯で 激しく　かみついて　攻撃する。 相手の　ＨＰは　半分に　なる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: hp_based_damage
+    target: target
+    ratio: 0.5
   tags:
   - contact
 strength:
@@ -893,8 +906,7 @@ endeavor:
   priority: 0
   description: 相手の　ＨＰが　自分の　ＨＰと 同じくらいに　なるように ダメージを　与える。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: endeavor_effect
   tags:
   - contact
 slash:
@@ -964,8 +976,15 @@ bind:
   - type: damage
     power: 15
     accuracy: 0.85
-  - type: manual
-    manualReason: 'Multi-turn trapping/binding effects are not fully supported; Unsupported ailment: trap'
+  - type: apply_status
+    statusId: bind
+    target: target
+    duration:
+      min: 4
+      max: 5
+    data:
+      sourceId: self
+      moveName: しめつける
   tags:
   - contact
 extreme_speed:
@@ -995,8 +1014,21 @@ flail:
   priority: 0
   description: じたばた　暴れて　攻撃する。 自分の　ＨＰが　少ないほど 技の　威力は　あがる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: hp_ratio_damage
+    thresholds:
+    - ratio: 0.0417
+      power: 200
+    - ratio: 0.1042
+      power: 150
+    - ratio: 0.2083
+      power: 100
+    - ratio: 0.3542
+      power: 80
+    - ratio: 0.6875
+      power: 40
+    - ratio: 1.0
+      power: 20
+    accuracy: 1.0
   tags:
   - contact
 self_destruct:
@@ -1526,8 +1558,7 @@ counter:
   priority: -5
   description: 相手から　受けた　物理攻撃の ダメージを　２倍に　して 同じ　相手に　返す。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: counter_effect
   tags:
   - contact
 axe_kick:
@@ -1591,8 +1622,21 @@ reversal:
   priority: 0
   description: 力を　ふりしぼり　攻撃する。 自分の　ＨＰが　少ないほど 技の　威力は　あがる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: hp_ratio_damage
+    thresholds:
+    - ratio: 0.0417
+      power: 200
+    - ratio: 0.1042
+      power: 150
+    - ratio: 0.2083
+      power: 100
+    - ratio: 0.3542
+      power: 80
+    - ratio: 0.6875
+      power: 40
+    - ratio: 1.0
+      power: 20
+    accuracy: 1.0
   tags:
   - contact
 cross_chop:
@@ -1621,10 +1665,10 @@ low_kick:
   power: null
   accuracy: 1.0
   priority: 0
-  description: 足を　強く　けり 相手を　転ばせて　攻撃する。 相手が　重いほど　威力が　あがる。
+  description: 足を　強く　けり 相手を　転ばせて　攻撃する。 相手が重なら威力120、中なら80、軽なら40。相手が『ちいさくなる』状態なら必ず命中し、威力が2倍になる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: weight_based_damage
+    accuracy: 1.0
   tags:
   - contact
 arm_thrust:
@@ -1884,8 +1928,7 @@ final_gambit:
   priority: 0
   description: 命懸けで　相手を　攻撃する。 自分は　ひんしに　なるが　相手に ＨＰ分の　ダメージを　与える。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: final_gambit_effect
   tags: []
 focus_blast:
   id: focus_blast
@@ -2294,8 +2337,8 @@ gastro_acid:
   priority: 0
   description: 胃液を　相手の 体に　吐きつける。ついた　胃液は 相手の　特性の　効果を　消す。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: suppress_ability
+    target: target
   tags: []
 baneful_bunker:
   id: baneful_bunker
@@ -2739,8 +2782,15 @@ sand_tomb:
   - type: damage
     power: 35
     accuracy: 0.85
-  - type: manual
-    manualReason: 'Multi-turn trapping/binding effects are not fully supported; Unsupported ailment: trap'
+  - type: apply_status
+    statusId: bind
+    target: target
+    duration:
+      min: 4
+      max: 5
+    data:
+      sourceId: self
+      moveName: すなじごく
   tags: []
 drill_run:
   id: drill_run
@@ -3371,8 +3421,15 @@ infestation:
   - type: damage
     power: 20
     accuracy: 1.0
-  - type: manual
-    manualReason: 'Multi-turn trapping/binding effects are not fully supported; Unsupported ailment: trap'
+  - type: apply_status
+    statusId: bind
+    target: target
+    duration:
+      min: 4
+      max: 5
+    data:
+      sourceId: self
+      moveName: むしくい
   tags: []
 bug_buzz:
   id: bug_buzz
@@ -3422,8 +3479,7 @@ curse:
   priority: 0
   description: 使う　ポケモンが ゴーストタイプと　それ以外　とでは 効果が　変わる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: curse_effect
   tags: []
 destiny_bond:
   id: destiny_bond
@@ -3436,8 +3492,9 @@ destiny_bond:
   priority: 0
   description: 技を　だしたあと　攻撃を　受けて ひんしに　なったとき 攻撃　相手も　ひんしに　する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: destiny_bond
+    target: self
   tags: []
 astonish:
   id: astonish
@@ -3790,8 +3847,9 @@ gyro_ball:
   priority: 0
   description: 体を　高速に　回転させて 体当たりする。相手より　素早さが 低いほど　強い。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: inverse_speed_based_damage
+    maxPower: 150
+    accuracy: 1.0
   tags:
   - contact
 smart_strike:
@@ -3850,10 +3908,10 @@ heavy_slam:
   power: null
   accuracy: 1.0
   priority: 0
-  description: 重たい　体で　相手に　ぶつかって 攻撃する。自分が　相手より 重いほど　威力が　あがる。
+  description: 重たい　体で　相手に　ぶつかって 攻撃する。重から軽は威力120、重から中は100、中から軽は80。同じ重さなら60、相手が自分より重いなら40。相手が『ちいさくなる』状態なら必ず命中し、威力が2倍になる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: relative_weight_damage
+    accuracy: 1.0
   tags:
   - contact
 metal_claw:
@@ -4343,8 +4401,15 @@ fire_spin:
   - type: damage
     power: 35
     accuracy: 0.85
-  - type: manual
-    manualReason: 'Multi-turn trapping/binding effects are not fully supported; Unsupported ailment: trap'
+  - type: apply_status
+    statusId: bind
+    target: target
+    duration:
+      min: 4
+      max: 5
+    data:
+      sourceId: self
+      moveName: ほのおのうず
   tags: []
 fiery_dance:
   id: fiery_dance
@@ -4431,8 +4496,9 @@ aqua_ring:
   priority: 0
   description: 自分の　体の　周りを 水で　つくった　ベールで　おおう。 毎ターン　ＨＰを　回復する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: aqua_ring
+    target: self
   tags: []
 rain_dance:
   id: rain_dance
@@ -4640,8 +4706,15 @@ whirlpool:
   - type: damage
     power: 35
     accuracy: 0.85
-  - type: manual
-    manualReason: 'Multi-turn trapping/binding effects are not fully supported; Unsupported ailment: trap'
+  - type: apply_status
+    statusId: bind
+    target: target
+    duration:
+      min: 4
+      max: 5
+    data:
+      sourceId: self
+      moveName: うずしお
   tags: []
 sparkling_aria:
   id: sparkling_aria
@@ -4927,8 +5000,9 @@ worry_seed:
   priority: 0
   description: 心を　なやませる　タネを 植えつける。相手を　眠れなくして 特性を　ふみんに　する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: set_ability
+    target: target
+    abilityId: insomnia
   tags: []
 ingrain:
   id: ingrain
@@ -4941,8 +5015,12 @@ ingrain:
   priority: 0
   description: 大地に　根を　張り 毎ターン　自分の　ＨＰを　回復する。 根を　張っているので　入れ替えられない。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: ingrain
+    target: self
+  - type: apply_status
+    statusId: trapped
+    target: self
   tags: []
 leech_seed:
   id: leech_seed
@@ -4955,8 +5033,13 @@ leech_seed:
   priority: 0
   description: 植えつけた　相手の　ＨＰを 毎ターン　少しだけ　吸い取り 自分の　ＨＰを　回復する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: leech_seed
+    target: target
+    immuneTypes:
+      - ghost
+    data:
+      sourceId: self
   tags: []
 cotton_spore:
   id: cotton_spore
@@ -5245,10 +5328,10 @@ grass_knot:
   power: null
   accuracy: 1.0
   priority: 0
-  description: 草を　からませて　相手を 転ばせる。相手が　重いほど 威力が　あがる。
+  description: 草を　からませて　相手を 転ばせる。相手が重なら威力120、中なら80、軽なら40。相手が『ちいさくなる』状態なら必ず命中し、威力が2倍になる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: weight_based_damage
+    accuracy: 1.0
   tags: []
 absorb:
   id: absorb
@@ -5437,8 +5520,10 @@ magnet_rise:
   priority: 0
   description: 電気で　つくった　磁力の　力で 宙に　浮かぶ。 ５ターンの　あいだ　浮遊できる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: magnet_rise
+    target: self
+    duration: 5
   tags: []
 thunder_fang:
   id: thunder_fang
@@ -5623,8 +5708,18 @@ electro_ball:
   priority: 0
   description: 電気の　塊を　相手に ぶつける。相手より　素早さが 速いほど　威力が　あがる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: speed_based_damage
+    basePower: 40
+    thresholds:
+    - ratio: 4.0
+      power: 150
+    - ratio: 3.0
+      power: 120
+    - ratio: 2.0
+      power: 80
+    - ratio: 1.0
+      power: 60
+    accuracy: 1.0
   tags: []
 thunder:
   id: thunder
@@ -5810,8 +5905,7 @@ healing_wish:
   priority: 0
   description: 自分は　ひんしに　なるが 控えから　でてくる　ポケモンの 状態異常と　ＨＰを　回復する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: healing_wish_effect
   tags: []
 guard_split:
   id: guard_split
@@ -5824,8 +5918,8 @@ guard_split:
   priority: 0
   description: 超能力で　自分と　相手の 防御と　特防を　たして 半分に　わける。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: average_stages
+    statKeys: [def, spd]
   tags: []
 guard_swap:
   id: guard_swap
@@ -5838,8 +5932,8 @@ guard_swap:
   priority: 0
   description: 超能力で　自分と　相手の 防御と　特防の 能力変化を　入れ替える。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: swap_stages
+    stageKeys: [def, spd]
   tags: []
 agility:
   id: agility
@@ -5915,8 +6009,9 @@ gravity:
   priority: 0
   description: ５ターンの　あいだ 重力を　強くして　ふゆうや 空へ　飛ぶ　技を　使えなくする。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_field_status
+    statusId: gravity
+    duration: 5
   tags: []
 skill_swap:
   id: skill_swap
@@ -5929,8 +6024,7 @@ skill_swap:
   priority: 0
   description: '超能力で　自分の　特性と 相手の　特性を　入れ替える。 '
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: swap_abilities
   tags: []
 teleport:
   id: teleport
@@ -5956,8 +6050,7 @@ trick:
   priority: 0
   description: 相手の　すきを　ついて 自分と　相手の 持ち物を　交換する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: swap_items
   tags: []
 trick_room:
   id: trick_room
@@ -6022,8 +6115,8 @@ power_split:
   priority: 0
   description: 超能力で　自分と　相手の 攻撃と　特攻を　たして 半分に　わける。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: average_stages
+    statKeys: [atk, spa]
   tags: []
 power_swap:
   id: power_swap
@@ -6036,8 +6129,8 @@ power_swap:
   priority: 0
   description: 超能力で　自分と　相手の 攻撃と　特攻の 能力変化を　入れ替える。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: swap_stages
+    stageKeys: [atk, spa]
   tags: []
 power_trick:
   id: power_trick
@@ -6050,8 +6143,7 @@ power_trick:
   priority: 0
   description: 超能力で 自分の　攻撃と　防御の 力を　交換する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: swap_attack_defense
   tags: []
 light_screen:
   id: light_screen
@@ -6079,8 +6171,7 @@ imprison:
   priority: 0
   description: 相手が　自分と　同じ　技を おぼえていたら　相手だけ その技を　使えなくする。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: imprison_effect
   tags: []
 calm_mind:
   id: calm_mind
@@ -6323,8 +6414,7 @@ mirror_coat:
   priority: -5
   description: 相手から　受けた　特殊攻撃の ダメージを　２倍に　して その相手に　返す。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: mirror_coat_effect
   tags: []
 future_sight:
   id: future_sight
@@ -6385,8 +6475,7 @@ haze:
   priority: 0
   description: 黒い霧を　だして　戦闘に でている　ポケモン　全員の 能力変化を　もとに　もどす。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: haze_effect
   tags: []
 chilly_reception:
   id: chilly_reception
@@ -6415,8 +6504,12 @@ mist:
   priority: 0
   description: 白い霧で　体を　おおう。 ５ターンの　あいだ　相手に 能力を　さげられなく　なる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_field_status
+    statusId: mist
+    duration: 5
+    data:
+      scope: side
+      sideId: self
   tags: []
 snowscape:
   id: snowscape
@@ -6998,8 +7091,9 @@ torment:
   priority: 0
   description: 相手に　いちゃもんを　つけて 同じ　技を　２回連続で だせなくする。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: torment
+    target: target
   tags: []
 fake_tears:
   id: fake_tears
@@ -7081,8 +7175,7 @@ switcheroo:
   priority: 0
   description: 目にも　とまらぬ　速さで 自分と　相手の 持ち物を　交換する。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: swap_items
   tags: []
 taunt:
   id: taunt
@@ -7095,8 +7188,10 @@ taunt:
   priority: 0
   description: 相手を　怒らせる。３ターンの あいだ　相手は　ダメージを 与える　技しか　だせなくなる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: apply_status
+    statusId: taunt
+    target: target
+    duration: 3
   tags: []
 hone_claws:
   id: hone_claws
@@ -7254,8 +7349,10 @@ throat_chop:
   - type: damage
     power: 80
     accuracy: 1.0
-  - type: manual
-    manualReason: 'Unsupported ailment: silence'
+  - type: apply_status
+    statusId: throat_chop
+    target: target
+    duration: 3
   tags:
   - contact
 assurance:
@@ -7334,8 +7431,11 @@ fling:
   priority: 0
   description: 持たせた　道具を 素早く　投げつけて　攻撃する。 道具で　威力と　効果が　変わる。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: damage
+    power: 30
+    accuracy: 1.0
+  - type: remove_item
+    target: self
   tags: []
 knock_off:
   id: knock_off
@@ -7380,8 +7480,14 @@ beat_up:
   priority: 0
   description: 味方　全員で　攻撃する。 仲間の　ポケモンが　多いほど 技の　攻撃回数が　増える。
   steps:
-  - type: manual
-    manualReason: No supported effects inferred
+  - type: repeat
+    times:
+      min: 1
+      max: 6
+    steps:
+    - type: damage
+      power: 20
+      accuracy: 1.0
   tags: []
 brutal_swing:
   id: brutal_swing

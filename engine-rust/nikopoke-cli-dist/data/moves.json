@@ -206,7 +206,9 @@
         "type": "delay",
         "afterTurns": 0,
         "timing": "turn_start",
-        "effects": []
+        "effects": [
+
+        ]
       }
     ]
   },
@@ -553,6 +555,11 @@
         "stages": {
           "evasion": 2
         }
+      },
+      {
+        "type": "apply_status",
+        "statusId": "minimize",
+        "target": "self"
       }
     ]
   },
@@ -711,7 +718,9 @@
     "type": "normal",
     "category": "status",
     "pp": 40,
-    "effects": []
+    "effects": [
+
+    ]
   },
   "belly_drum": {
     "id": "belly_drum",
@@ -1682,7 +1691,9 @@
       {
         "type": "delay",
         "afterTurns": 1,
-        "effects": []
+        "effects": [
+
+        ]
       }
     ]
   },
@@ -1912,8 +1923,12 @@
           "type": "user_has_status",
           "statusId": "flinch"
         },
-        "then": [],
-        "else": []
+        "then": [
+
+        ],
+        "else": [
+
+        ]
       }
     ],
     "tags": [
@@ -2019,7 +2034,9 @@
           {
             "type": "chance",
             "p": 0.9,
-            "then": [],
+            "then": [
+
+            ],
             "else": [
               {
                 "type": "damage_ratio",
@@ -2051,7 +2068,9 @@
           "type": "target_has_status",
           "statusId": "dynamax"
         },
-        "then": [],
+        "then": [
+
+        ],
         "else": [
           {
             "type": "replace_status",
@@ -2253,17 +2272,14 @@
     "pp": 20,
     "effects": [
       {
-        "type": "damage",
-        "power": 65,
-        "accuracy": 1
-      },
+        "type": "weight_based_damage",
+        "accuracy": 1.0
+      }
+    ],
+    "steps": [
       {
-        "type": "modify_stage",
-        "target": "target",
-        "stages": {
-          "spe": -1
-        },
-        "chance": 1
+        "type": "weight_based_damage",
+        "accuracy": 1.0
       }
     ]
   },
@@ -3058,7 +3074,9 @@
       {
         "type": "delay",
         "afterTurns": 1,
-        "effects": [],
+        "effects": [
+
+        ],
         "target": "self"
       },
       {
@@ -4632,22 +4650,14 @@
     "pp": 10,
     "effects": [
       {
-        "type": "damage",
-        "power": 40
-      },
+        "type": "relative_weight_damage",
+        "accuracy": 1.0
+      }
+    ],
+    "steps": [
       {
-        "type": "conditional",
-        "if": {
-          "type": "target_has_status",
-          "statusId": "minimize"
-        },
-        "then": [
-          {
-            "type": "damage",
-            "power": 240,
-            "accuracy": 1
-          }
-        ]
+        "type": "relative_weight_damage",
+        "accuracy": 1.0
       }
     ]
   },
@@ -5203,7 +5213,9 @@
         ]
       }
     ],
-    "tags": []
+    "tags": [
+
+    ]
   },
   "daimonji": {
     "id": "daimonji",
@@ -5297,7 +5309,9 @@
           "type": "target_hp_lt",
           "value": 1
         },
-        "then": []
+        "then": [
+
+        ]
       }
     ]
   },
@@ -6203,7 +6217,9 @@
           "type": "target_has_status",
           "statusId": "grass"
         },
-        "then": []
+        "then": [
+
+        ]
       },
       {
         "type": "chance",
@@ -6569,27 +6585,14 @@
     "pp": 20,
     "effects": [
       {
-        "type": "damage",
-        "power": 0,
-        "accuracy": 1,
-        "data": {
-          "weight_based_power": {
-            "under_10kg": 20,
-            "under_25kg": 40,
-            "under_50kg": 60,
-            "under_100kg": 80,
-            "under_200kg": 100,
-            "over_200kg": 120
-          }
-        }
-      },
+        "type": "weight_based_damage",
+        "accuracy": 1.0
+      }
+    ],
+    "steps": [
       {
-        "type": "conditional",
-        "if": {
-          "type": "target_has_status",
-          "statusId": "dynamax"
-        },
-        "then": []
+        "type": "weight_based_damage",
+        "accuracy": 1.0
       }
     ]
   },
@@ -6672,7 +6675,9 @@
         "type": "delay",
         "afterTurns": 1,
         "timing": "turn_start",
-        "effects": []
+        "effects": [
+
+        ]
       }
     ]
   },
@@ -7974,7 +7979,9 @@
           "type": "target_has_status",
           "statusId": "protect"
         },
-        "then": []
+        "then": [
+
+        ]
       },
       {
         "type": "damage_ratio",
@@ -8029,7 +8036,9 @@
         "type": "target_has_status",
         "statusId": "sleep"
       },
-      "then": []
+      "then": [
+
+      ]
     }
   },
   "aurora_veil": {
@@ -8676,7 +8685,9 @@
           "type": "target_has_status",
           "statusId": "ダイマックス"
         },
-        "then": [],
+        "then": [
+
+        ],
         "else": [
           {
             "type": "replace_status",
@@ -8755,7 +8766,9 @@
       {
         "type": "delay",
         "afterTurns": 1,
-        "effects": []
+        "effects": [
+
+        ]
       }
     ],
     "pp": 5

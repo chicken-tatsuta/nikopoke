@@ -34,22 +34,26 @@ impl SpellChecker {
 
         if let Some(category) = obj["category"].as_str() {
             if !["physical", "special", "status"].contains(&category) {
-                return Err(format!("Invalid category: '{}'. Must be physical, special, or status", category));
+                return Err(format!(
+                    "Invalid category: '{}'. Must be physical, special, or status",
+                    category
+                ));
             }
         } else {
             return Err("'category' must be a string".to_string());
         }
-        
+
         if let Some(type_str) = obj["type"].as_str() {
-             let valid_types = [
-                "normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground",
-                "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"
+            let valid_types = [
+                "normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison",
+                "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel",
+                "fairy",
             ];
             if !valid_types.contains(&type_str) {
-                 return Err(format!("Invalid type: '{}'.", type_str));
+                return Err(format!("Invalid type: '{}'.", type_str));
             }
         } else {
-             return Err("'type' must be a string".to_string());
+            return Err("'type' must be a string".to_string());
         }
 
         Ok(())

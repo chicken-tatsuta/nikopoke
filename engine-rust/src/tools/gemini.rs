@@ -6,7 +6,6 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-
 const GEMINI_API_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /// Gemini API client
@@ -110,12 +109,7 @@ impl GeminiClient {
             },
         };
 
-        let response = self
-            .client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await?;
+        let response = self.client.post(&url).json(&request).send().await?;
 
         let status = response.status();
         let body = response.text().await?;
@@ -136,12 +130,26 @@ impl GeminiClient {
             .and_then(|c| c.content.parts.into_iter().next())
             .map(|p| p.text)
             .ok_or("No response from Gemini API")?;
-        
+
         // Clean markdown code blocks if present
         let clean_text = if text.contains("```json") {
-            text.split("```json").nth(1).unwrap_or(&text).split("```").next().unwrap_or(&text).trim().to_string()
+            text.split("```json")
+                .nth(1)
+                .unwrap_or(&text)
+                .split("```")
+                .next()
+                .unwrap_or(&text)
+                .trim()
+                .to_string()
         } else if text.contains("```") {
-            text.split("```").nth(1).unwrap_or(&text).split("```").next().unwrap_or(&text).trim().to_string()
+            text.split("```")
+                .nth(1)
+                .unwrap_or(&text)
+                .split("```")
+                .next()
+                .unwrap_or(&text)
+                .trim()
+                .to_string()
         } else {
             text.trim().to_string()
         };
@@ -340,14 +348,20 @@ fn extract_keywords(effect: &str) -> Vec<&str> {
     if effect.contains("ダメージ") || effect.contains("攻撃") {
         keywords.push("damage");
     }
-    if effect.contains("状態") || effect.contains("どく") || effect.contains("まひ") 
-        || effect.contains("やけど") || effect.contains("ねむり") || effect.contains("こおり") {
+    if effect.contains("状態")
+        || effect.contains("どく")
+        || effect.contains("まひ")
+        || effect.contains("やけど")
+        || effect.contains("ねむり")
+        || effect.contains("こおり")
+    {
         keywords.push("status");
     }
     if effect.contains("確率") || effect.contains("%") {
         keywords.push("chance");
     }
-    if effect.contains("ランク") || effect.contains("上げる") || effect.contains("下げる") {
+    if effect.contains("ランク") || effect.contains("上げる") || effect.contains("下げる")
+    {
         keywords.push("stage");
     }
     if effect.contains("連続") {

@@ -1,6 +1,7 @@
 use crate::ai::{get_best_move_mcts, get_best_move_minimax};
 use crate::core::battle::{is_battle_over, step_battle, BattleOptions};
 use crate::core::factory::{create_creature, CreateCreatureOptions, EVStats};
+use crate::core::state::create_battle_state;
 use crate::core::state::{
     Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, FieldEffect,
     FieldState, PlayerState, Status,
@@ -8,7 +9,6 @@ use crate::core::state::{
 use crate::data::learnsets::LearnsetDatabase;
 use crate::data::moves::MoveDatabase;
 use crate::data::species::SpeciesDatabase;
-use crate::core::state::create_battle_state;
 use js_sys::Math;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -263,7 +263,11 @@ impl From<CreatureState> for CreatureStateWire {
             hp: creature.hp,
             max_hp: creature.max_hp,
             stages: creature.stages,
-            statuses: creature.statuses.into_iter().map(StatusWire::from).collect(),
+            statuses: creature
+                .statuses
+                .into_iter()
+                .map(StatusWire::from)
+                .collect(),
             move_pp: creature.move_pp,
             ability_data: creature.ability_data,
             volatile_data: creature.volatile_data,
@@ -308,7 +312,11 @@ impl From<PlayerState> for PlayerStateWire {
         Self {
             id: player.id,
             name: player.name,
-            team: player.team.into_iter().map(CreatureStateWire::from).collect(),
+            team: player
+                .team
+                .into_iter()
+                .map(CreatureStateWire::from)
+                .collect(),
             active_slot: player.active_slot,
             last_fainted_ability: player.last_fainted_ability,
         }
@@ -330,7 +338,11 @@ impl From<PlayerStateWire> for PlayerState {
 impl From<FieldState> for FieldStateWire {
     fn from(field: FieldState) -> Self {
         Self {
-            global: field.global.into_iter().map(FieldEffectWire::from).collect(),
+            global: field
+                .global
+                .into_iter()
+                .map(FieldEffectWire::from)
+                .collect(),
             sides: field
                 .sides
                 .into_iter()
@@ -412,7 +424,11 @@ impl TryFrom<BattleTurnWire> for BattleTurn {
 impl From<BattleHistory> for BattleHistoryWire {
     fn from(history: BattleHistory) -> Self {
         Self {
-            turns: history.turns.into_iter().map(BattleTurnWire::from).collect(),
+            turns: history
+                .turns
+                .into_iter()
+                .map(BattleTurnWire::from)
+                .collect(),
         }
     }
 }
@@ -434,7 +450,11 @@ impl TryFrom<BattleHistoryWire> for BattleHistory {
 impl From<BattleState> for BattleStateWire {
     fn from(state: BattleState) -> Self {
         Self {
-            players: state.players.into_iter().map(PlayerStateWire::from).collect(),
+            players: state
+                .players
+                .into_iter()
+                .map(PlayerStateWire::from)
+                .collect(),
             field: FieldStateWire::from(state.field),
             turn: state.turn,
             log: state.log,

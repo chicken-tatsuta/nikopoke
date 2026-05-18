@@ -214,7 +214,9 @@
         "type": "wait",
         "turns": 0,
         "timing": "turn_start",
-        "steps": []
+        "steps": [
+
+        ]
       }
     ],
     "description": "受けた相手は自分の行動の後に続けて行動する。"
@@ -579,6 +581,11 @@
         "stages": {
           "evasion": 2
         }
+      },
+      {
+        "type": "apply_status",
+        "statusId": "minimize",
+        "target": "self"
       }
     ],
     "description": "自分の回避率を2段階上げる。ただし、技『サンダーダイブ』『のしかかり』\n『ふみつけ』『ドラゴンダイブ』『ハードローラー』『ハイパーダーククラッシャー』\n『フライングプレス』『ヒートスタンプ』『ヘビーボンバー』は必ず命中し、\n威力2倍で受けるようになってしまう"
@@ -747,7 +754,9 @@
     "type": "normal",
     "category": "status",
     "pp": 40,
-    "steps": [],
+    "steps": [
+
+    ],
     "description": "何も起こらない。"
   },
   "belly_drum": {
@@ -1758,7 +1767,9 @@
       {
         "type": "wait",
         "turns": 1,
-        "steps": []
+        "steps": [
+
+        ]
       }
     ],
     "description": "\t使用した次のターンは行動できない。"
@@ -1997,8 +2008,12 @@
           "type": "user_has_status",
           "statusId": "flinch"
         },
-        "then": [],
-        "else": []
+        "then": [
+
+        ],
+        "else": [
+
+        ]
       }
     ],
     "tags": [
@@ -2108,7 +2123,9 @@
           {
             "type": "chance",
             "p": 0.9,
-            "then": [],
+            "then": [
+
+            ],
             "else": [
               {
                 "type": "damage_ratio",
@@ -2141,7 +2158,9 @@
           "type": "target_has_status",
           "statusId": "dynamax"
         },
-        "then": [],
+        "then": [
+
+        ],
         "else": [
           {
             "type": "replace_status",
@@ -2352,17 +2371,8 @@
     "pp": 20,
     "steps": [
       {
-        "type": "damage",
-        "power": 65,
-        "accuracy": 1
-      },
-      {
-        "type": "modify_stage",
-        "target": "target",
-        "stages": {
-          "spe": -1
-        },
-        "chance": 1
+        "type": "weight_based_damage",
+        "accuracy": 1.0
       }
     ],
     "description": "100%の確率で相手の『すばやさ』ランクを1段階下げる。"
@@ -3195,7 +3205,9 @@
       {
         "type": "wait",
         "turns": 1,
-        "steps": [],
+        "steps": [
+
+        ],
         "target": "self"
       },
       {
@@ -4836,22 +4848,8 @@
     "pp": 10,
     "steps": [
       {
-        "type": "damage",
-        "power": 40
-      },
-      {
-        "type": "conditional",
-        "if": {
-          "type": "target_has_status",
-          "statusId": "minimize"
-        },
-        "then": [
-          {
-            "type": "damage",
-            "power": 240,
-            "accuracy": 1
-          }
-        ]
+        "type": "relative_weight_damage",
+        "accuracy": 1.0
       }
     ],
     "description": "自分の『おもさ』が相手より重いほど威力が高くなる。\n相手の『おもさ』が自分の1/5以下なら120、1/4以下なら100、1/3以下なら80、1/2以下なら60、\nそれより大きければ40。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる(第7世代以降)。\nダイマックスしている相手には無効。"
@@ -5427,7 +5425,9 @@
         ]
       }
     ],
-    "tags": [],
+    "tags": [
+
+    ],
     "description": "100%の確率で、そのターンの間に能力ランクが上がった相手ポケモンを『やけど』状態にする\n(通常は後攻で攻撃する必要があるが、場に出た時に能力ランクが上がった場合も対象となる)。"
   },
   "daimonji": {
@@ -5525,7 +5525,9 @@
           "type": "target_hp_lt",
           "value": 1
         },
-        "then": []
+        "then": [
+
+        ]
       }
     ],
     "description": "自分のHPが少ないほど技の威力が下がる。(150×自分の残りHP÷自分の最大HP)が威力。"
@@ -6468,7 +6470,9 @@
           "type": "target_has_status",
           "statusId": "grass"
         },
-        "then": []
+        "then": [
+
+        ]
       },
       {
         "type": "chance",
@@ -6850,27 +6854,8 @@
     "pp": 20,
     "steps": [
       {
-        "type": "damage",
-        "power": 0,
-        "accuracy": 1,
-        "data": {
-          "weight_based_power": {
-            "under_10kg": 20,
-            "under_25kg": 40,
-            "under_50kg": 60,
-            "under_100kg": 80,
-            "under_200kg": 100,
-            "over_200kg": 120
-          }
-        }
-      },
-      {
-        "type": "conditional",
-        "if": {
-          "type": "target_has_status",
-          "statusId": "dynamax"
-        },
-        "then": []
+        "type": "weight_based_damage",
+        "accuracy": 1.0
       }
     ],
     "description": "相手の『おもさ』が重いほど威力が高くなる。10kg未満は20、25kg未満は40、50kg未満は60、100kg未満は80、\n200kg未満は100、それ以上は120。ダイマックスしている相手には無効。"
@@ -6955,7 +6940,9 @@
         "type": "wait",
         "turns": 1,
         "timing": "turn_start",
-        "steps": []
+        "steps": [
+
+        ]
       }
     ],
     "description": "使用した次のターンは行動できない。"
@@ -8312,7 +8299,9 @@
           "type": "target_has_status",
           "statusId": "protect"
         },
-        "then": []
+        "then": [
+
+        ]
       },
       {
         "type": "damage_ratio",
@@ -8369,7 +8358,9 @@
         "type": "target_has_status",
         "statusId": "sleep"
       },
-      "then": []
+      "then": [
+
+      ]
     },
     "description": "相手に与えたダメージの半分だけ自分のHPが回復する。相手が『ねむり』状態の時だけ成功する。"
   },
@@ -9041,7 +9032,9 @@
           "type": "target_has_status",
           "statusId": "ダイマックス"
         },
-        "then": [],
+        "then": [
+
+        ],
         "else": [
           {
             "type": "replace_status",
@@ -9123,7 +9116,9 @@
       {
         "type": "wait",
         "turns": 1,
-        "steps": []
+        "steps": [
+
+        ]
       }
     ],
     "pp": 5,

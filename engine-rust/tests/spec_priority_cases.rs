@@ -3,7 +3,7 @@ mod support;
 use engine_rust::core::battle::{determine_timeout_winner, determine_winner, BattleEngine};
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::BattleEvent;
-use engine_rust::core::state::{BattleState, FieldEffect};
+use engine_rust::core::state::{Action, ActionType, BattleState, FieldEffect};
 use engine_rust::data::learnsets::LearnsetDatabase;
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
@@ -11,8 +11,9 @@ use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use support::harness::{
-    assert_active_has_status, assert_active_hp, assert_field_has_status, battle_state, move_action,
-    player, run_turn_with_seed, run_turns_with_seed, status, switch_action, CreatureBuilder,
+    assert_active_has_status, assert_active_hp, assert_field_has_status, assert_no_diffs,
+    battle_state, move_action, player, run_turn_with_seed, run_turns_with_seed, status,
+    switch_action, CreatureBuilder,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -20,6 +21,7 @@ enum Priority {
     P0,
     P1,
     P2,
+    P3,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -51,6 +53,11 @@ const CASES: &[CaseMeta] = &[
         enabled: true,
     },
     CaseMeta {
+        id: "P0-FIELD-STATUS-NONSTACK-REFRESH",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P0-DAMAGE-ROLL-GOLDEN",
         priority: Priority::P0,
         enabled: true,
@@ -61,12 +68,27 @@ const CASES: &[CaseMeta] = &[
         enabled: true,
     },
     CaseMeta {
+        id: "P0-PRIORITY-VS-TRICK-ROOM",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P0-REFLECT-DAMAGE",
         priority: Priority::P0,
         enabled: true,
     },
     CaseMeta {
+        id: "P0-REFLECT-CATEGORY-BOUNDARY",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P0-LIGHT-SCREEN-DAMAGE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-LIGHT-SCREEN-CATEGORY-BOUNDARY",
         priority: Priority::P0,
         enabled: true,
     },
@@ -86,12 +108,52 @@ const CASES: &[CaseMeta] = &[
         enabled: true,
     },
     CaseMeta {
+        id: "P0-TOXIC-SWITCH-COUNTER-CLEARED",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P0-PROTECT-CHAIN-PROB",
         priority: Priority::P0,
         enabled: true,
     },
     CaseMeta {
+        id: "P0-PROTECT-CHAIN-SUCCESS-COUNTER",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-PROTECT-RESET-ON-NONPROTECT",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-PROTECT-BLOCKS-DAMAGE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-PROTECT-FAIL-ALLOWS-DAMAGE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P0-SLEEP-SWITCH",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-SLEEP-WAKE-ON-COUNTER-ZERO",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-SLEEP-SWITCH-TURN-COUNTER",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-SWITCH-CLEANUP",
         priority: Priority::P0,
         enabled: true,
     },
@@ -106,7 +168,32 @@ const CASES: &[CaseMeta] = &[
         enabled: true,
     },
     CaseMeta {
+        id: "P0-WIN-SIMULTANEOUS-FAINT-SPEED-TIE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P0-WIN-TIMEOUT-RULE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-WIN-TIMEOUT-TOTAL-HP-TIEBREAK",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-WIN-TIMEOUT-EXACT-TIE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-WIN-SINGLE-ALIVE",
+        priority: Priority::P0,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P0-TOXIC-MIN-DAMAGE",
         priority: Priority::P0,
         enabled: true,
     },
@@ -141,6 +228,46 @@ const CASES: &[CaseMeta] = &[
         enabled: true,
     },
     CaseMeta {
+        id: "P1-TAILWIND-SIDE-SCOPE",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-TARGET-DEFAULT-OPPONENT",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-MOVE-PRIORITY-RANGE",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-MANUAL-REASON-NONEMPTY",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-SWITCH-ACTIVE-SLOT-REJECT",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-SWITCH-WITHOUT-SLOT-REJECT",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-USE-ITEM-NO-ITEM-REJECT",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P1-USE-ITEM-WITH-ITEM-LOG",
+        priority: Priority::P1,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P2-CASE-REGISTRY-INTEGRITY",
         priority: Priority::P2,
         enabled: true,
@@ -151,8 +278,78 @@ const CASES: &[CaseMeta] = &[
         enabled: true,
     },
     CaseMeta {
+        id: "P2-CASE-ID-PREFIX-CHECK",
+        priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P2-CASE-DOC-UNIQUE",
+        priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P2-CASE-DOC-BIDIRECTIONAL-SYNC",
+        priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P2-CASE-DOC-TEST-FN-EXISTS",
+        priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P2-CASE-DOC-ROW-COUNT-MATCH",
+        priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P2-CASE-DOC-PRIORITY-COLUMN-CHECK",
+        priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
         id: "P2-DOUBLE-MODEL-SMOKE",
         priority: Priority::P2,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-SEED-DETERMINISM",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-UNKNOWN-MOVE-GUARD",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-INVALID-SWITCH-SLOT-GUARD",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-FAINTED-SWITCH-SLOT-GUARD",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-TIMEOUT-NON-2P-NONE",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-WINNER-ALL-FAINT-NON-2P-NONE",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-UNKNOWN-PLAYER-ACTION-GUARD",
+        priority: Priority::P3,
+        enabled: true,
+    },
+    CaseMeta {
+        id: "P3-MISSING-MOVE-ID-GUARD",
+        priority: Priority::P3,
         enabled: true,
     },
 ];
@@ -183,6 +380,16 @@ fn wait_move() -> MoveData {
 }
 
 fn damage_move(id: &str, category: &str, power: i32, crit_rate: Option<i32>) -> MoveData {
+    damage_move_with_priority(id, category, power, crit_rate, 0)
+}
+
+fn damage_move_with_priority(
+    id: &str,
+    category: &str,
+    power: i32,
+    crit_rate: Option<i32>,
+    priority: i32,
+) -> MoveData {
     MoveData {
         id: id.to_string(),
         name: Some(id.to_string()),
@@ -191,7 +398,7 @@ fn damage_move(id: &str, category: &str, power: i32, crit_rate: Option<i32>) -> 
         pp: Some(10),
         power: Some(power),
         accuracy: Some(1.0),
-        priority: Some(0),
+        priority: Some(priority),
         description: None,
         steps: vec![effect("damage", json!({ "power": power, "accuracy": 1.0 }))],
         tags: Vec::new(),
@@ -219,6 +426,23 @@ fn field_status_move(id: &str, status_id: &str) -> MoveData {
     }
 }
 
+fn protect_move(id: &str, priority: i32) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(priority),
+        description: None,
+        steps: vec![effect("protect", json!({}))],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
 fn make_engine(moves: Vec<MoveData>) -> BattleEngine {
     let mut move_db = MoveDatabase::new();
     for mv in moves {
@@ -235,6 +459,15 @@ fn active_hp(state: &BattleState, player_id: &str) -> i32 {
         .unwrap_or_else(|| panic!("player '{}' not found", player_id));
     let active = &player.team[player.active_slot];
     active.hp
+}
+
+fn field_status_count(state: &BattleState, status_id: &str) -> usize {
+    state
+        .field
+        .global
+        .iter()
+        .filter(|effect| effect.id == status_id)
+        .count()
 }
 
 fn effects_from_value(value: Option<&Value>) -> Vec<Effect> {
@@ -301,10 +534,19 @@ fn is_supported_status_id(status_id: &str) -> bool {
             | "disable_move"
             | "encore"
             | "taunt"
+            | "torment"
+            | "trapped"
+            | "lock_on"
+            | "destiny_bond"
             | "leech_seed"
             | "curse"
             | "yawn"
             | "bind"
+            | "magnet_rise"
+            | "imprison"
+            | "aqua_ring"
+            | "ingrain"
+            | "throat_chop"
             | "wish"
             | "pending_switch"
             | "item"
@@ -316,6 +558,7 @@ fn is_supported_status_id(status_id: &str) -> bool {
             | "electric_terrain"
             | "misty_terrain"
             | "psychic_terrain"
+            | "gravity"
             | "rain"
             | "sun"
             | "sandstorm"
@@ -324,6 +567,9 @@ fn is_supported_status_id(status_id: &str) -> bool {
             | "light_screen"
             | "aurora_veil"
             | "tailwind"
+            | "mist"
+            | "safeguard"
+            | "healing_wish"
             | "spikes"
             | "toxic_spikes"
             | "stealth_rock"
@@ -346,6 +592,46 @@ fn first_damage_amount(events: &[BattleEvent]) -> i32 {
             _ => None,
         })
         .expect("expected at least one damage event")
+}
+
+fn markdown_case_ids(doc: &str) -> Vec<String> {
+    doc.lines()
+        .filter_map(|line| {
+            if !line.starts_with("| `P") {
+                return None;
+            }
+            line.split('`').nth(1).map(|id| id.to_string())
+        })
+        .collect()
+}
+
+fn markdown_test_names(doc: &str) -> Vec<String> {
+    doc.lines()
+        .filter_map(|line| {
+            if !line.starts_with("| `P") {
+                return None;
+            }
+            line.split('`').nth(3).map(|name| name.to_string())
+        })
+        .collect()
+}
+
+fn markdown_case_rows(doc: &str) -> Vec<(String, String, String)> {
+    doc.lines()
+        .filter_map(|line| {
+            if !line.starts_with("| `P") {
+                return None;
+            }
+            let cols: Vec<&str> = line.split('|').map(|col| col.trim()).collect();
+            if cols.len() < 6 {
+                return None;
+            }
+            let id = cols[1].trim_matches('`').to_string();
+            let priority = cols[2].to_string();
+            let test_name = cols[4].trim_matches('`').to_string();
+            Some((id, priority, test_name))
+        })
+        .collect()
 }
 
 #[test]
@@ -438,8 +724,14 @@ fn p0_spec_crit_ignores_negative_attack_stage() {
 
 #[test]
 fn p0_spec_crit_bypasses_walls_while_non_crit_does_not() {
-    let non_crit_engine = make_engine(vec![damage_move("strike", "physical", 80, None), wait_move()]);
-    let crit_engine = make_engine(vec![damage_move("always_crit", "physical", 80, Some(3)), wait_move()]);
+    let non_crit_engine = make_engine(vec![
+        damage_move("strike", "physical", 80, None),
+        wait_move(),
+    ]);
+    let crit_engine = make_engine(vec![
+        damage_move("always_crit", "physical", 80, Some(3)),
+        wait_move(),
+    ]);
 
     let base_state = battle_state(vec![
         player(
@@ -494,7 +786,10 @@ fn p0_spec_crit_bypasses_walls_while_non_crit_does_not() {
 
 #[test]
 fn p0_field_status_move_sets_status_on_field() {
-    let engine = make_engine(vec![field_status_move("set_trick_room", "trick_room"), wait_move()]);
+    let engine = make_engine(vec![
+        field_status_move("set_trick_room", "trick_room"),
+        wait_move(),
+    ]);
     let state = battle_state(vec![
         player(
             "p1",
@@ -516,6 +811,46 @@ fn p0_field_status_move_sets_status_on_field() {
 
     let next = run_turn_with_seed(&engine, &state, &actions, 11);
     assert_field_has_status(&next, "trick_room");
+}
+
+#[test]
+fn p0_spec_field_status_non_stack_replaces_existing_copy() {
+    let engine = make_engine(vec![
+        field_status_move("set_reflect", "reflect"),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter")
+                .moves(&["set_reflect"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+
+    let turns = vec![
+        vec![
+            move_action("p1", "set_reflect", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        vec![
+            move_action("p1", "set_reflect", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+    ];
+    let next = run_turns_with_seed(&engine, state, &turns, 111);
+
+    assert_eq!(
+        field_status_count(&next, "reflect"),
+        1,
+        "non-stack field status should keep only one copy after reapplication"
+    );
 }
 
 #[test]
@@ -631,8 +966,52 @@ fn p0_spec_trick_room_reverses_action_order() {
 }
 
 #[test]
+fn p0_spec_priority_still_overrides_speed_order_under_trick_room() {
+    let engine = make_engine(vec![
+        damage_move_with_priority("quick_hit", "physical", 400, None, 1),
+        damage_move("one_shot", "physical", 400, None),
+    ]);
+
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "FastPriority")
+                .moves(&["quick_hit"])
+                .stats(80, 50, 50, 50, 200)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "SlowNormal")
+                .moves(&["one_shot"])
+                .stats(80, 50, 50, 50, 20)
+                .build()],
+        ),
+    ]);
+    state.field.global.push(FieldEffect {
+        id: "trick_room".to_string(),
+        remaining_turns: Some(5),
+        data: HashMap::new(),
+    });
+
+    let actions = vec![
+        move_action("p1", "quick_hit", "p2"),
+        move_action("p2", "one_shot", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 6);
+
+    assert_active_hp(&next, "p1", 100);
+    assert_active_hp(&next, "p2", 0);
+}
+
+#[test]
 fn p0_spec_reflect_reduces_physical_damage() {
-    let engine = make_engine(vec![damage_move("strike", "physical", 80, None), wait_move()]);
+    let engine = make_engine(vec![
+        damage_move("strike", "physical", 80, None),
+        wait_move(),
+    ]);
 
     let base_state = battle_state(vec![
         player(
@@ -671,6 +1050,50 @@ fn p0_spec_reflect_reduces_physical_damage() {
     assert!(
         active_hp(&next_with_reflect, "p2") > active_hp(&next_without_reflect, "p2"),
         "reflect should reduce incoming physical damage"
+    );
+}
+
+#[test]
+fn p0_spec_reflect_does_not_reduce_special_damage() {
+    let engine = make_engine(vec![damage_move("beam", "special", 80, None), wait_move()]);
+
+    let base_state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["beam"])
+                .stats(50, 50, 100, 50, 80)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .stats(50, 50, 50, 100, 50)
+                .build()],
+        ),
+    ]);
+    let mut state_with_reflect = base_state.clone();
+    state_with_reflect.field.global.push(FieldEffect {
+        id: "reflect".to_string(),
+        remaining_turns: Some(5),
+        data: HashMap::new(),
+    });
+
+    let actions = vec![
+        move_action("p1", "beam", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+
+    let next_without_reflect = run_turn_with_seed(&engine, &base_state, &actions, 23);
+    let next_with_reflect = run_turn_with_seed(&engine, &state_with_reflect, &actions, 23);
+
+    assert_eq!(
+        active_hp(&next_with_reflect, "p2"),
+        active_hp(&next_without_reflect, "p2"),
+        "reflect should not reduce special-category damage"
     );
 }
 
@@ -714,6 +1137,53 @@ fn p0_spec_light_screen_reduces_special_damage() {
     assert!(
         active_hp(&next_with_screen, "p2") > active_hp(&next_without_screen, "p2"),
         "light_screen should reduce incoming special damage"
+    );
+}
+
+#[test]
+fn p0_spec_light_screen_does_not_reduce_physical_damage() {
+    let engine = make_engine(vec![
+        damage_move("strike", "physical", 80, None),
+        wait_move(),
+    ]);
+
+    let base_state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["strike"])
+                .stats(100, 50, 50, 50, 80)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .stats(50, 100, 50, 50, 50)
+                .build()],
+        ),
+    ]);
+    let mut state_with_screen = base_state.clone();
+    state_with_screen.field.global.push(FieldEffect {
+        id: "light_screen".to_string(),
+        remaining_turns: Some(5),
+        data: HashMap::new(),
+    });
+
+    let actions = vec![
+        move_action("p1", "strike", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+
+    let next_without_screen = run_turn_with_seed(&engine, &base_state, &actions, 29);
+    let next_with_screen = run_turn_with_seed(&engine, &state_with_screen, &actions, 29);
+
+    assert_eq!(
+        active_hp(&next_with_screen, "p2"),
+        active_hp(&next_without_screen, "p2"),
+        "light_screen should not reduce physical-category damage"
     );
 }
 
@@ -774,9 +1244,7 @@ fn p0_spec_toxic_damage_scales_each_turn() {
         player(
             "p2",
             "P2",
-            vec![CreatureBuilder::new("c2", "Idle")
-                .moves(&["wait"])
-                .build()],
+            vec![CreatureBuilder::new("c2", "Idle").moves(&["wait"]).build()],
         ),
     ]);
 
@@ -817,9 +1285,7 @@ fn p0_spec_toxic_resets_counter_after_switch() {
         player(
             "p2",
             "P2",
-            vec![CreatureBuilder::new("c2", "Idle")
-                .moves(&["wait"])
-                .build()],
+            vec![CreatureBuilder::new("c2", "Idle").moves(&["wait"]).build()],
         ),
     ]);
 
@@ -837,6 +1303,76 @@ fn p0_spec_toxic_resets_counter_after_switch() {
 }
 
 #[test]
+fn p0_spec_toxic_counter_data_is_cleared_on_switch_out() {
+    let engine = make_engine(vec![wait_move()]);
+    let mut toxic = status("toxic", None);
+    toxic
+        .data
+        .insert("counter".to_string(), Value::Number(4.into()));
+
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Poisoned")
+                    .moves(&["wait"])
+                    .with_status(toxic)
+                    .build(),
+                CreatureBuilder::new("c3", "Bench").moves(&["wait"]).build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Idle").moves(&["wait"]).build()],
+        ),
+    ]);
+
+    let actions = vec![switch_action("p1", 1), move_action("p2", "wait", "p1")];
+    let next = run_turn_with_seed(&engine, &state, &actions, 115);
+    let outgoing = &next.players[0].team[0];
+    let toxic_status = outgoing
+        .statuses
+        .iter()
+        .find(|status| status.id == "toxic")
+        .expect("toxic should persist as non-volatile status");
+
+    assert!(
+        !toxic_status.data.contains_key("counter"),
+        "toxic counter should be removed when switching out"
+    );
+}
+
+#[test]
+fn p0_spec_toxic_damage_has_minimum_of_one() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Fragile")
+                .moves(&["wait"])
+                .hp(3, 3)
+                .with_status(status("toxic", None))
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Idle").moves(&["wait"]).build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "wait", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 116);
+
+    assert_active_hp(&next, "p1", 2);
+}
+
+#[test]
 fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
     let state = battle_state(vec![
         player(
@@ -844,19 +1380,15 @@ fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
             "P1",
             vec![{
                 let mut c = CreatureBuilder::new("c1", "Guard").moves(&["wait"]).build();
-                c.volatile_data.insert(
-                    "protectSuccessCount".to_string(),
-                    Value::Number(1.into()),
-                );
+                c.volatile_data
+                    .insert("protectSuccessCount".to_string(), Value::Number(1.into()));
                 c
             }],
         ),
         player(
             "p2",
             "P2",
-            vec![CreatureBuilder::new("c2", "Dummy")
-                .moves(&["wait"])
-                .build()],
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
         ),
     ]);
 
@@ -888,6 +1420,191 @@ fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
     assert!(
         has_status_log(&events, "失敗") && reset_seen,
         "second chained protect at rng=0.4 should fail under 1/3 rule"
+    );
+}
+
+#[test]
+fn p0_spec_protect_chain_success_increments_counter() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![{
+                let mut c = CreatureBuilder::new("c1", "Guard").moves(&["wait"]).build();
+                c.volatile_data
+                    .insert("protectSuccessCount".to_string(), Value::Number(1.into()));
+                c
+            }],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+
+    let mut rng = || 0.2;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: None,
+        rng: &mut rng,
+        turn: 0,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        is_sound: false,
+        last_damage: None,
+    };
+    let events = apply_effects(&state, &[effect("protect", json!({}))], &mut ctx);
+
+    let next_counter = events.iter().find_map(|event| match event {
+        BattleEvent::SetVolatile { key, value, .. } if key == "protectSuccessCount" => {
+            value.as_i64()
+        }
+        _ => None,
+    });
+    let applied_protect = events.iter().any(|event| match event {
+        BattleEvent::ApplyStatus { status_id, .. } => status_id == "protect",
+        _ => false,
+    });
+
+    assert_eq!(
+        next_counter,
+        Some(2),
+        "successful chained protect should increment success counter"
+    );
+    assert!(
+        applied_protect,
+        "successful protect should apply protect status"
+    );
+}
+
+#[test]
+fn p0_spec_non_protect_move_resets_protect_chain_counter() {
+    let engine = make_engine(vec![
+        damage_move("strike", "physical", 40, None),
+        wait_move(),
+    ]);
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Guard")
+                .moves(&["strike"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+    state.players[0].team[0]
+        .volatile_data
+        .insert("protectSuccessCount".to_string(), Value::Number(2.into()));
+
+    let actions = vec![
+        move_action("p1", "strike", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 117);
+    let counter = next.players[0].team[0]
+        .volatile_data
+        .get("protectSuccessCount")
+        .and_then(|value| value.as_i64());
+
+    assert_eq!(
+        counter,
+        Some(0),
+        "using a non-protect move should reset protect chain counter"
+    );
+}
+
+#[test]
+fn p0_spec_protect_blocks_incoming_damage_when_used_first() {
+    let engine = make_engine(vec![
+        protect_move("protect_plus4", 4),
+        damage_move("strike", "physical", 90, None),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Guard")
+                .moves(&["protect_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Attacker")
+                .moves(&["strike"])
+                .stats(100, 50, 50, 50, 50)
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "protect_plus4", "p2"),
+        move_action("p2", "strike", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 119);
+
+    assert_active_hp(&next, "p1", 100);
+    assert!(
+        next.log.iter().any(|line| line.contains("守った")),
+        "protect resolution should be visible in battle log"
+    );
+}
+
+#[test]
+fn p0_spec_failed_protect_does_not_block_incoming_damage() {
+    let engine = make_engine(vec![
+        protect_move("protect_plus4", 4),
+        damage_move("strike", "physical", 90, None),
+    ]);
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Guard")
+                .moves(&["protect_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Attacker")
+                .moves(&["strike"])
+                .stats(100, 50, 50, 50, 50)
+                .build()],
+        ),
+    ]);
+    state.players[0].team[0]
+        .volatile_data
+        .insert("protectSuccessCount".to_string(), Value::Number(2.into()));
+
+    let actions = vec![
+        move_action("p1", "protect_plus4", "p2"),
+        move_action("p2", "strike", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 0);
+
+    assert!(
+        active_hp(&next, "p1") < 100,
+        "failed protect should allow incoming damage"
+    );
+    let counter = next.players[0].team[0]
+        .volatile_data
+        .get("protectSuccessCount")
+        .and_then(|value| value.as_i64());
+    assert_eq!(
+        counter,
+        Some(0),
+        "failed protect should reset protectSuccessCount"
     );
 }
 
@@ -928,9 +1645,169 @@ fn p0_spec_sleep_persists_when_switched_out() {
 }
 
 #[test]
+fn p0_spec_sleep_wakes_and_allows_action_when_counter_reaches_zero() {
+    let engine = make_engine(vec![
+        damage_move("one_shot", "physical", 400, None),
+        wait_move(),
+    ]);
+    let mut sleep = status("sleep", None);
+    sleep
+        .data
+        .insert("turns".to_string(), Value::Number(1.into()));
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Sleeper")
+                .moves(&["one_shot"])
+                .with_status(sleep)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Target")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "one_shot", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 122);
+
+    assert_active_hp(&next, "p2", 0);
+    assert!(
+        !next.players[0].team[next.players[0].active_slot]
+            .statuses
+            .iter()
+            .any(|status| status.id == "sleep"),
+        "sleep status should be removed after waking"
+    );
+}
+
+#[test]
+fn p0_spec_sleep_turn_counter_persists_through_switch() {
+    let engine = make_engine(vec![wait_move()]);
+    let mut sleep = status("sleep", None);
+    sleep
+        .data
+        .insert("turns".to_string(), Value::Number(2.into()));
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Sleeper")
+                    .moves(&["wait"])
+                    .with_status(sleep)
+                    .build(),
+                CreatureBuilder::new("c3", "Reserve")
+                    .moves(&["wait"])
+                    .build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+
+    let actions = vec![switch_action("p1", 1), move_action("p2", "wait", "p1")];
+    let next = run_turn_with_seed(&engine, &state, &actions, 121);
+    let outgoing = &next.players[0].team[0];
+    let turns = outgoing
+        .statuses
+        .iter()
+        .find(|status| status.id == "sleep")
+        .and_then(|status| status.data.get("turns"))
+        .and_then(|value| value.as_i64());
+
+    assert_eq!(
+        turns,
+        Some(2),
+        "sleep turn counter should be preserved while switched out"
+    );
+}
+
+#[test]
+fn p0_spec_switch_clears_volatile_data_and_stages_while_preserving_non_volatile_status() {
+    let engine = make_engine(vec![wait_move()]);
+
+    let mut active = CreatureBuilder::new("c1", "SetupMon")
+        .moves(&["wait"])
+        .ability("copied_ability")
+        .with_status(status("burn", None))
+        .with_status(status("protect", Some(1)))
+        .build();
+    active.stages.atk = 4;
+    active
+        .volatile_data
+        .insert("protectSuccessCount".to_string(), Value::Number(2.into()));
+    active.ability_data.insert(
+        "originalAbility".to_string(),
+        Value::String("original_ability".to_string()),
+    );
+
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                active,
+                CreatureBuilder::new("c3", "Reserve")
+                    .moves(&["wait"])
+                    .build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+
+    let actions = vec![switch_action("p1", 1), move_action("p2", "wait", "p1")];
+    let next = run_turn_with_seed(&engine, &state, &actions, 33);
+    let outgoing = &next.players[0].team[0];
+
+    assert_eq!(
+        outgoing.stages.atk, 0,
+        "switch-out should clear stat stages"
+    );
+    assert!(
+        outgoing.volatile_data.is_empty(),
+        "switch-out should clear volatile_data"
+    );
+    assert!(
+        outgoing.ability_data.is_empty(),
+        "switch-out should clear temporary ability_data"
+    );
+    assert_eq!(
+        outgoing.ability.as_deref(),
+        Some("original_ability"),
+        "switch-out should restore original ability when tracked"
+    );
+    assert!(
+        outgoing.statuses.iter().any(|s| s.id == "burn"),
+        "non-volatile status should persist through switch-out"
+    );
+    assert!(
+        !outgoing.statuses.iter().any(|s| s.id == "protect"),
+        "volatile status should be removed on switch-out"
+    );
+}
+
+#[test]
 fn p0_manual_effects_must_not_be_silent_noop() {
-    let move_db = MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml"))
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
 
     let state = battle_state(vec![
         player(
@@ -1028,6 +1905,34 @@ fn p0_spec_simultaneous_faint_resolution_rule() {
 }
 
 #[test]
+fn p0_spec_simultaneous_faint_speed_tie_is_draw() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "EqualA")
+                .hp(0, 100)
+                .stats(50, 50, 50, 50, 80)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "EqualB")
+                .hp(0, 100)
+                .stats(50, 50, 50, 50, 80)
+                .build()],
+        ),
+    ]);
+
+    assert_eq!(
+        determine_winner(&state),
+        None,
+        "simultaneous faint with equal speed should resolve to draw"
+    );
+}
+
+#[test]
 fn p0_spec_timeout_resolution_rule() {
     let alive_count_state = battle_state(vec![
         player(
@@ -1079,9 +1984,93 @@ fn p0_spec_timeout_resolution_rule() {
 }
 
 #[test]
+fn p0_spec_timeout_uses_total_hp_as_final_tiebreaker() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "A1").hp(40, 100).build(),
+                CreatureBuilder::new("c3", "A2").hp(0, 50).build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![
+                CreatureBuilder::new("c2", "B1").hp(80, 200).build(),
+                CreatureBuilder::new("c4", "B2").hp(0, 100).build(),
+            ],
+        ),
+    ]);
+
+    assert_eq!(
+        determine_timeout_winner(&state).as_deref(),
+        Some("p2"),
+        "when alive count and HP ratio tie, timeout should compare total HP"
+    );
+}
+
+#[test]
+fn p0_spec_timeout_returns_none_on_exact_tie() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "A1").hp(40, 100).build(),
+                CreatureBuilder::new("c3", "A2").hp(0, 100).build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![
+                CreatureBuilder::new("c2", "B1").hp(40, 100).build(),
+                CreatureBuilder::new("c4", "B2").hp(0, 100).build(),
+            ],
+        ),
+    ]);
+
+    assert_eq!(
+        determine_timeout_winner(&state),
+        None,
+        "exact timeout score tie should resolve to no winner"
+    );
+}
+
+#[test]
+fn p0_spec_winner_is_alive_side_when_only_one_side_has_remaining_creatures() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "AliveA").hp(1, 100).build(),
+                CreatureBuilder::new("c3", "AliveB").hp(0, 100).build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![
+                CreatureBuilder::new("c2", "FaintedA").hp(0, 100).build(),
+                CreatureBuilder::new("c4", "FaintedB").hp(0, 100).build(),
+            ],
+        ),
+    ]);
+
+    assert_eq!(
+        determine_winner(&state).as_deref(),
+        Some("p1"),
+        "winner should be the only side with at least one living creature"
+    );
+}
+
+#[test]
 fn p1_spec_learnset_moves_must_exist_in_move_db() {
-    let move_db = MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml"))
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
     let learnsets = LearnsetDatabase::load_default().expect("load learnsets");
 
     let mut missing = Vec::new();
@@ -1102,8 +2091,8 @@ fn p1_spec_learnset_moves_must_exist_in_move_db() {
 
 #[test]
 fn p1_spec_effect_targets_use_supported_literals() {
-    let move_db = MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml"))
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
 
     let mut invalid = Vec::new();
     for (move_id, move_data) in move_db.as_map() {
@@ -1125,8 +2114,8 @@ fn p1_spec_effect_targets_use_supported_literals() {
 
 #[test]
 fn p1_spec_effect_status_ids_use_supported_canonical_ids() {
-    let move_db = MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml"))
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
 
     let mut invalid = Vec::new();
     for (move_id, move_data) in move_db.as_map() {
@@ -1257,13 +2246,12 @@ fn p1_spec_ability_status_field_interaction_matrix() {
         remaining_turns: Some(5),
         data: HashMap::new(),
     });
-    let wait_actions = vec![move_action("p1", "wait", "p2"), move_action("p2", "wait", "p1")];
+    let wait_actions = vec![
+        move_action("p1", "wait", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
     let levitate_next = run_turn_with_seed(&engine, &levitate_state, &wait_actions, 302);
-    assert_active_hp(
-        &levitate_next,
-        "p1",
-        80,
-    );
+    assert_active_hp(&levitate_next, "p1", 80);
 
     let mut guts_base = battle_state(vec![
         player(
@@ -1327,9 +2315,10 @@ fn p1_spec_end_turn_effect_ordering() {
     let poison_status = status("poison", None);
 
     let mut bind_status = status("bind", None);
-    bind_status
-        .data
-        .insert("moveName".to_string(), Value::String("しめつける".to_string()));
+    bind_status.data.insert(
+        "moveName".to_string(),
+        Value::String("しめつける".to_string()),
+    );
 
     let curse_status = status("curse", None);
 
@@ -1363,7 +2352,10 @@ fn p1_spec_end_turn_effect_ordering() {
         data: HashMap::new(),
     });
 
-    let actions = vec![move_action("p1", "wait", "p2"), move_action("p2", "wait", "p1")];
+    let actions = vec![
+        move_action("p1", "wait", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
     let next = run_turn_with_seed(&engine, &state, &actions, 401);
 
     assert_active_hp(&next, "p1", 39);
@@ -1396,8 +2388,8 @@ fn p1_spec_end_turn_effect_ordering() {
 
 #[test]
 fn p1_spec_manual_reason_uses_approved_taxonomy() {
-    let move_db = MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml"))
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
     let allowed_prefixes = [
         "Switching",
         "No supported effects inferred",
@@ -1433,6 +2425,282 @@ fn p1_spec_manual_reason_uses_approved_taxonomy() {
 }
 
 #[test]
+fn p1_spec_tailwind_only_boosts_the_owner_side() {
+    let engine = make_engine(vec![damage_move("one_shot", "physical", 400, None)]);
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Slow")
+                .moves(&["one_shot"])
+                .stats(80, 50, 50, 50, 40)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Fast")
+                .moves(&["one_shot"])
+                .stats(80, 50, 50, 50, 60)
+                .build()],
+        ),
+    ]);
+    state.field.sides.insert(
+        "p2".to_string(),
+        vec![FieldEffect {
+            id: "tailwind".to_string(),
+            remaining_turns: Some(4),
+            data: HashMap::new(),
+        }],
+    );
+
+    let actions = vec![
+        move_action("p1", "one_shot", "p2"),
+        move_action("p2", "one_shot", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 4011);
+
+    assert_active_hp(&next, "p1", 0);
+    assert_active_hp(&next, "p2", 100);
+}
+
+#[test]
+fn p1_spec_action_without_target_defaults_to_opponent() {
+    let engine = make_engine(vec![
+        damage_move("one_shot", "physical", 400, None),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["one_shot"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("one_shot".to_string()),
+            target_id: None,
+            slot: None,
+            priority: None,
+        },
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 4012);
+
+    assert_active_hp(&next, "p2", 0);
+}
+
+#[test]
+fn p1_spec_move_priorities_remain_within_supported_bounds() {
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
+
+    let mut invalid = Vec::new();
+    for (move_id, move_data) in move_db.as_map() {
+        let priority = move_data.priority.unwrap_or(0);
+        if !(-7..=5).contains(&priority) {
+            invalid.push(format!("{} -> {}", move_id, priority));
+        }
+    }
+
+    assert!(
+        invalid.is_empty(),
+        "move priorities are out of supported bounds (-7..=5):\n{}",
+        invalid.join("\n")
+    );
+}
+
+#[test]
+fn p1_spec_manual_effects_have_non_empty_reason() {
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
+
+    let mut invalid = Vec::new();
+    for (move_id, move_data) in move_db.as_map() {
+        walk_effects(&move_data.steps, &mut |effect| {
+            if effect.effect_type != "manual" {
+                return;
+            }
+            let reason = effect
+                .data
+                .get("manualReason")
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+                .trim();
+            if reason.is_empty() {
+                invalid.push(move_id.to_string());
+            }
+        });
+    }
+
+    assert!(
+        invalid.is_empty(),
+        "manual effects must include a non-empty manualReason:\n{}",
+        invalid.join("\n")
+    );
+}
+
+#[test]
+fn p1_spec_switch_to_active_slot_is_rejected() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Lead").moves(&["wait"]).build(),
+                CreatureBuilder::new("c3", "Bench").moves(&["wait"]).build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![switch_action("p1", 0), move_action("p2", "wait", "p1")];
+    let next = run_turn_with_seed(&engine, &state, &actions, 4101);
+
+    assert_eq!(
+        next.players[0].active_slot, 0,
+        "switching to active slot should not change active slot"
+    );
+    assert!(
+        next.log.iter().any(|line| line.contains("active slot")),
+        "active-slot switch rejection should be logged"
+    );
+}
+
+#[test]
+fn p1_spec_switch_without_slot_is_rejected() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Lead").moves(&["wait"]).build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Switch,
+            move_id: None,
+            target_id: None,
+            slot: None,
+            priority: None,
+        },
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 4102);
+
+    assert!(
+        next.log.iter().any(|line| line.contains("without a slot")),
+        "switch without slot should be logged and rejected"
+    );
+}
+
+#[test]
+fn p1_spec_use_item_without_item_is_rejected() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "NoItem")
+                .moves(&["wait"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::UseItem,
+            move_id: None,
+            target_id: None,
+            slot: None,
+            priority: None,
+        },
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 4103);
+
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("使う道具を 持っていない")),
+        "use-item without item should be rejected with log"
+    );
+}
+
+#[test]
+fn p1_spec_use_item_with_item_emits_use_log() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "WithItem")
+                .moves(&["wait"])
+                .item("potion")
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::UseItem,
+            move_id: None,
+            target_id: None,
+            slot: None,
+            priority: None,
+        },
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 4104);
+
+    assert!(
+        next.log.iter().any(|line| line.contains("道具を使った")),
+        "use-item with held item should emit item-use log"
+    );
+}
+
+#[test]
 fn p2_case_registry_integrity() {
     let mut seen = HashSet::new();
     for case in CASES {
@@ -1452,6 +2720,10 @@ fn p2_case_registry_integrity() {
         "registry must include P2 cases"
     );
     assert!(
+        CASES.iter().any(|case| case.priority == Priority::P3),
+        "registry must include P3 cases"
+    );
+    assert!(
         CASES.iter().any(|case| case.enabled),
         "registry must include enabled cases"
     );
@@ -1469,6 +2741,98 @@ fn p2_case_registry_is_synced_with_markdown_table() {
             doc.contains(case.id),
             "missing case id '{}' in P0_P2_TEST_CASES.md",
             case.id
+        );
+    }
+}
+
+#[test]
+fn p2_case_id_prefix_matches_priority_bucket() {
+    for case in CASES {
+        let expected_prefix = match case.priority {
+            Priority::P0 => "P0-",
+            Priority::P1 => "P1-",
+            Priority::P2 => "P2-",
+            Priority::P3 => "P3-",
+        };
+        assert!(
+            case.id.starts_with(expected_prefix),
+            "case '{}' should start with '{}'",
+            case.id,
+            expected_prefix
+        );
+    }
+}
+
+#[test]
+fn p2_markdown_table_case_ids_are_unique() {
+    let doc = include_str!("P0_P2_TEST_CASES.md");
+    let case_ids = markdown_case_ids(doc);
+    let mut seen = HashSet::new();
+    for case_id in case_ids {
+        assert!(
+            seen.insert(case_id.clone()),
+            "duplicate case id '{}' in markdown table",
+            case_id
+        );
+    }
+}
+
+#[test]
+fn p2_case_registry_and_markdown_table_are_bidirectionally_synced() {
+    let doc = include_str!("P0_P2_TEST_CASES.md");
+    let doc_ids: HashSet<String> = markdown_case_ids(doc).into_iter().collect();
+    let registry_ids: HashSet<String> = CASES.iter().map(|case| case.id.to_string()).collect();
+
+    let missing_in_doc: Vec<String> = registry_ids.difference(&doc_ids).cloned().collect();
+    let missing_in_registry: Vec<String> = doc_ids.difference(&registry_ids).cloned().collect();
+
+    assert!(
+        missing_in_doc.is_empty(),
+        "registry ids missing in markdown:\n{}",
+        missing_in_doc.join("\n")
+    );
+    assert!(
+        missing_in_registry.is_empty(),
+        "markdown ids missing in registry:\n{}",
+        missing_in_registry.join("\n")
+    );
+}
+
+#[test]
+fn p2_markdown_table_test_names_exist_in_source() {
+    let doc = include_str!("P0_P2_TEST_CASES.md");
+    let source = include_str!("spec_priority_cases.rs");
+
+    for test_name in markdown_test_names(doc) {
+        let signature = format!("fn {}(", test_name);
+        assert!(
+            source.contains(&signature),
+            "test function '{}' listed in markdown but missing in source",
+            test_name
+        );
+    }
+}
+
+#[test]
+fn p2_markdown_table_row_count_matches_case_registry() {
+    let doc = include_str!("P0_P2_TEST_CASES.md");
+    let rows = markdown_case_rows(doc);
+    assert_eq!(
+        rows.len(),
+        CASES.len(),
+        "markdown table row count should match CASES registry length"
+    );
+}
+
+#[test]
+fn p2_markdown_priority_column_matches_case_id_prefix() {
+    let doc = include_str!("P0_P2_TEST_CASES.md");
+    for (case_id, priority_col, _) in markdown_case_rows(doc) {
+        let id_prefix = case_id.split('-').next().unwrap_or_default().to_string();
+        assert_eq!(
+            priority_col, id_prefix,
+            "priority column should match case id prefix for '{}'",
+            case_id
         );
     }
 }
@@ -1523,5 +2887,276 @@ fn p2_spec_double_battle_model_smoke() {
             .iter()
             .any(|line| line.contains("追加アクション") && line.contains("無視")),
         "engine should log that duplicate per-player actions are ignored in single-battle mode"
+    );
+}
+
+#[test]
+fn p3_spec_same_seed_produces_identical_battle_state() {
+    let engine = make_engine(vec![
+        damage_move("strike", "physical", 80, None),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["strike"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "strike", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+
+    let next_a = run_turn_with_seed(&engine, &state, &actions, 9991);
+    let next_b = run_turn_with_seed(&engine, &state, &actions, 9991);
+
+    assert_no_diffs(&next_a, &next_b);
+    assert_eq!(
+        next_a.log, next_b.log,
+        "battle log should also be deterministic"
+    );
+}
+
+#[test]
+fn p3_spec_unknown_move_is_logged_and_skipped() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["ghost_move"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "ghost_move", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 9992);
+
+    assert_active_hp(&next, "p1", 100);
+    assert_active_hp(&next, "p2", 100);
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("tried unknown move ghost_move")),
+        "unknown move should be logged and skipped"
+    );
+}
+
+#[test]
+fn p3_spec_invalid_switch_slot_is_rejected_without_changing_active_slot() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Lead").moves(&["wait"]).build(),
+                CreatureBuilder::new("c3", "Bench").moves(&["wait"]).build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![switch_action("p1", 99), move_action("p2", "wait", "p1")];
+    let next = run_turn_with_seed(&engine, &state, &actions, 9993);
+
+    assert_eq!(
+        next.players[0].active_slot, 0,
+        "invalid switch slot should not change active slot"
+    );
+    assert!(
+        next.log.iter().any(|line| line.contains("invalid slot")),
+        "invalid switch should be logged"
+    );
+}
+
+#[test]
+fn p3_spec_switch_to_fainted_slot_is_rejected_without_changing_active_slot() {
+    let engine = make_engine(vec![wait_move()]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![
+                CreatureBuilder::new("c1", "Lead").moves(&["wait"]).build(),
+                CreatureBuilder::new("c3", "FaintedBench")
+                    .moves(&["wait"])
+                    .hp(0, 100)
+                    .build(),
+            ],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Opponent")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![switch_action("p1", 1), move_action("p2", "wait", "p1")];
+    let next = run_turn_with_seed(&engine, &state, &actions, 9994);
+
+    assert_eq!(
+        next.players[0].active_slot, 0,
+        "switching to a fainted slot should be rejected"
+    );
+    assert!(
+        next.log.iter().any(|line| line.contains("fainted Pokémon")),
+        "fainted-slot switch rejection should be logged"
+    );
+}
+
+#[test]
+fn p3_spec_timeout_winner_is_none_when_player_count_is_not_two() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Solo").hp(10, 100).build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Solo").hp(10, 100).build()],
+        ),
+        player(
+            "p3",
+            "P3",
+            vec![CreatureBuilder::new("c3", "Solo").hp(10, 100).build()],
+        ),
+    ]);
+
+    assert_eq!(
+        determine_timeout_winner(&state),
+        None,
+        "timeout winner is only defined for two-player battles"
+    );
+}
+
+#[test]
+fn p3_spec_determine_winner_returns_none_for_three_way_all_faint() {
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Fainted").hp(0, 100).build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Fainted").hp(0, 100).build()],
+        ),
+        player(
+            "p3",
+            "P3",
+            vec![CreatureBuilder::new("c3", "Fainted").hp(0, 100).build()],
+        ),
+    ]);
+
+    assert_eq!(
+        determine_winner(&state),
+        None,
+        "three-way all-faint should not use two-player simultaneous-faint fallback"
+    );
+}
+
+#[test]
+fn p3_spec_unknown_player_action_is_skipped_without_affecting_valid_actions() {
+    let engine = make_engine(vec![
+        damage_move("one_shot", "physical", 400, None),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["one_shot"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "one_shot", "p2"),
+        move_action("ghost", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 9995);
+
+    assert_active_hp(&next, "p2", 0);
+    assert_active_hp(&next, "p1", 100);
+}
+
+#[test]
+fn p3_spec_missing_move_id_is_logged_and_skipped() {
+    let engine = make_engine(vec![
+        damage_move("one_shot", "physical", 400, None),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Attacker")
+                .moves(&["one_shot"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Defender")
+                .moves(&["wait"])
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: None,
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 9996);
+
+    assert_active_hp(&next, "p2", 100);
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("has no move selected")),
+        "missing move id should be logged and skipped"
     );
 }

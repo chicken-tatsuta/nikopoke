@@ -1,6 +1,8 @@
 use engine_rust::core::effects::{apply_effects, EffectContext};
 use engine_rust::core::events::BattleEvent;
-use engine_rust::core::state::{BattleState, CreatureState, FieldEffect, FieldState, PlayerState, StatStages, Status};
+use engine_rust::core::state::{
+    BattleState, CreatureState, FieldEffect, FieldState, PlayerState, StatStages, Status,
+};
 use engine_rust::data::moves::{Effect, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::Value;
@@ -47,8 +49,8 @@ fn shuffle_with_seed(values: &mut [String], mut seed: u64) {
 }
 
 fn sample_move_names(move_db: &MoveDatabase) -> Vec<String> {
-    let mut reader = csv::Reader::from_path("data/2期生男子種族値 - 技一覧.csv")
-        .expect("open move csv");
+    let mut reader =
+        csv::Reader::from_path("data/2期生男子種族値 - 技一覧.csv").expect("open move csv");
     let mut csv_names: Vec<String> = reader
         .records()
         .filter_map(|record| record.ok())
@@ -99,6 +101,7 @@ fn create_creature(id: &str, name: &str, types: Vec<String>) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+        weight_kg: 60.0,
     }
 }
 
@@ -207,9 +210,8 @@ fn expected_event_kind(effect: &Effect) -> Option<EventKind> {
             .get("statusId")
             .and_then(|v| v.as_str())
             .map(|_| EventKind::ApplyStatus),
-        "delay" | "disable_move" | "lock_move" | "over_time" | "replace_pokemon" | "self_switch" => {
-            Some(EventKind::ApplyStatus)
-        }
+        "delay" | "disable_move" | "lock_move" | "over_time" | "replace_pokemon"
+        | "self_switch" => Some(EventKind::ApplyStatus),
         "clear_stages" => Some(EventKind::ClearStages),
         "cure_all_status" => Some(EventKind::CureAllStatus),
         "damage" | "damage_ratio" | "ohko" | "speed_based_damage" => Some(EventKind::Damage),
@@ -348,7 +350,12 @@ fn collect_expectations(
                 collect_expectations(&nested, requirements, expected);
             }
             "repeat" => {
-                let nested = collect_effects_from_value(effect.data.get("steps").or_else(|| effect.data.get("effects")));
+                let nested = collect_effects_from_value(
+                    effect
+                        .data
+                        .get("steps")
+                        .or_else(|| effect.data.get("effects")),
+                );
                 collect_expectations(&nested, requirements, expected);
             }
             "conditional" => {
@@ -396,8 +403,8 @@ fn collect_actual_event_kinds(events: &[BattleEvent]) -> HashSet<EventKind> {
 
 #[test]
 fn sampled_move_effects_match_expected_events() {
-    let move_db = MoveDatabase::load_from_yaml_file("data/moves.yaml".as_ref())
-        .expect("load moves.yaml");
+    let move_db =
+        MoveDatabase::load_from_yaml_file("data/moves.yaml".as_ref()).expect("load moves.yaml");
     let name_to_id = build_name_to_id_map(&move_db);
     let sampled_names = sample_move_names(&move_db);
     let type_chart = TypeChart::new();

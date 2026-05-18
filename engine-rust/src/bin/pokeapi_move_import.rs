@@ -347,7 +347,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             description,
             steps,
             tags,
-            crit_rate: detail.meta.as_ref().and_then(|m| m.crit_rate).filter(|v| *v > 0),
+            crit_rate: detail
+                .meta
+                .as_ref()
+                .and_then(|m| m.crit_rate)
+                .filter(|v| *v > 0),
         };
 
         output_moves.insert(output.id.clone(), output);
@@ -366,7 +370,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if !cfg.skip_migrate {
         println!("🔁 Migrating move IDs in learnsets/frontend...");
-        let changes = migrate_ids(&output_moves, &cfg.migrate_report_path, &engine_root, &repo_root)?;
+        let changes = migrate_ids(
+            &output_moves,
+            &cfg.migrate_report_path,
+            &engine_root,
+            &repo_root,
+        )?;
         if !changes.is_empty() {
             report.id_changes = changes;
             write_json(&cfg.report_path, &report)?;
@@ -421,7 +430,10 @@ fn resolve_path(base: &Path, path: &Path) -> PathBuf {
     }
 }
 
-async fn fetch_all_move_list(client: &reqwest::Client, delay_ms: u64) -> Result<Vec<NamedResource>, Box<dyn Error>> {
+async fn fetch_all_move_list(
+    client: &reqwest::Client,
+    delay_ms: u64,
+) -> Result<Vec<NamedResource>, Box<dyn Error>> {
     let mut url = "https://pokeapi.co/api/v2/move?limit=200&offset=0".to_string();
     let mut all = Vec::new();
     loop {
@@ -552,13 +564,17 @@ fn build_steps(detail: &MoveDetail) -> (Vec<Value>, Vec<String>) {
         let mut effect = Map::new();
         effect.insert("type".to_string(), Value::String("ohko".to_string()));
         if let Some(acc) = accuracy {
-            effect.insert("baseAccuracy".to_string(), Value::Number(serde_json::Number::from_f64(acc).unwrap()));
+            effect.insert(
+                "baseAccuracy".to_string(),
+                Value::Number(serde_json::Number::from_f64(acc).unwrap()),
+            );
         }
         steps.push(Value::Object(effect));
         return (steps, manual_reasons);
     }
 
-    let multi_hit = meta.and_then(|m| m.min_hits).is_some() || meta.and_then(|m| m.max_hits).is_some();
+    let multi_hit =
+        meta.and_then(|m| m.min_hits).is_some() || meta.and_then(|m| m.max_hits).is_some();
     if let Some(p) = power {
         let damage_effect = damage_step(p, accuracy);
         if multi_hit {
@@ -594,7 +610,10 @@ fn build_steps(detail: &MoveDetail) -> (Vec<Value>, Vec<String>) {
             if meta.healing.unwrap_or(0) > 0 {
                 let ratio = -(meta.healing.unwrap_or(0) as f64 / 100.0);
                 let mut effect = Map::new();
-                effect.insert("type".to_string(), Value::String("damage_ratio".to_string()));
+                effect.insert(
+                    "type".to_string(),
+                    Value::String("damage_ratio".to_string()),
+                );
                 effect.insert(
                     "ratioMaxHp".to_string(),
                     Value::Number(serde_json::Number::from_f64(ratio).unwrap()),
@@ -655,7 +674,10 @@ fn build_steps(detail: &MoveDetail) -> (Vec<Value>, Vec<String>) {
         }
         if !stages.is_empty() {
             let mut effect = Map::new();
-            effect.insert("type".to_string(), Value::String("modify_stage".to_string()));
+            effect.insert(
+                "type".to_string(),
+                Value::String("modify_stage".to_string()),
+            );
             effect.insert("target".to_string(), Value::String(target));
             effect.insert("stages".to_string(), Value::Object(stages));
             if let Some(meta) = detail.meta.as_ref() {
@@ -786,7 +808,10 @@ fn status_target(detail: &MoveDetail) -> String {
     }
 }
 
-fn write_moves_yaml(path: &Path, moves: &BTreeMap<String, OutputMove>) -> Result<(), Box<dyn Error>> {
+fn write_moves_yaml(
+    path: &Path,
+    moves: &BTreeMap<String, OutputMove>,
+) -> Result<(), Box<dyn Error>> {
     let yaml = serde_yaml::to_string(moves)?;
     fs::write(path, yaml)?;
     Ok(())
@@ -822,8 +847,10 @@ fn migrate_ids(
         return Ok(changes);
     }
 
-    let change_map: HashMap<String, String> =
-        changes.iter().map(|c| (c.old_id.clone(), c.new_id.clone())).collect();
+    let change_map: HashMap<String, String> = changes
+        .iter()
+        .map(|c| (c.old_id.clone(), c.new_id.clone()))
+        .collect();
 
     update_json_ids(&engine_root.join("data/learnsets.json"), &change_map)?;
     update_yaml_ids(&engine_root.join("data/learnsets.yaml"), &change_map)?;
@@ -851,8 +878,16 @@ fn load_existing_name_to_id(dir: &Path) -> Result<HashMap<String, String>, Box<d
         let content = fs::read_to_string(&path)?;
         let yaml: Value = serde_yaml::from_str(&content)?;
         if let Some(obj) = yaml.as_object() {
-            let name = obj.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let id = obj.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let name = obj
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let id = obj
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             if !name.is_empty() && !id.is_empty() {
                 map.insert(name, id);
             }
@@ -881,7 +916,10 @@ fn collect_yaml_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), Box<dy
     Ok(())
 }
 
-fn update_json_ids(path: &Path, change_map: &HashMap<String, String>) -> Result<(), Box<dyn Error>> {
+fn update_json_ids(
+    path: &Path,
+    change_map: &HashMap<String, String>,
+) -> Result<(), Box<dyn Error>> {
     if !path.exists() {
         return Ok(());
     }
@@ -893,7 +931,10 @@ fn update_json_ids(path: &Path, change_map: &HashMap<String, String>) -> Result<
     Ok(())
 }
 
-fn update_yaml_ids(path: &Path, change_map: &HashMap<String, String>) -> Result<(), Box<dyn Error>> {
+fn update_yaml_ids(
+    path: &Path,
+    change_map: &HashMap<String, String>,
+) -> Result<(), Box<dyn Error>> {
     if !path.exists() {
         return Ok(());
     }

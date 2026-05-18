@@ -1,6 +1,8 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
 use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+};
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{json, Map, Value};
@@ -36,6 +38,7 @@ fn make_creature(id: &str, name: &str, moves: Vec<String>) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+        weight_kg: 60.0,
     }
 }
 
@@ -87,12 +90,18 @@ fn substitute_initializes_hp_on_apply() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effects = vec![
-        effect("damage_ratio", json!({ "ratioMaxHp": 0.25, "target": "self" })),
-        effect("apply_status", json!({ "statusId": "substitute", "target": "self" })),
+        effect(
+            "damage_ratio",
+            json!({ "ratioMaxHp": 0.25, "target": "self" }),
+        ),
+        effect(
+            "apply_status",
+            json!({ "statusId": "substitute", "target": "self" }),
+        ),
     ];
     let events = apply_effects(&state, &effects, &mut ctx);
     let next = apply_events(&state, &events);

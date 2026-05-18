@@ -1,11 +1,15 @@
-use engine_rust::core::state::{BattleState, PlayerState, CreatureState, Status, Action, ActionType, BattleHistory, BattleTurn, FieldState, StatStages};
-use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
-use engine_rust::core::events::{apply_event, BattleEvent};
+use engine_rust::core::battle::{BattleEngine, BattleOptions};
 use engine_rust::core::effects::{apply_effects, EffectContext};
-use engine_rust::data::moves::Effect;
+use engine_rust::core::events::{apply_event, BattleEvent};
+use engine_rust::core::state::{
+    Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState, FieldEffect,
+    FieldState, PlayerState, StatStages, Status,
+};
+use engine_rust::core::statuses::{run_status_hooks, StatusHookContext};
+use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
-use std::collections::HashMap;
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 
 fn create_test_state() -> BattleState {
     let p1 = PlayerState {
@@ -32,6 +36,7 @@ fn create_test_state() -> BattleState {
             sp_attack: 10,
             sp_defense: 10,
             speed: 10,
+            weight_kg: 60.0,
         }],
         active_slot: 0,
         last_fainted_ability: None,
@@ -51,7 +56,7 @@ fn create_test_state() -> BattleState {
 #[test]
 fn test_lock_move_force_last_move() {
     let mut state = create_test_state();
-    
+
     // Add history
     let action = Action {
         player_id: "p1".to_string(),
@@ -70,7 +75,10 @@ fn test_lock_move_force_last_move() {
 
     // Add lock_move status
     let mut data = HashMap::new();
-    data.insert("mode".to_string(), Value::String("force_last_move".to_string()));
+    data.insert(
+        "mode".to_string(),
+        Value::String("force_last_move".to_string()),
+    );
     state.players[0].team[0].statuses.push(Status {
         id: "lock_move".to_string(),
         remaining_turns: Some(3),
@@ -92,9 +100,12 @@ fn test_lock_move_force_last_move() {
     };
 
     let result = run_status_hooks(&state, "p1", "onBeforeAction", ctx);
-    
+
     assert!(result.override_action.is_some());
-    assert_eq!(result.override_action.unwrap().move_id, Some("ember".to_string()));
+    assert_eq!(
+        result.override_action.unwrap().move_id,
+        Some("ember".to_string())
+    );
 }
 
 #[test]
@@ -116,9 +127,12 @@ fn test_apply_status_existing() {
     };
 
     let next_state = apply_event(&state, &event);
-    
+
     // Should verify log says already has status
-    assert!(next_state.log.last().unwrap().contains("already has burn") || next_state.log.last().unwrap().contains("すでに burn状態だ"));
+    assert!(
+        next_state.log.last().unwrap().contains("already has burn")
+            || next_state.log.last().unwrap().contains("すでに burn状態だ")
+    );
     // Status count should still be 1
     assert_eq!(next_state.players[0].team[0].statuses.len(), 1);
 }
@@ -162,10 +176,14 @@ fn test_protect_event_transform() {
     };
 
     let result = run_status_hooks(&state, "p1", "onEventTransform", ctx);
-    
+
     // Find transform for damage
-    let transform = result.event_transforms.iter().find(|t| t.from.as_deref() == Some("damage")).expect("Should have damage transform");
-    
+    let transform = result
+        .event_transforms
+        .iter()
+        .find(|t| t.from.as_deref() == Some("damage"))
+        .expect("Should have damage transform");
+
     assert_eq!(transform.except_source_id.as_deref(), Some("p1"));
 }
 
@@ -175,7 +193,9 @@ fn test_protect_reset_on_failure() {
     // Set protect success count to something high so it fails (chance 0.5^count)
     // count=1 -> 0.5 chance. count=2 -> 0.25 chance.
     // If rng=0.9, > 0.5, fails.
-    state.players[0].team[0].volatile_data.insert("protectSuccessCount".to_string(), Value::Number(1.into()));
+    state.players[0].team[0]
+        .volatile_data
+        .insert("protectSuccessCount".to_string(), Value::Number(1.into()));
 
     let mut rng = || 0.9; // Fail
     let type_chart = TypeChart::new();
@@ -191,7 +211,7 @@ fn test_protect_reset_on_failure() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let effect = Effect {
@@ -203,7 +223,9 @@ fn test_protect_reset_on_failure() {
 
     // Should find SetVolatile protectSuccessCount = 0
     let reset_event = events.iter().find(|e| match e {
-        BattleEvent::SetVolatile { key, value, .. } => key == "protectSuccessCount" && value == &Value::Number(0.into()),
+        BattleEvent::SetVolatile { key, value, .. } => {
+            key == "protectSuccessCount" && value == &Value::Number(0.into())
+        }
         _ => false,
     });
 
@@ -214,7 +236,7 @@ fn test_protect_reset_on_failure() {
 fn test_parental_bond() {
     let mut state = create_test_state();
     state.players[0].team[0].ability = Some("parental_bond".to_string());
-    
+
     // Add a dummy target player
     let p2 = PlayerState {
         id: "p2".to_string(),
@@ -240,6 +262,7 @@ fn test_parental_bond() {
             sp_attack: 10,
             sp_defense: 10,
             speed: 10,
+            weight_kg: 60.0,
         }],
         active_slot: 0,
         last_fainted_ability: None,
@@ -260,7 +283,7 @@ fn test_parental_bond() {
         bypass_substitute: false,
         ignore_substitute: false,
         is_sound: false,
-    last_damage: None,
+        last_damage: None,
     };
 
     let mut data = Map::new();
@@ -273,9 +296,12 @@ fn test_parental_bond() {
     let events = apply_effects(&state, &[effect], &mut ctx);
 
     // Should have 2 damage events
-    let damage_events: Vec<&BattleEvent> = events.iter().filter(|e| matches!(e, BattleEvent::Damage { .. })).collect();
+    let damage_events: Vec<&BattleEvent> = events
+        .iter()
+        .filter(|e| matches!(e, BattleEvent::Damage { .. }))
+        .collect();
     assert_eq!(damage_events.len(), 2);
-    
+
     // Second one should have parentalBond meta
     if let BattleEvent::Damage { meta, .. } = damage_events[1] {
         assert_eq!(meta.get("parentalBond"), Some(&Value::Bool(true)));

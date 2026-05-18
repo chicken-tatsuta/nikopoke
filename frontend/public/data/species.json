@@ -17,7 +17,8 @@
     "type": [
       "dark",
       "steel"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "buchii": {
     "abilities": [
@@ -37,7 +38,8 @@
     "type": [
       "bug",
       "fairy"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "eiraku": {
     "abilities": [
@@ -57,7 +59,8 @@
     "type": [
       "water",
       "normal"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "futo": {
     "abilities": [
@@ -77,7 +80,8 @@
     "type": [
       "fire",
       "normal"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "haruta": {
     "abilities": [
@@ -97,7 +101,8 @@
     "type": [
       "ice",
       "fairy"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "ikkun": {
     "abilities": [
@@ -117,7 +122,8 @@
     "type": [
       "rock",
       "poison"
-    ]
+    ],
+    "weight_kg": 70.0
   },
   "macchan": {
     "abilities": [
@@ -137,7 +143,8 @@
     "type": [
       "fighting",
       "dragon"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "machida": {
     "abilities": [
@@ -157,7 +164,8 @@
     "type": [
       "ground",
       "water"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "makocchan": {
     "abilities": [
@@ -177,7 +185,8 @@
     "type": [
       "poison",
       "fairy"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "michii": {
     "abilities": [
@@ -197,7 +206,8 @@
     "type": [
       "dark",
       "psychic"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "morimitu": {
     "abilities": [
@@ -217,7 +227,8 @@
     "type": [
       "fire",
       "flying"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "morimori": {
     "abilities": [
@@ -237,7 +248,8 @@
     "type": [
       "ground",
       "normal"
-    ]
+    ],
+    "weight_kg": 70.0
   },
   "nisiki": {
     "abilities": [
@@ -257,7 +269,8 @@
     "type": [
       "psychic",
       "ghost"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "reosan": {
     "abilities": [
@@ -277,7 +290,8 @@
     "type": [
       "bug",
       "ghost"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "sena": {
     "abilities": [
@@ -297,7 +311,8 @@
     "type": [
       "electric",
       "steel"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "takaho": {
     "abilities": [
@@ -317,7 +332,8 @@
     "type": [
       "grass",
       "rock"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "tatuta": {
     "abilities": [
@@ -337,7 +353,8 @@
     "type": [
       "grass",
       "dragon"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "tomoki": {
     "abilities": [
@@ -357,7 +374,8 @@
     "type": [
       "ice",
       "flying"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "touma": {
     "abilities": [
@@ -377,7 +395,8 @@
     "type": [
       "dark",
       "fighting"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "ume": {
     "abilities": [
@@ -397,6 +416,7 @@
     "type": [
       "electric",
       "ghost"
-    ]
+    ],
+    "weight_kg": 60.0
   }
 }

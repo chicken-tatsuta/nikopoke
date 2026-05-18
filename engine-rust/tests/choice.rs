@@ -1,5 +1,7 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+};
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{json, Map, Value};
@@ -35,6 +37,7 @@ fn make_creature(id: &str, name: &str, moves: Vec<String>) -> CreatureState {
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+        weight_kg: 60.0,
     }
 }
 
@@ -105,7 +108,10 @@ fn pending_switch_blocks_non_switch_action() {
         data: HashMap::new(),
     });
 
-    let state = make_state(vec![p1], vec![make_creature("c2", "Beta", vec!["wait".to_string()])]);
+    let state = make_state(
+        vec![p1],
+        vec![make_creature("c2", "Beta", vec!["wait".to_string()])],
+    );
     let mut rng = || 0.0;
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
@@ -129,7 +135,10 @@ fn pending_switch_blocks_non_switch_action() {
 
     let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
     assert_eq!(next.players[1].team[0].hp, 100);
-    assert!(next.log.iter().any(|line| line.contains("must switch out") || line.contains("交代しなければならない")));
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("must switch out") || line.contains("交代しなければならない")));
 }
 
 #[test]
@@ -218,7 +227,8 @@ fn self_switch_requires_choice_and_clears_after_switch() {
         },
     ];
 
-    let final_state = engine.step_battle(&next, &follow_actions, &mut rng, BattleOptions::default());
+    let final_state =
+        engine.step_battle(&next, &follow_actions, &mut rng, BattleOptions::default());
     assert_eq!(final_state.players[0].active_slot, 1);
     let incoming = &final_state.players[0].team[1];
     assert!(!incoming.statuses.iter().any(|s| s.id == "pending_switch"));

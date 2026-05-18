@@ -2,8 +2,8 @@ eiraku:
   id: eiraku
   name: えいらく
   type:
-    - water
-    - normal
+  - water
+  - normal
   baseStats:
     hp: 100
     atk: 115
@@ -12,14 +12,15 @@ eiraku:
     spd: 45
     spe: 80
   abilities:
-    - immunity
-    - compound_eyes
+  - immunity
+  - compound_eyes
+  weight_kg: 60.0
 tatuta:
   id: tatuta
   name: たつた
   type:
-    - grass
-    - dragon
+  - grass
+  - dragon
   baseStats:
     hp: 103
     atk: 90
@@ -28,14 +29,15 @@ tatuta:
     spd: 78
     spe: 107
   abilities:
-    - cotton_down
-    - chlorophyll
+  - cotton_down
+  - chlorophyll
+  weight_kg: 60.0
 morimitu:
   id: morimitu
   name: もりみつ
   type:
-    - fire
-    - flying
+  - fire
+  - flying
   baseStats:
     hp: 96
     atk: 70
@@ -44,14 +46,15 @@ morimitu:
     spd: 95
     spe: 80
   abilities:
-    - swift_swim
-    - contrary
+  - swift_swim
+  - contrary
+  weight_kg: 60.0
 takaho:
   id: takaho
   name: たかほ
   type:
-    - grass
-    - rock
+  - grass
+  - rock
   baseStats:
     hp: 105
     atk: 105
@@ -60,14 +63,15 @@ takaho:
     spd: 55
     spe: 80
   abilities:
-    - libero
-    - receiver
+  - libero
+  - receiver
+  weight_kg: 60.0
 ume:
   id: ume
   name: うめ
   type:
-    - electric
-    - ghost
+  - electric
+  - ghost
   baseStats:
     hp: 70
     atk: 55
@@ -76,14 +80,15 @@ ume:
     spd: 75
     spe: 60
   abilities:
-    - prankster
-    - klutz
+  - prankster
+  - klutz
+  weight_kg: 60.0
 machida:
   id: machida
   name: まちだ
   type:
-    - ground
-    - water
+  - ground
+  - water
   baseStats:
     hp: 90
     atk: 94
@@ -92,14 +97,15 @@ machida:
     spd: 56
     spe: 120
   abilities:
-    - stamina
-    - guts
+  - stamina
+  - guts
+  weight_kg: 60.0
 touma:
   id: touma
   name: とうま
   type:
-    - dark
-    - fighting
+  - dark
+  - fighting
   baseStats:
     hp: 75
     atk: 120
@@ -108,14 +114,15 @@ touma:
     spd: 65
     spe: 90
   abilities:
-    - quick_feet
-    - lightning_rod
+  - quick_feet
+  - lightning_rod
+  weight_kg: 60.0
 morimori:
   id: morimori
   name: もりもり
   type:
-    - ground
-    - normal
+  - ground
+  - normal
   baseStats:
     hp: 100
     atk: 95
@@ -124,14 +131,15 @@ morimori:
     spd: 50
     spe: 65
   abilities:
-    - slow_start
-    - hustle
+  - slow_start
+  - hustle
+  weight_kg: 70.0
 ayuma:
   id: ayuma
   name: あゆま
   type:
-    - dark
-    - steel
+  - dark
+  - steel
   baseStats:
     hp: 70
     atk: 80
@@ -140,14 +148,15 @@ ayuma:
     spd: 55
     spe: 135
   abilities:
-    - berserk
-    - competitive
+  - berserk
+  - competitive
+  weight_kg: 60.0
 buchii:
   id: buchii
   name: ぶっちー
   type:
-    - bug
-    - fairy
+  - bug
+  - fairy
   baseStats:
     hp: 90
     atk: 45
@@ -156,14 +165,15 @@ buchii:
     spd: 115
     spe: 60
   abilities:
-    - fur_coat
-    - unaware
+  - fur_coat
+  - unaware
+  weight_kg: 60.0
 tomoki:
   id: tomoki
   name: ともき
   type:
-    - ice
-    - flying
+  - ice
+  - flying
   baseStats:
     hp: 80
     atk: 110
@@ -172,14 +182,15 @@ tomoki:
     spd: 45
     spe: 120
   abilities:
-    - download
-    - oppotunist
+  - download
+  - oppotunist
+  weight_kg: 50.0
 haruta:
   id: haruta
   name: はるた
   type:
-    - ice
-    - fairy
+  - ice
+  - fairy
   baseStats:
     hp: 88
     atk: 100
@@ -188,14 +199,15 @@ haruta:
     spd: 70
     spe: 137
   abilities:
-    - drought
-    - parental_bond
+  - drought
+  - parental_bond
+  weight_kg: 60.0
 macchan:
   id: macchan
   name: まっちゃん
   type:
-    - fighting
-    - dragon
+  - fighting
+  - dragon
   baseStats:
     hp: 80
     atk: 135
@@ -204,14 +216,15 @@ macchan:
     spd: 60
     spe: 123
   abilities:
-    - simple
-    - intimidate
+  - simple
+  - intimidate
+  weight_kg: 60.0
 michii:
   id: michii
   name: みっちー
   type:
-    - dark
-    - psychic
+  - dark
+  - psychic
   baseStats:
     hp: 66
     atk: 79
@@ -220,14 +233,15 @@ michii:
     spd: 70
     spe: 120
   abilities:
-    - shadow_tag
-    - unnerve
+  - shadow_tag
+  - unnerve
+  weight_kg: 50.0
 nisiki:
   id: nisiki
   name: にしき
   type:
-    - psychic
-    - ghost
+  - psychic
+  - ghost
   baseStats:
     hp: 80
     atk: 65
@@ -236,14 +250,15 @@ nisiki:
     spd: 55
     spe: 60
   abilities:
-    - magic_bounce
-    - moody
+  - magic_bounce
+  - moody
+  weight_kg: 50.0
 sena:
   id: sena
   name: せな
   type:
-    - electric
-    - steel
+  - electric
+  - steel
   baseStats:
     hp: 90
     atk: 105
@@ -252,14 +267,15 @@ sena:
     spd: 55
     spe: 65
   abilities:
-    - steelworker
-    - technician
+  - steelworker
+  - technician
+  weight_kg: 60.0
 ikkun:
   id: ikkun
   name: いっくん
   type:
-    - rock
-    - poison
+  - rock
+  - poison
   baseStats:
     hp: 100
     atk: 80
@@ -268,14 +284,15 @@ ikkun:
     spd: 133
     spe: 65
   abilities:
-    - thick_fat
-    - merciless
+  - thick_fat
+  - merciless
+  weight_kg: 70.0
 futo:
   id: futo
   name: ふうと
   type:
-    - fire
-    - normal
+  - fire
+  - normal
   baseStats:
     hp: 105
     atk: 115
@@ -284,14 +301,15 @@ futo:
     spd: 60
     spe: 80
   abilities:
-    - insomnia
-    - own_tempo
+  - insomnia
+  - own_tempo
+  weight_kg: 60.0
 makocchan:
   id: makocchan
   name: まこっちゃん
   type:
-    - poison
-    - fairy
+  - poison
+  - fairy
   baseStats:
     hp: 85
     atk: 50
@@ -300,14 +318,15 @@ makocchan:
     spd: 105
     spe: 60
   abilities:
-    - power_of_alchemy
-    - sharpness
+  - power_of_alchemy
+  - sharpness
+  weight_kg: 60.0
 reosan:
   id: reosan
   name: れおさん
   type:
-    - bug
-    - ghost
+  - bug
+  - ghost
   baseStats:
     hp: 255
     atk: 37
@@ -316,5 +335,6 @@ reosan:
     spd: 108
     spe: 7
   abilities:
-    - pure_power
-    - super_luck
+  - pure_power
+  - super_luck
+  weight_kg: 50.0

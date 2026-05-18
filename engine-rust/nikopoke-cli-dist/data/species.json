@@ -17,7 +17,8 @@
     "abilities": [
       "immunity",
       "compound_eyes"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "tatuta": {
     "id": "tatuta",
@@ -37,7 +38,8 @@
     "abilities": [
       "cotton_down",
       "chlorophyll"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "morimitu": {
     "id": "morimitu",
@@ -57,7 +59,8 @@
     "abilities": [
       "swift_swim",
       "contrary"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "takaho": {
     "id": "takaho",
@@ -77,7 +80,8 @@
     "abilities": [
       "libero",
       "receiver"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "ume": {
     "id": "ume",
@@ -97,7 +101,8 @@
     "abilities": [
       "prankster",
       "klutz"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "machida": {
     "id": "machida",
@@ -117,7 +122,8 @@
     "abilities": [
       "stamina",
       "guts"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "touma": {
     "id": "touma",
@@ -137,7 +143,8 @@
     "abilities": [
       "quick_feet",
       "lightning_rod"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "morimori": {
     "id": "morimori",
@@ -157,7 +164,8 @@
     "abilities": [
       "slow_start",
       "hustle"
-    ]
+    ],
+    "weight_kg": 70.0
   },
   "ayuma": {
     "id": "ayuma",
@@ -177,7 +185,8 @@
     "abilities": [
       "berserk",
       "competitive"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "buchii": {
     "id": "buchii",
@@ -197,7 +206,8 @@
     "abilities": [
       "fur_coat",
       "unaware"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "tomoki": {
     "id": "tomoki",
@@ -217,7 +227,8 @@
     "abilities": [
       "download",
       "oppotunist"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "haruta": {
     "id": "haruta",
@@ -237,7 +248,8 @@
     "abilities": [
       "drought",
       "parental_bond"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "macchan": {
     "id": "macchan",
@@ -257,7 +269,8 @@
     "abilities": [
       "simple",
       "intimidate"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "michii": {
     "id": "michii",
@@ -277,7 +290,8 @@
     "abilities": [
       "shadow_tag",
       "unnerve"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "nisiki": {
     "id": "nisiki",
@@ -297,7 +311,8 @@
     "abilities": [
       "magic_bounce",
       "moody"
-    ]
+    ],
+    "weight_kg": 50.0
   },
   "sena": {
     "id": "sena",
@@ -317,7 +332,8 @@
     "abilities": [
       "steelworker",
       "technician"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "ikkun": {
     "id": "ikkun",
@@ -337,7 +353,8 @@
     "abilities": [
       "thick_fat",
       "merciless"
-    ]
+    ],
+    "weight_kg": 70.0
   },
   "futo": {
     "id": "futo",
@@ -357,7 +374,8 @@
     "abilities": [
       "insomnia",
       "own_tempo"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "makocchan": {
     "id": "makocchan",
@@ -377,7 +395,8 @@
     "abilities": [
       "power_of_alchemy",
       "sharpness"
-    ]
+    ],
+    "weight_kg": 60.0
   },
   "reosan": {
     "id": "reosan",
@@ -397,6 +416,7 @@
     "abilities": [
       "pure_power",
       "super_luck"
-    ]
+    ],
+    "weight_kg": 50.0
   }
 }

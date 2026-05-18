@@ -1,5 +1,7 @@
-use crate::core::abilities::{modify_stages_with_ability, run_ability_check_hook, AbilityCheckContext};
-use crate::core::state::{BattleState, Status, StatStages};
+use crate::core::abilities::{
+    modify_stages_with_ability, run_ability_check_hook, AbilityCheckContext,
+};
+use crate::core::state::{BattleState, StatStages, Status};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
@@ -81,6 +83,47 @@ pub enum BattleEvent {
         key: String,
         value: Value,
     },
+    SetAbility {
+        target_id: String,
+        ability_id: Option<String>,
+        meta: Map<String, Value>,
+    },
+    SwapAbilities {
+        left_id: String,
+        right_id: String,
+        meta: Map<String, Value>,
+    },
+    SetItem {
+        target_id: String,
+        item_id: Option<String>,
+        meta: Map<String, Value>,
+    },
+    SwapItems {
+        left_id: String,
+        right_id: String,
+        meta: Map<String, Value>,
+    },
+    SetStages {
+        target_id: String,
+        stages: HashMap<String, i32>,
+        meta: Map<String, Value>,
+    },
+    SwapStages {
+        left_id: String,
+        right_id: String,
+        stage_keys: Vec<String>,
+        meta: Map<String, Value>,
+    },
+    AverageStats {
+        left_id: String,
+        right_id: String,
+        stat_keys: Vec<String>,
+        meta: Map<String, Value>,
+    },
+    SwapAttackDefense {
+        target_id: String,
+        meta: Map<String, Value>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -126,6 +169,14 @@ pub fn event_type(event: &BattleEvent) -> &str {
         BattleEvent::Switch { .. } => "switch",
         BattleEvent::RandomMove { .. } => "random_move",
         BattleEvent::SetVolatile { .. } => "set_volatile",
+        BattleEvent::SetAbility { .. } => "set_ability",
+        BattleEvent::SwapAbilities { .. } => "swap_abilities",
+        BattleEvent::SetItem { .. } => "set_item",
+        BattleEvent::SwapItems { .. } => "swap_items",
+        BattleEvent::SetStages { .. } => "set_stages",
+        BattleEvent::SwapStages { .. } => "swap_stages",
+        BattleEvent::AverageStats { .. } => "average_stats",
+        BattleEvent::SwapAttackDefense { .. } => "swap_attack_defense",
     }
 }
 
@@ -138,17 +189,19 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         BattleEvent::Damage {
             target_id, amount, ..
         } => {
+            let meta = event_meta(event);
+            let source = meta.and_then(|meta| meta_get_string(meta, "source"));
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
                     if *amount > 0 {
-                        let meta = event_meta(event);
                         let bypass_substitute = meta
                             .and_then(|meta| meta_get_bool(meta, "bypassSubstitute"))
                             .unwrap_or(false);
-                        let source = meta.and_then(|meta| meta_get_string(meta, "source"));
                         let is_self = source.as_deref() == Some(target_id.as_str());
                         if !bypass_substitute && !is_self {
-                            if let Some(index) = active.statuses.iter().position(|s| s.id == "substitute") {
+                            if let Some(index) =
+                                active.statuses.iter().position(|s| s.id == "substitute")
+                            {
                                 let current = active.statuses[index]
                                     .data
                                     .get("hp")
@@ -160,10 +213,16 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                                     active.statuses[index]
                                         .data
                                         .insert("hp".to_string(), Value::Number(remaining.into()));
-                                    next.log.push(format!("{}の みがわりが 攻撃を 受けた！", active.name));
+                                    next.log.push(format!(
+                                        "{}の みがわりが 攻撃を 受けた！",
+                                        active.name
+                                    ));
                                 } else {
                                     active.statuses.remove(index);
-                                    next.log.push(format!("{}の みがわりは 壊れてしまった！", active.name));
+                                    next.log.push(format!(
+                                        "{}の みがわりは 壊れてしまった！",
+                                        active.name
+                                    ));
                                 }
                                 return next;
                             }
@@ -171,14 +230,56 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     }
                     let new_hp = active.hp - *amount;
                     active.hp = new_hp.clamp(0, active.max_hp);
+                    let is_attack_damage = event_meta(event)
+                        .and_then(|meta| meta_get_string(meta, "damageSource"))
+                        .as_deref()
+                        == Some("attack")
+                        && source.as_deref() != Some(target_id.as_str());
                     if *amount > 0 {
-                        next.log.push(format!("{}は {}ダメージ 受けた！", active.name, amount));
+                        if let Some(meta) = event_meta(event) {
+                            if is_attack_damage {
+                                let hit_count = active
+                                    .volatile_data
+                                    .get("rageFistHitCount")
+                                    .and_then(|v| v.as_i64())
+                                    .unwrap_or(0)
+                                    .saturating_add(1);
+                                active.volatile_data.insert(
+                                    "rageFistHitCount".to_string(),
+                                    Value::Number(hit_count.into()),
+                                );
+                            }
+                            if meta.get("moveId").is_some() && is_attack_damage {
+                                active.volatile_data.insert(
+                                    "lastDamageTakenAmount".to_string(),
+                                    Value::Number((*amount).into()),
+                                );
+                                if let Some(category) = meta_get_string(meta, "category") {
+                                    active.volatile_data.insert(
+                                        "lastDamageTakenCategory".to_string(),
+                                        Value::String(category),
+                                    );
+                                }
+                                if let Some(source) = source.clone() {
+                                    active.volatile_data.insert(
+                                        "lastDamageTakenSource".to_string(),
+                                        Value::String(source),
+                                    );
+                                }
+                            }
+                        }
+                        next.log
+                            .push(format!("{}は {}ダメージ 受けた！", active.name, amount));
                     } else if *amount < 0 {
-                        next.log.push(format!("{}の HPが {}回復した！", active.name, -amount));
+                        next.log
+                            .push(format!("{}の HPが {}回復した！", active.name, -amount));
                     } else {
-                        next.log.push(format!("{}には 効かないようだ……", active.name));
+                        next.log
+                            .push(format!("{}には 効かないようだ……", active.name));
                     }
                     if active.hp <= 0 {
+                        let had_destiny_bond =
+                            active.statuses.iter().any(|s| s.id == "destiny_bond");
                         next.log.push(format!("{}は たおれた！", active.name));
                         player.last_fainted_ability = active.ability.clone();
                         if !active.statuses.iter().any(|s| s.id == "pending_switch") {
@@ -187,6 +288,38 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                                 remaining_turns: None,
                                 data: HashMap::new(),
                             });
+                        }
+                        if had_destiny_bond && is_attack_damage {
+                            if let Some(source_id) = source.clone() {
+                                if source_id != *target_id {
+                                    if let Some(source_player) =
+                                        next.players.iter_mut().find(|p| p.id == source_id)
+                                    {
+                                        if let Some(source_active) =
+                                            source_player.team.get_mut(source_player.active_slot)
+                                        {
+                                            if source_active.hp > 0 {
+                                                source_active.hp = 0;
+                                                next.log.push(format!(
+                                                    "{}は みちづれに なった！",
+                                                    source_active.name
+                                                ));
+                                                if !source_active
+                                                    .statuses
+                                                    .iter()
+                                                    .any(|s| s.id == "pending_switch")
+                                                {
+                                                    source_active.statuses.push(Status {
+                                                        id: "pending_switch".to_string(),
+                                                        remaining_turns: None,
+                                                        data: HashMap::new(),
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -228,8 +361,10 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         }
                     }
                     if !stack {
-                        if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id) {
-                            next.log.push(format!("{}は すでに {}状態だ！", active.name, status_id));
+                        if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
+                        {
+                            next.log
+                                .push(format!("{}は すでに {}状態だ！", active.name, status_id));
                             return next;
                         }
                     }
@@ -242,7 +377,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             }
         }
         BattleEvent::RemoveStatus {
-            target_id, status_id, ..
+            target_id,
+            status_id,
+            ..
         } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
@@ -326,43 +463,115 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             data,
             ..
         } => {
-            if !*stack {
+            let scope = data
+                .get("scope")
+                .and_then(|v| v.as_str())
+                .unwrap_or("global");
+            if scope == "side" {
+                let side_id = data
+                    .get("sideId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                if !side_id.is_empty() {
+                    let effects = next.field.sides.entry(side_id).or_default();
+                    if !*stack {
+                        effects.retain(|e| e.id != *status_id);
+                    }
+                    effects.push(crate::core::state::FieldEffect {
+                        id: status_id.clone(),
+                        remaining_turns: *duration,
+                        data: data.clone(),
+                    });
+                }
+            } else {
+                if !*stack {
+                    next.field.global.retain(|e| e.id != *status_id);
+                }
+                next.field.global.push(crate::core::state::FieldEffect {
+                    id: status_id.clone(),
+                    remaining_turns: *duration,
+                    data: data.clone(),
+                });
+            }
+        }
+        BattleEvent::RemoveFieldStatus { status_id, meta } => {
+            let side_id = meta_get_string(meta, "sideId");
+            if let Some(side_id) = side_id {
+                if let Some(effects) = next.field.sides.get_mut(&side_id) {
+                    effects.retain(|e| e.id != *status_id);
+                }
+            } else {
                 next.field.global.retain(|e| e.id != *status_id);
             }
-            next.field.global.push(crate::core::state::FieldEffect {
-                id: status_id.clone(),
-                remaining_turns: *duration,
-                data: data.clone(),
-            });
-        }
-        BattleEvent::RemoveFieldStatus { status_id, .. } => {
-            next.field.global.retain(|e| e.id != *status_id);
         }
         BattleEvent::Switch { player_id, slot } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
                 if *slot < player.team.len() {
                     if let Some(outgoing) = player.team.get_mut(player.active_slot) {
+                        if outgoing.ability.as_deref() == Some("libero") {
+                            restore_base_types(outgoing);
+                        }
                         outgoing.stages = StatStages::default();
                         // Non-volatile statuses that persist on switch.
-                        let non_volatile = ["burn", "poison", "toxic", "paralysis", "freeze", "sleep"];
-                        outgoing.statuses.retain(|s| non_volatile.contains(&s.id.as_str()));
+                        let non_volatile =
+                            ["burn", "poison", "toxic", "paralysis", "freeze", "sleep"];
+                        outgoing
+                            .statuses
+                            .retain(|s| non_volatile.contains(&s.id.as_str()));
                         for status in &mut outgoing.statuses {
                             if status.id == "toxic" {
                                 // Toxic ramp resets when switching out.
                                 status.data.remove("counter");
                             }
                         }
-                        if let Some(original) = outgoing.ability_data.get("originalAbility").and_then(|v| v.as_str()) {
+                        if let Some(original) = outgoing
+                            .ability_data
+                            .get("originalAbility")
+                            .and_then(|v| v.as_str())
+                        {
                             outgoing.ability = Some(original.to_string());
                         }
                         outgoing.ability_data.clear();
-                        outgoing.volatile_data.clear();
+                        if let Some(rage_fist_hit_count) =
+                            outgoing.volatile_data.remove("rageFistHitCount")
+                        {
+                            outgoing.volatile_data.clear();
+                            outgoing
+                                .volatile_data
+                                .insert("rageFistHitCount".to_string(), rage_fist_hit_count);
+                        } else {
+                            outgoing.volatile_data.clear();
+                        }
                     }
                     player.active_slot = *slot;
                     if let Some(incoming) = player.team.get_mut(player.active_slot) {
+                        if incoming.ability.as_deref() == Some("libero") {
+                            restore_base_types(incoming);
+                            incoming.ability_data.remove("liberoUsed");
+                        }
                         incoming.statuses.retain(|s| s.id != "pending_switch");
-                        next.log
-                            .push(format!("{}は {}を 繰り出した！", player.name, incoming.name));
+                        let healing_wish = next
+                            .field
+                            .sides
+                            .get_mut(player_id)
+                            .and_then(|effects| {
+                                let found =
+                                    effects.iter().any(|effect| effect.id == "healing_wish");
+                                effects.retain(|effect| effect.id != "healing_wish");
+                                found.then_some(())
+                            })
+                            .is_some();
+                        if healing_wish {
+                            incoming.hp = incoming.max_hp;
+                            incoming.statuses.clear();
+                            next.log
+                                .push(format!("{}は いやしのねがいで 回復した！", incoming.name));
+                        }
+                        next.log.push(format!(
+                            "{}は {}を 繰り出した！",
+                            player.name, incoming.name
+                        ));
                     }
                 }
             }
@@ -370,15 +579,234 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
         BattleEvent::RandomMove { .. } => {
             // Placeholder: move selection handled at action level.
         }
-        BattleEvent::SetVolatile { target_id, key, value } => {
+        BattleEvent::SetVolatile {
+            target_id,
+            key,
+            value,
+        } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
                 if let Some(active) = player.team.get_mut(player.active_slot) {
                     active.volatile_data.insert(key.clone(), value.clone());
                 }
             }
         }
+        BattleEvent::SetAbility {
+            target_id,
+            ability_id,
+            ..
+        } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    if !active.ability_data.contains_key("originalAbility") {
+                        if let Some(current) = &active.ability {
+                            active.ability_data.insert(
+                                "originalAbility".to_string(),
+                                Value::String(current.clone()),
+                            );
+                        }
+                    }
+                    active.ability = ability_id.clone();
+                }
+            }
+        }
+        BattleEvent::SwapAbilities {
+            left_id, right_id, ..
+        } => {
+            let left_idx = next.players.iter().position(|p| p.id == *left_id);
+            let right_idx = next.players.iter().position(|p| p.id == *right_id);
+            if let (Some(left_idx), Some(right_idx)) = (left_idx, right_idx) {
+                let left_slot = next.players[left_idx].active_slot;
+                let right_slot = next.players[right_idx].active_slot;
+                let left_current = next.players[left_idx].team[left_slot].ability.clone();
+                let right_current = next.players[right_idx].team[right_slot].ability.clone();
+                for (idx, current) in [
+                    (left_idx, left_current.clone()),
+                    (right_idx, right_current.clone()),
+                ] {
+                    let active_slot = next.players[idx].active_slot;
+                    let active = &mut next.players[idx].team[active_slot];
+                    if !active.ability_data.contains_key("originalAbility") {
+                        if let Some(current) = current {
+                            active
+                                .ability_data
+                                .insert("originalAbility".to_string(), Value::String(current));
+                        }
+                    }
+                }
+                next.players[left_idx].team[left_slot].ability = right_current;
+                next.players[right_idx].team[right_slot].ability = left_current;
+            }
+        }
+        BattleEvent::SetItem {
+            target_id, item_id, ..
+        } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    active
+                        .statuses
+                        .retain(|s| s.id != "item" && s.id != "berry");
+                    active.item = item_id.clone();
+                }
+            }
+        }
+        BattleEvent::SwapItems {
+            left_id, right_id, ..
+        } => {
+            let left_idx = next.players.iter().position(|p| p.id == *left_id);
+            let right_idx = next.players.iter().position(|p| p.id == *right_id);
+            if let (Some(left_idx), Some(right_idx)) = (left_idx, right_idx) {
+                let left_slot = next.players[left_idx].active_slot;
+                let right_slot = next.players[right_idx].active_slot;
+                let left_item = next.players[left_idx].team[left_slot].item.clone();
+                let right_item = next.players[right_idx].team[right_slot].item.clone();
+                next.players[left_idx].team[left_slot]
+                    .statuses
+                    .retain(|s| s.id != "item" && s.id != "berry");
+                next.players[right_idx].team[right_slot]
+                    .statuses
+                    .retain(|s| s.id != "item" && s.id != "berry");
+                next.players[left_idx].team[left_slot].item = right_item;
+                next.players[right_idx].team[right_slot].item = left_item;
+            }
+        }
+        BattleEvent::SetStages {
+            target_id, stages, ..
+        } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    for (key, value) in stages {
+                        if let Some(stage_ref) = stage_ref_mut(&mut active.stages, key) {
+                            *stage_ref = *value;
+                        }
+                    }
+                }
+            }
+        }
+        BattleEvent::SwapStages {
+            left_id,
+            right_id,
+            stage_keys,
+            ..
+        } => {
+            let left_values = current_stage_values(&next, left_id, stage_keys);
+            let right_values = current_stage_values(&next, right_id, stage_keys);
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *left_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    for (key, value) in &right_values {
+                        if let Some(stage_ref) = stage_ref_mut(&mut active.stages, key) {
+                            *stage_ref = *value;
+                        }
+                    }
+                }
+            }
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *right_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    for (key, value) in &left_values {
+                        if let Some(stage_ref) = stage_ref_mut(&mut active.stages, key) {
+                            *stage_ref = *value;
+                        }
+                    }
+                }
+            }
+        }
+        BattleEvent::AverageStats {
+            left_id,
+            right_id,
+            stat_keys,
+            ..
+        } => {
+            let left_values = current_stat_values(&next, left_id, stat_keys);
+            let right_values = current_stat_values(&next, right_id, stat_keys);
+            let averaged: HashMap<String, i32> = stat_keys
+                .iter()
+                .map(|key| {
+                    let left = left_values.get(key).copied().unwrap_or(0);
+                    let right = right_values.get(key).copied().unwrap_or(0);
+                    (key.clone(), (left + right) / 2)
+                })
+                .collect();
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *left_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    for (key, value) in &averaged {
+                        if let Some(stat_ref) = stat_ref_mut(active, key) {
+                            *stat_ref = *value;
+                        }
+                    }
+                }
+            }
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *right_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    for (key, value) in &averaged {
+                        if let Some(stat_ref) = stat_ref_mut(active, key) {
+                            *stat_ref = *value;
+                        }
+                    }
+                }
+            }
+        }
+        BattleEvent::SwapAttackDefense { target_id, .. } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    let already_swapped = active
+                        .volatile_data
+                        .get("powerTrick")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    if already_swapped {
+                        let original_attack = active
+                            .volatile_data
+                            .get("powerTrickAttack")
+                            .and_then(|v| v.as_i64())
+                            .map(|v| v as i32);
+                        let original_defense = active
+                            .volatile_data
+                            .get("powerTrickDefense")
+                            .and_then(|v| v.as_i64())
+                            .map(|v| v as i32);
+                        if let (Some(original_attack), Some(original_defense)) =
+                            (original_attack, original_defense)
+                        {
+                            active.attack = original_attack;
+                            active.defense = original_defense;
+                        }
+                        active.volatile_data.remove("powerTrick");
+                        active.volatile_data.remove("powerTrickAttack");
+                        active.volatile_data.remove("powerTrickDefense");
+                    } else {
+                        let original_attack = active.attack;
+                        let original_defense = active.defense;
+                        active
+                            .volatile_data
+                            .insert("powerTrick".to_string(), Value::Bool(true));
+                        active.volatile_data.insert(
+                            "powerTrickAttack".to_string(),
+                            Value::Number(original_attack.into()),
+                        );
+                        active.volatile_data.insert(
+                            "powerTrickDefense".to_string(),
+                            Value::Number(original_defense.into()),
+                        );
+                        active.attack = original_defense;
+                        active.defense = original_attack;
+                    }
+                }
+            }
+        }
     }
     next
+}
+
+fn restore_base_types(creature: &mut crate::core::state::CreatureState) {
+    let Some(Value::Array(base_types)) = creature.ability_data.get("baseTypes") else {
+        return;
+    };
+    let restored: Vec<String> = base_types
+        .iter()
+        .filter_map(|value| value.as_str().map(|ty| ty.to_string()))
+        .collect();
+    if !restored.is_empty() {
+        creature.types = restored;
+    }
 }
 
 fn stage_ref_mut<'a>(stages: &'a mut StatStages, key: &str) -> Option<&'a mut i32> {
@@ -395,6 +823,71 @@ fn stage_ref_mut<'a>(stages: &'a mut StatStages, key: &str) -> Option<&'a mut i3
     }
 }
 
+fn stat_ref_mut<'a>(
+    creature: &'a mut crate::core::state::CreatureState,
+    key: &str,
+) -> Option<&'a mut i32> {
+    match key {
+        "atk" | "attack" => Some(&mut creature.attack),
+        "def" | "defense" => Some(&mut creature.defense),
+        "spa" | "sp_attack" => Some(&mut creature.sp_attack),
+        "spd" | "sp_defense" => Some(&mut creature.sp_defense),
+        "spe" | "speed" => Some(&mut creature.speed),
+        _ => None,
+    }
+}
+
+fn current_stage_values(
+    state: &BattleState,
+    player_id: &str,
+    stage_keys: &[String],
+) -> HashMap<String, i32> {
+    let mut values = HashMap::new();
+    if let Some(player) = state.players.iter().find(|p| p.id == player_id) {
+        if let Some(active) = player.team.get(player.active_slot) {
+            for key in stage_keys {
+                let value = match key.as_str() {
+                    "atk" => active.stages.atk,
+                    "def" => active.stages.def,
+                    "spa" => active.stages.spa,
+                    "spd" => active.stages.spd,
+                    "spe" => active.stages.spe,
+                    "accuracy" | "acc" => active.stages.accuracy,
+                    "evasion" | "eva" => active.stages.evasion,
+                    "crit" => active.stages.crit,
+                    _ => continue,
+                };
+                values.insert(key.clone(), value);
+            }
+        }
+    }
+    values
+}
+
+fn current_stat_values(
+    state: &BattleState,
+    player_id: &str,
+    stat_keys: &[String],
+) -> HashMap<String, i32> {
+    let mut values = HashMap::new();
+    if let Some(player) = state.players.iter().find(|p| p.id == player_id) {
+        if let Some(active) = player.team.get(player.active_slot) {
+            for key in stat_keys {
+                let value = match key.as_str() {
+                    "atk" | "attack" => active.attack,
+                    "def" | "defense" => active.defense,
+                    "spa" | "sp_attack" => active.sp_attack,
+                    "spd" | "sp_defense" => active.sp_defense,
+                    "spe" | "speed" => active.speed,
+                    _ => continue,
+                };
+                values.insert(key.clone(), value);
+            }
+        }
+    }
+    values
+}
+
 pub fn meta_with_move_source(move_id: Option<&str>, source: Option<&str>) -> Map<String, Value> {
     let mut meta = Map::new();
     if let Some(move_id) = move_id {
@@ -406,8 +899,26 @@ pub fn meta_with_move_source(move_id: Option<&str>, source: Option<&str>) -> Map
     meta
 }
 
+pub fn meta_with_damage_source(damage_source: &str) -> Map<String, Value> {
+    let mut meta = Map::new();
+    meta.insert(
+        "damageSource".to_string(),
+        Value::String(damage_source.to_string()),
+    );
+    meta
+}
+
+pub fn set_damage_source(meta: &mut Map<String, Value>, damage_source: &str) {
+    meta.insert(
+        "damageSource".to_string(),
+        Value::String(damage_source.to_string()),
+    );
+}
+
 pub fn meta_get_string(meta: &Map<String, Value>, key: &str) -> Option<String> {
-    meta.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
+    meta.get(key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 pub fn meta_get_bool(meta: &Map<String, Value>, key: &str) -> Option<bool> {
@@ -435,7 +946,15 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
         | BattleEvent::CureAllStatus { meta, .. }
         | BattleEvent::ApplyFieldStatus { meta, .. }
         | BattleEvent::RemoveFieldStatus { meta, .. }
-        | BattleEvent::RandomMove { meta, .. } => Some(meta),
+        | BattleEvent::RandomMove { meta, .. }
+        | BattleEvent::SetAbility { meta, .. }
+        | BattleEvent::SwapAbilities { meta, .. }
+        | BattleEvent::SetItem { meta, .. }
+        | BattleEvent::SwapItems { meta, .. }
+        | BattleEvent::SetStages { meta, .. }
+        | BattleEvent::SwapStages { meta, .. }
+        | BattleEvent::AverageStats { meta, .. }
+        | BattleEvent::SwapAttackDefense { meta, .. } => Some(meta),
         _ => None,
     }
 }

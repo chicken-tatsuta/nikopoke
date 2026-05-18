@@ -10,7 +10,14 @@ pub fn replay_battle(initial_state: &BattleState, history: &BattleHistory) -> Ba
             idx += 1;
             v
         };
-        next = step_battle(&next, &turn.actions, &mut rng, BattleOptions { record_history: false });
+        next = step_battle(
+            &next,
+            &turn.actions,
+            &mut rng,
+            BattleOptions {
+                record_history: false,
+            },
+        );
     }
     next
 }

@@ -63,6 +63,8 @@ pub struct CreatureState {
     pub sp_attack: i32,
     pub sp_defense: i32,
     pub speed: i32,
+    #[serde(default)]
+    pub weight_kg: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

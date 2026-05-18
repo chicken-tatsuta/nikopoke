@@ -8,6 +8,7 @@ accuracy: null
 priority: 0
 description: 技を　だしたあと　攻撃を　受けて ひんしに　なったとき 攻撃　相手も　ひんしに　する。
 steps:
-- type: manual
-  manualReason: No supported effects inferred
+- type: apply_status
+  statusId: destiny_bond
+  target: self
 tags: []

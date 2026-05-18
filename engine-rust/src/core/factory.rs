@@ -130,6 +130,18 @@ pub fn create_creature(
         .unwrap_or_else(|| "none".to_string());
 
     let unique = CREATURE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut ability_data = HashMap::new();
+    ability_data.insert(
+        "baseTypes".to_string(),
+        serde_json::Value::Array(
+            species
+                .types
+                .iter()
+                .map(|ty| serde_json::Value::String(ty.clone()))
+                .collect(),
+        ),
+    );
+
     Ok(CreatureState {
         id: format!("{}_{}", species.id, unique),
         name: options.name.unwrap_or_else(|| species.name.clone()),
@@ -144,12 +156,13 @@ pub fn create_creature(
         stages: StatStages::default(),
         statuses: Vec::new(),
         move_pp: HashMap::new(),
-        ability_data: HashMap::new(),
+        ability_data,
         volatile_data: HashMap::new(),
         attack,
         defense,
         sp_attack,
         sp_defense,
         speed,
+        weight_kg: species.weight_kg,
     })
 }

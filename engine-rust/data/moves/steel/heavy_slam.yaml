@@ -6,9 +6,9 @@ pp: 10
 power: null
 accuracy: 1.0
 priority: 0
-description: 重たい　体で　相手に　ぶつかって 攻撃する。自分が　相手より 重いほど　威力が　あがる。
+description: 重たい　体で　相手に　ぶつかって 攻撃する。重から軽は威力120、重から中は100、中から軽は80。同じ重さなら60、相手が自分より重いなら40。相手が『ちいさくなる』状態なら必ず命中し、威力が2倍になる。
 steps:
-- type: manual
-  manualReason: No supported effects inferred
+- type: relative_weight_damage
+  accuracy: 1.0
 tags:
 - contact

@@ -6,8 +6,8 @@ pp: 20
 power: null
 accuracy: 1.0
 priority: 0
-description: 草を　からませて　相手を 転ばせる。相手が　重いほど 威力が　あがる。
+description: 草を　からませて　相手を 転ばせる。相手が重なら威力120、中なら80、軽なら40。相手が『ちいさくなる』状態なら必ず命中し、威力が2倍になる。
 steps:
-- type: manual
-  manualReason: No supported effects inferred
+- type: weight_based_damage
+  accuracy: 1.0
 tags: []

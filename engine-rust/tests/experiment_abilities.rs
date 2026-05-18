@@ -1,5 +1,7 @@
-use engine_rust::core::state::{BattleState, PlayerState, CreatureState, StatStages, Action, ActionType, FieldState};
 use engine_rust::core::battle::BattleEngine;
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages,
+};
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::type_chart::TypeChart;
 use std::collections::HashMap;
@@ -36,6 +38,7 @@ fn create_creature(
         sp_attack: spa,
         sp_defense: spd,
         speed: spe,
+        weight_kg: 60.0,
     }
 }
 
@@ -75,21 +78,32 @@ fn test_contrary_self_debuff() {
 
     // Serperior with Contrary using Leaf Storm
     let serperior = create_creature(
-        "p1_serperior", "serperior", "Serperior", vec!["grass"],
-        Some("contrary"), vec!["leaf_storm"],
-        (100, 50, 50, 50, 50, 113)
+        "p1_serperior",
+        "serperior",
+        "Serperior",
+        vec!["grass"],
+        Some("contrary"),
+        vec!["leaf_storm"],
+        (100, 50, 50, 50, 50, 113),
     );
 
     let opponent = create_creature(
-        "p2_opp", "opponent", "Opponent", vec!["normal"],
-        None, vec!["tackle"],
-        (100, 50, 50, 50, 50, 90)
+        "p2_opp",
+        "opponent",
+        "Opponent",
+        vec!["normal"],
+        None,
+        vec!["tackle"],
+        (100, 50, 50, 50, 50, 90),
     );
 
     let state = create_battle(vec![serperior], vec![opponent]);
 
     // Check Leaf Storm data
-    assert!(engine.move_db.get("leaf_storm").is_some(), "Leaf Storm must exist");
+    assert!(
+        engine.move_db.get("leaf_storm").is_some(),
+        "Leaf Storm must exist"
+    );
 
     let actions = vec![
         Action {
@@ -107,17 +121,20 @@ fn test_contrary_self_debuff() {
             target_id: None,
             slot: None,
             priority: None,
-        }
+        },
     ];
 
     let mut rng = || 0.5;
     let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
 
     let serperior_after = &next_state.players[0].team[0];
-    
+
     // Leaf Storm usually lowers SpA by 2. Contrary should invert this to +2.
     println!("Serperior SpA Stage: {}", serperior_after.stages.spa);
-    assert_eq!(serperior_after.stages.spa, 2, "Contrary should turn -2 SpA into +2 SpA");
+    assert_eq!(
+        serperior_after.stages.spa, 2,
+        "Contrary should turn -2 SpA into +2 SpA"
+    );
 }
 
 #[test]
@@ -129,16 +146,24 @@ fn test_contrary_enemy_debuff() {
 
     // Inkay with Contrary
     let inkay = create_creature(
-        "p1_inkay", "inkay", "Inkay", vec!["dark", "psychic"],
-        Some("contrary"), vec!["tackle"],
-        (100, 50, 50, 50, 50, 45)
+        "p1_inkay",
+        "inkay",
+        "Inkay",
+        vec!["dark", "psychic"],
+        Some("contrary"),
+        vec!["tackle"],
+        (100, 50, 50, 50, 50, 45),
     );
 
     // Opponent with Metal Sound (lowers SpD by 2)
     let opponent = create_creature(
-        "p2_opp", "opponent", "Opponent", vec!["steel"],
-        None, vec!["metal_sound"],
-        (100, 50, 50, 50, 50, 90)
+        "p2_opp",
+        "opponent",
+        "Opponent",
+        vec!["steel"],
+        None,
+        vec!["metal_sound"],
+        (100, 50, 50, 50, 50, 90),
     );
 
     let state = create_battle(vec![inkay], vec![opponent]);
@@ -159,17 +184,20 @@ fn test_contrary_enemy_debuff() {
             target_id: None,
             slot: None,
             priority: None,
-        }
+        },
     ];
 
     let mut rng = || 0.5; // Hit
     let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
 
     let inkay_after = &next_state.players[0].team[0];
-    
+
     // Metal Sound lowers SpD by 2. Contrary should make it +2.
     println!("Inkay SpD Stage: {}", inkay_after.stages.spd);
-    assert_eq!(inkay_after.stages.spd, 2, "Contrary should turn -2 SpD into +2 SpD from enemy move");
+    assert_eq!(
+        inkay_after.stages.spd, 2,
+        "Contrary should turn -2 SpD into +2 SpD from enemy move"
+    );
 }
 
 #[test]
@@ -181,15 +209,23 @@ fn test_moody_turn_end() {
 
     // Bidoof with Moody
     let bidoof = create_creature(
-        "p1_bidoof", "bidoof", "Bidoof", vec!["normal"],
-        Some("moody"), vec!["tackle"],
-        (100, 50, 50, 50, 50, 50)
+        "p1_bidoof",
+        "bidoof",
+        "Bidoof",
+        vec!["normal"],
+        Some("moody"),
+        vec!["tackle"],
+        (100, 50, 50, 50, 50, 50),
     );
 
     let opponent = create_creature(
-        "p2_opp", "opponent", "Opponent", vec!["normal"],
-        None, vec!["tackle"],
-        (100, 50, 50, 50, 50, 50)
+        "p2_opp",
+        "opponent",
+        "Opponent",
+        vec!["normal"],
+        None,
+        vec!["tackle"],
+        (100, 50, 50, 50, 50, 50),
     );
 
     let state = create_battle(vec![bidoof], vec![opponent]);
@@ -210,7 +246,7 @@ fn test_moody_turn_end() {
             target_id: None,
             slot: None,
             priority: None,
-        }
+        },
     ];
 
     let mut rng_call_count = 0;
@@ -226,12 +262,15 @@ fn test_moody_turn_end() {
     let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
 
     let bidoof_after = &next_state.players[0].team[0];
-    
+
     // Atk should be +2, Def should be -1
-    println!("Bidoof Atk: {}, Def: {}", bidoof_after.stages.atk, bidoof_after.stages.def);
+    println!(
+        "Bidoof Atk: {}, Def: {}",
+        bidoof_after.stages.atk, bidoof_after.stages.def
+    );
     assert_eq!(bidoof_after.stages.atk, 2, "Moody should raise Atk by 2");
     assert_eq!(bidoof_after.stages.def, -1, "Moody should lower Def by 1");
-    
+
     let log_str = next_state.log.join("\n");
     println!("Log:\n{}", log_str);
 }

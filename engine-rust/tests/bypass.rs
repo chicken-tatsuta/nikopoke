@@ -1,5 +1,7 @@
 use engine_rust::core::battle::{BattleEngine, BattleOptions};
-use engine_rust::core::state::{Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status};
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages, Status,
+};
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use serde_json::{json, Map, Value};
@@ -35,6 +37,7 @@ fn make_creature(id: &str, name: &str, types: Vec<String>, moves: Vec<String>) -
         sp_attack: 50,
         sp_defense: 50,
         speed: 50,
+        weight_kg: 60.0,
     }
 }
 
@@ -101,14 +104,24 @@ fn bypass_protect_allows_damage() {
         crit_rate: None,
     });
 
-    let mut target = make_creature("c2", "Beta", vec!["normal".to_string()], vec!["poke".to_string()]);
+    let mut target = make_creature(
+        "c2",
+        "Beta",
+        vec!["normal".to_string()],
+        vec!["poke".to_string()],
+    );
     target.statuses.push(Status {
         id: "protect".to_string(),
         remaining_turns: Some(1),
         data: HashMap::new(),
     });
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
         target,
     );
 
@@ -169,14 +182,24 @@ fn protect_blocks_damage_without_bypass() {
         crit_rate: None,
     });
 
-    let mut target = make_creature("c2", "Beta", vec!["normal".to_string()], vec!["poke".to_string()]);
+    let mut target = make_creature(
+        "c2",
+        "Beta",
+        vec!["normal".to_string()],
+        vec!["poke".to_string()],
+    );
     target.statuses.push(Status {
         id: "protect".to_string(),
         remaining_turns: Some(1),
         data: HashMap::new(),
     });
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
         target,
     );
 
@@ -241,8 +264,18 @@ fn ignore_immunity_allows_damage() {
     });
 
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
-        make_creature("c2", "Ghosty", vec!["ghost".to_string()], vec!["poke".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
+        make_creature(
+            "c2",
+            "Ghosty",
+            vec!["ghost".to_string()],
+            vec!["poke".to_string()],
+        ),
     );
 
     let mut rng = || 0.0;
@@ -303,8 +336,18 @@ fn immunity_blocks_damage_without_ignore() {
     });
 
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
-        make_creature("c2", "Ghosty", vec!["ghost".to_string()], vec!["poke".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
+        make_creature(
+            "c2",
+            "Ghosty",
+            vec!["ghost".to_string()],
+            vec!["poke".to_string()],
+        ),
     );
 
     let mut rng = || 0.0;
@@ -364,14 +407,24 @@ fn substitute_blocks_damage_without_bypass() {
         crit_rate: None,
     });
 
-    let mut target = make_creature("c2", "Beta", vec!["normal".to_string()], vec!["poke".to_string()]);
+    let mut target = make_creature(
+        "c2",
+        "Beta",
+        vec!["normal".to_string()],
+        vec!["poke".to_string()],
+    );
     target.statuses.push(Status {
         id: "substitute".to_string(),
         remaining_turns: None,
         data: HashMap::new(),
     });
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
         target,
     );
 
@@ -432,14 +485,24 @@ fn bypass_substitute_allows_damage_by_tag() {
         crit_rate: None,
     });
 
-    let mut target = make_creature("c2", "Beta", vec!["normal".to_string()], vec!["poke".to_string()]);
+    let mut target = make_creature(
+        "c2",
+        "Beta",
+        vec!["normal".to_string()],
+        vec!["poke".to_string()],
+    );
     target.statuses.push(Status {
         id: "substitute".to_string(),
         remaining_turns: None,
         data: HashMap::new(),
     });
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
         target,
     );
 
@@ -503,14 +566,24 @@ fn ignore_substitute_allows_damage_by_effect() {
         crit_rate: None,
     });
 
-    let mut target = make_creature("c2", "Beta", vec!["normal".to_string()], vec!["poke".to_string()]);
+    let mut target = make_creature(
+        "c2",
+        "Beta",
+        vec!["normal".to_string()],
+        vec!["poke".to_string()],
+    );
     target.statuses.push(Status {
         id: "substitute".to_string(),
         remaining_turns: None,
         data: HashMap::new(),
     });
     let state = make_state(
-        make_creature("c1", "Alpha", vec!["normal".to_string()], vec!["hit".to_string()]),
+        make_creature(
+            "c1",
+            "Alpha",
+            vec!["normal".to_string()],
+            vec!["hit".to_string()],
+        ),
         target,
     );
 

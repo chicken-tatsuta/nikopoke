@@ -46,7 +46,11 @@ fn opponent_id(state: &BattleState, player_id: &str) -> Option<String> {
         .map(|p| p.id.clone())
 }
 
-fn move_has_pp(active: &crate::core::state::CreatureState, move_id: &str, move_db: &MoveDatabase) -> bool {
+fn move_has_pp(
+    active: &crate::core::state::CreatureState,
+    move_id: &str,
+    move_db: &MoveDatabase,
+) -> bool {
     let Some(move_data) = move_db.get(move_id) else {
         return false;
     };
@@ -114,7 +118,11 @@ fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
     }
 }
 
-pub fn get_best_move_mcts(state: &BattleState, player_id: &str, _iterations: usize) -> Option<Action> {
+pub fn get_best_move_mcts(
+    state: &BattleState,
+    player_id: &str,
+    _iterations: usize,
+) -> Option<Action> {
     let actions = available_actions(state, player_id);
     if actions.is_empty() {
         return None;
@@ -144,7 +152,9 @@ pub fn get_best_move_mcts(state: &BattleState, player_id: &str, _iterations: usi
                 &sim_state,
                 &[action.clone(), opp_action],
                 &mut step_rng,
-                BattleOptions { record_history: false },
+                BattleOptions {
+                    record_history: false,
+                },
             );
 
             for _ in 0..rollout_depth {
@@ -163,7 +173,9 @@ pub fn get_best_move_mcts(state: &BattleState, player_id: &str, _iterations: usi
                     &sim_state,
                     &[my_action, opp_action],
                     &mut step_rng,
-                    BattleOptions { record_history: false },
+                    BattleOptions {
+                        record_history: false,
+                    },
                 );
             }
             total_score += evaluate_state(&sim_state, player_id);

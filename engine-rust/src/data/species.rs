@@ -21,6 +21,8 @@ pub struct SpeciesData {
     pub base_stats: BaseStats,
     #[serde(default)]
     pub abilities: Vec<String>,
+    #[serde(default, rename = "weight_kg")]
+    pub weight_kg: f64,
 }
 
 #[derive(Clone, Debug, Default)]

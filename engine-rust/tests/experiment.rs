@@ -1,5 +1,7 @@
-use engine_rust::core::state::{BattleState, PlayerState, CreatureState, StatStages, Action, ActionType, FieldState};
 use engine_rust::core::battle::BattleEngine;
+use engine_rust::core::state::{
+    Action, ActionType, BattleState, CreatureState, FieldState, PlayerState, StatStages,
+};
 use engine_rust::data::moves::MoveDatabase;
 use engine_rust::data::type_chart::TypeChart;
 use std::collections::HashMap;
@@ -36,6 +38,7 @@ fn create_creature(
         sp_attack: spa,
         sp_defense: spd,
         speed: spe,
+        weight_kg: 60.0,
     }
 }
 
@@ -74,19 +77,27 @@ fn test_lightning_rod_immunity() {
     let engine = BattleEngine::new(move_db, type_chart);
 
     let pikachu = create_creature(
-        "p1_pikachu", "pikachu", "Pikachu", vec!["electric"],
-        Some("lightning_rod"), vec!["tackle"],
-        (100, 55, 40, 50, 50, 90)
+        "p1_pikachu",
+        "pikachu",
+        "Pikachu",
+        vec!["electric"],
+        Some("lightning_rod"),
+        vec!["tackle"],
+        (100, 55, 40, 50, 50, 90),
     );
 
     let opponent = create_creature(
-        "p2_opp", "opponent", "Opponent", vec!["normal"],
-        None, vec!["thunderbolt"],
-        (100, 50, 50, 50, 50, 90)
+        "p2_opp",
+        "opponent",
+        "Opponent",
+        vec!["normal"],
+        None,
+        vec!["thunderbolt"],
+        (100, 50, 50, 50, 50, 90),
     );
 
     let state = create_battle(vec![pikachu], vec![opponent]);
-    
+
     // P2 uses Thunderbolt on P1
     let actions = vec![
         Action {
@@ -97,63 +108,75 @@ fn test_lightning_rod_immunity() {
             slot: None,
             priority: None,
         },
-                Action {
-                    player_id: "p1".to_string(),
-                    action_type: ActionType::Move, // Use Move but with no move (effectively pass/struggle/wait)
-                    move_id: None,
-                    target_id: None,
-                    slot: None,
-                    priority: None,
-                }
-            ];
-        
-            let mut rng = || 0.5;
-            let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
-        
-            // Verify Pikachu took no damage (HP still 100)
-            let pikachu_after = &next_state.players[0].team[0];
-            assert_eq!(pikachu_after.hp, 100, "Pikachu should take no damage due to Lightning Rod");
-        
-            // Verify Special Attack raised
-            assert_eq!(pikachu_after.stages.spa, 1, "Pikachu SpA should raise by 1");
-            
-            // Verify Log
-            let log_str = next_state.log.join("\n");
-            assert!(log_str.contains("drew in the electricity") || log_str.contains("電気の技を 吸い取った"), "Log should mention Lightning Rod");
-        }
-        
-        #[test]
-        fn test_thick_fat_resistance() {
-            let path = Path::new("data/moves.yaml");
-            let move_db = MoveDatabase::load_from_yaml_file(path).expect("load moves.yaml");
-            let type_chart = TypeChart::new();
-            let engine = BattleEngine::new(move_db, type_chart);
-        
-            // Snorlax with Thick Fat
-            let snorlax = create_creature(
-                "p1_snorlax", "snorlax", "Snorlax", vec!["normal"], 
-                Some("thick_fat"), vec!["tackle"], 
-                (200, 110, 65, 65, 110, 30)
-            );
-        
-            // Opponent with Flame Wheel (fire)
-            let opponent = create_creature(
-                "p2_opp", "opponent", "Opponent", vec!["fire"], 
-                None, vec!["flame_wheel"], 
-                (100, 50, 50, 50, 50, 90)
-            );
-        
-            let state = create_battle(vec![snorlax], vec![opponent.clone()]);
-    let actions = vec![
         Action {
-            player_id: "p2".to_string(),
-            action_type: ActionType::Move,
-            move_id: Some("flame_wheel".to_string()),
-            target_id: Some("p1".to_string()),
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move, // Use Move but with no move (effectively pass/struggle/wait)
+            move_id: None,
+            target_id: None,
             slot: None,
             priority: None,
-        }
+        },
     ];
+
+    let mut rng = || 0.5;
+    let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
+
+    // Verify Pikachu took no damage (HP still 100)
+    let pikachu_after = &next_state.players[0].team[0];
+    assert_eq!(
+        pikachu_after.hp, 100,
+        "Pikachu should take no damage due to Lightning Rod"
+    );
+
+    // Verify Special Attack raised
+    assert_eq!(pikachu_after.stages.spa, 1, "Pikachu SpA should raise by 1");
+
+    // Verify Log
+    let log_str = next_state.log.join("\n");
+    assert!(
+        log_str.contains("drew in the electricity") || log_str.contains("電気の技を 吸い取った"),
+        "Log should mention Lightning Rod"
+    );
+}
+
+#[test]
+fn test_thick_fat_resistance() {
+    let path = Path::new("data/moves.yaml");
+    let move_db = MoveDatabase::load_from_yaml_file(path).expect("load moves.yaml");
+    let type_chart = TypeChart::new();
+    let engine = BattleEngine::new(move_db, type_chart);
+
+    // Snorlax with Thick Fat
+    let snorlax = create_creature(
+        "p1_snorlax",
+        "snorlax",
+        "Snorlax",
+        vec!["normal"],
+        Some("thick_fat"),
+        vec!["tackle"],
+        (200, 110, 65, 65, 110, 30),
+    );
+
+    // Opponent with Flame Wheel (fire)
+    let opponent = create_creature(
+        "p2_opp",
+        "opponent",
+        "Opponent",
+        vec!["fire"],
+        None,
+        vec!["flame_wheel"],
+        (100, 50, 50, 50, 50, 90),
+    );
+
+    let state = create_battle(vec![snorlax], vec![opponent.clone()]);
+    let actions = vec![Action {
+        player_id: "p2".to_string(),
+        action_type: ActionType::Move,
+        move_id: Some("flame_wheel".to_string()),
+        target_id: Some("p1".to_string()),
+        slot: None,
+        priority: None,
+    }];
 
     let mut rng = || 0.5; // Average roll
     let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
@@ -163,17 +186,31 @@ fn test_lightning_rod_immunity() {
 
     // Control: Snorlax WITHOUT Thick Fat
     let snorlax_no_ability = create_creature(
-        "p1_snorlax_no", "snorlax", "Snorlax", vec!["normal"],
-        None, vec!["tackle"],
-        (200, 110, 65, 65, 110, 30)
+        "p1_snorlax_no",
+        "snorlax",
+        "Snorlax",
+        vec!["normal"],
+        None,
+        vec!["tackle"],
+        (200, 110, 65, 65, 110, 30),
     );
     let state_control = create_battle(vec![snorlax_no_ability], vec![opponent.clone()]);
-    let next_state_control = engine.step_battle(&state_control, &actions, &mut rng, Default::default());
+    let next_state_control =
+        engine.step_battle(&state_control, &actions, &mut rng, Default::default());
     let snorlax_hp_control = next_state_control.players[0].team[0].hp;
     let damage_control = 200 - snorlax_hp_control;
 
-    assert!(damage_thick_fat > 0, "Should deal damage. Snorlax HP: {}", snorlax_hp);
-    assert!(damage_thick_fat < damage_control, "Thick Fat should reduce fire damage. With: {}, Without: {}", damage_thick_fat, damage_control);
+    assert!(
+        damage_thick_fat > 0,
+        "Should deal damage. Snorlax HP: {}",
+        snorlax_hp
+    );
+    assert!(
+        damage_thick_fat < damage_control,
+        "Thick Fat should reduce fire damage. With: {}, Without: {}",
+        damage_thick_fat,
+        damage_control
+    );
 }
 
 #[test]
@@ -185,16 +222,24 @@ fn test_prankster_priority() {
 
     // Murkrow with Prankster (Speed 91)
     let murkrow = create_creature(
-        "p1_murkrow", "murkrow", "Murkrow", vec!["dark", "flying"], 
-        Some("prankster"), vec!["swagger"], 
-        (100, 85, 42, 85, 42, 91)
+        "p1_murkrow",
+        "murkrow",
+        "Murkrow",
+        vec!["dark", "flying"],
+        Some("prankster"),
+        vec!["swagger"],
+        (100, 85, 42, 85, 42, 91),
     );
 
     // Opponent with higher speed (Speed 120)
     let opponent = create_creature(
-        "p2_fast", "fastmon", "FastMon", vec!["normal"], 
-        None, vec!["tackle"], 
-        (100, 50, 50, 50, 50, 120)
+        "p2_fast",
+        "fastmon",
+        "FastMon",
+        vec!["normal"],
+        None,
+        vec!["tackle"],
+        (100, 50, 50, 50, 50, 120),
     );
 
     let state = create_battle(vec![murkrow], vec![opponent]);
@@ -216,42 +261,49 @@ fn test_prankster_priority() {
             target_id: Some("p1".to_string()),
             slot: None,
             priority: None,
-        }
+        },
     ];
 
     // Force RNG to 0.0.
     // 1. Prankster priority calc (maybe consumes RNG? No, run_ability_value_hook doesn't usually)
     // 2. Murkrow uses Swagger. Hit check: 0.0 < 0.85. Hit.
     // 3. FastMon turn. Confusion check: 0.0 < 0.33 (approx). Self-hit.
-    let mut rng = || 0.0; 
+    let mut rng = || 0.0;
     let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
 
     // Check log.
     let log_str = next_state.log.join("\n");
-    
+
     // Murkrow should move first and apply confusion.
     // Then FastMon tries to move, but hits itself due to confusion (rng 0.0).
     // If FastMon went first, it would NOT be confused yet, so it would use Tackle successfully.
-    
+
     // If FastMon hit itself, log should contain "confusion" related message.
     // "It hurt itself in its confusion!" (or Japanese equivalent)
     // And it should NOT contain "FastMon used Tackle" (because self-hit prevents move).
 
     println!("Log:\n{}", log_str);
 
-    let self_hit = log_str.contains("hurt itself in its confusion") || log_str.contains("わけもわからず") || log_str.contains("自分を 攻撃した"); 
-    
+    let self_hit = log_str.contains("hurt itself in its confusion")
+        || log_str.contains("わけもわからず")
+        || log_str.contains("自分を 攻撃した");
+
     // Check for "confused" message first. "FastMon became confused!" or similar might be missing as we discovered.
     // But the self-hit message should be there.
 
-    // If I don't know the exact message, checking that Tackle DID NOT happen is a good proxy, 
+    // If I don't know the exact message, checking that Tackle DID NOT happen is a good proxy,
     // coupled with the fact that Murkrow's Swagger MUST have hit to cause confusion.
-    
-    let tackle_used = log_str.contains("used Tackle") || log_str.contains("たいあたり！") || log_str.contains("たいあたり ！");
-    
+
+    let tackle_used = log_str.contains("used Tackle")
+        || log_str.contains("たいあたり！")
+        || log_str.contains("たいあたり ！");
+
     // Also check that Opponent has Attack +2 (Swagger effect).
     let opp_stats = &next_state.players[1].team[0].stages;
-    assert_eq!(opp_stats.atk, 2, "Opponent Attack should be +2 from Swagger");
+    assert_eq!(
+        opp_stats.atk, 2,
+        "Opponent Attack should be +2 from Swagger"
+    );
 
     // If Tackle was used, it means FastMon went first OR confusion didn't trigger self-hit.
     // Since we forced rng=0.0, confusion SHOULD trigger self-hit IF it exists.
@@ -267,29 +319,35 @@ fn test_skill_link_multi_hit() {
 
     // Cinccino with Skill Link
     let cinccino = create_creature(
-        "p1_cinccino", "cinccino", "Cinccino", vec!["normal"],
-        Some("skill_link"), vec!["fury_attack"],
-        (100, 95, 60, 65, 60, 115)
+        "p1_cinccino",
+        "cinccino",
+        "Cinccino",
+        vec!["normal"],
+        Some("skill_link"),
+        vec!["fury_attack"],
+        (100, 95, 60, 65, 60, 115),
     );
 
     let opponent = create_creature(
-        "p2_opp", "opponent", "Opponent", vec!["normal"],
-        None, vec!["tackle"],
-        (200, 100, 100, 100, 100, 100)
+        "p2_opp",
+        "opponent",
+        "Opponent",
+        vec!["normal"],
+        None,
+        vec!["tackle"],
+        (200, 100, 100, 100, 100, 100),
     );
 
     let state = create_battle(vec![cinccino], vec![opponent]);
 
-    let actions = vec![
-        Action {
-            player_id: "p1".to_string(),
-            action_type: ActionType::Move,
-            move_id: Some("fury_attack".to_string()),
-            target_id: Some("p2".to_string()),
-            slot: None,
-            priority: None,
-        }
-    ];
+    let actions = vec![Action {
+        player_id: "p1".to_string(),
+        action_type: ActionType::Move,
+        move_id: Some("fury_attack".to_string()),
+        target_id: Some("p2".to_string()),
+        slot: None,
+        priority: None,
+    }];
 
     let mut rng = || 0.0; // Usually low roll => low hits
     let next_state = engine.step_battle(&state, &actions, &mut rng, Default::default());
@@ -297,6 +355,10 @@ fn test_skill_link_multi_hit() {
     let log_str = next_state.log.join("\n");
     // Count how many "hit" messages or damage events.
     // The log usually says "Hit 5 time(s)".
-    
-    assert!(log_str.contains("Hit 5 time(s)") || log_str.contains("5回 あたった"), "Skill Link should ensure 5 hits. Log: {}", log_str);
+
+    assert!(
+        log_str.contains("Hit 5 time(s)") || log_str.contains("5回 あたった"),
+        "Skill Link should ensure 5 hits. Log: {}",
+        log_str
+    );
 }

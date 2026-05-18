@@ -156,6 +156,7 @@ impl CreatureBuilder {
             sp_attack: self.sp_attack,
             sp_defense: self.sp_defense,
             speed: self.speed,
+            weight_kg: 50.0,
         }
     }
 }
