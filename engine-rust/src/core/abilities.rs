@@ -50,6 +50,7 @@ pub fn ability_label(ability: &str) -> &str {
         "magic_bounce" => "マジックミラー",
         "aroma_veil" => "アロマベール",
         "lightning_rod" => "ひらいしん",
+        "static" => "せいでんき",
         "soundproof" => "ぼうおん",
         "stamina" => "じきゅうりょく",
         "cotton_down" => "わたげ",
@@ -565,6 +566,7 @@ pub fn apply_ability_event_modifiers(
     state: &BattleState,
     events: &[BattleEvent],
     move_db: &std::collections::HashMap<String, MoveData>,
+    rng: &mut dyn FnMut() -> f64,
 ) -> Vec<BattleEvent> {
     let mut output = Vec::new();
     for event in events {
@@ -632,6 +634,9 @@ pub fn apply_ability_event_modifiers(
                             "opportunist" => {
                                 after_opportunist(&processed, &player.id, &active.name)
                             }
+                            "static" => {
+                                after_static(&processed, &player.id, &active.name, move_db, rng)
+                            }
                             _ => Vec::new(),
                         };
                         output.extend(reactions);
@@ -653,6 +658,16 @@ pub fn get_weather(state: &BattleState) -> Option<WeatherKind> {
     })
 }
 
+pub fn get_terrain_id(state: &BattleState) -> Option<&str> {
+    state
+        .field
+        .global
+        .iter()
+        .rev()
+        .find(|effect| is_terrain_id(&effect.id))
+        .map(|effect| effect.id.as_str())
+}
+
 fn set_weather(state: &BattleState, weather: WeatherKind, turns: Option<i32>) -> BattleState {
     let mut next = state.clone();
     next.field.global.retain(|e| !is_weather_id(&e.id));
@@ -672,6 +687,13 @@ fn set_weather(state: &BattleState, weather: WeatherKind, turns: Option<i32>) ->
 
 pub fn is_weather_id(id: &str) -> bool {
     matches!(id, "sun" | "rain" | "sandstorm" | "snow")
+}
+
+pub fn is_terrain_id(id: &str) -> bool {
+    matches!(
+        id,
+        "electric_terrain" | "grassy_terrain" | "misty_terrain" | "psychic_terrain"
+    )
 }
 
 fn mark_ability_used(state: &BattleState, player_id: &str, key: &str) -> BattleState {
@@ -969,6 +991,57 @@ fn after_cotton_down(
         }
         _ => Vec::new(),
     }
+}
+
+fn after_static(
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+    move_db: &HashMap<String, MoveData>,
+    rng: &mut dyn FnMut() -> f64,
+) -> Vec<BattleEvent> {
+    let BattleEvent::Damage {
+        target_id, amount, ..
+    } = event
+    else {
+        return Vec::new();
+    };
+    if target_id != player_id || *amount <= 0 {
+        return Vec::new();
+    }
+    let Some(source_id) = event_meta_source(event) else {
+        return Vec::new();
+    };
+    if source_id == player_id {
+        return Vec::new();
+    }
+    let Some(move_id) = event_meta_move_id(event) else {
+        return Vec::new();
+    };
+    let Some(move_data) = move_db.get(&move_id) else {
+        return Vec::new();
+    };
+    if !move_data.tags.iter().any(|tag| tag == "contact") {
+        return Vec::new();
+    }
+    if rng() >= 0.3 {
+        return Vec::new();
+    }
+
+    vec![
+        BattleEvent::Log {
+            message: format!("{}の 特性『{}』！", creature_name, ability_label("static")),
+            meta: Map::new(),
+        },
+        BattleEvent::ApplyStatus {
+            target_id: source_id,
+            status_id: "paralysis".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    ]
 }
 
 fn after_berserk(

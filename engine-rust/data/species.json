@@ -380,7 +380,7 @@
   "touma": {
     "abilities": [
       "unburden",
-      "lightning_rod"
+      "static"
     ],
     "baseStats": {
       "atk": 120,

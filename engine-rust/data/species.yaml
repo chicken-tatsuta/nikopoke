@@ -307,7 +307,7 @@ tomoki:
 touma:
   abilities:
     - unburden
-    - lightning_rod
+    - static
   baseStats:
     atk: 120
     def: 70

@@ -1,6 +1,7 @@
 use crate::core::abilities::{
-    apply_ability_event_modifiers, get_weather, run_ability_check_hook, run_ability_hooks,
-    run_ability_value_hook, AbilityCheckContext, AbilityHookContext, AbilityValueContext,
+    apply_ability_event_modifiers, get_terrain_id, get_weather, run_ability_check_hook,
+    run_ability_hooks, run_ability_value_hook, AbilityCheckContext, AbilityHookContext,
+    AbilityValueContext,
 };
 use crate::core::effects::{apply_effects, apply_events, has_item, EffectContext};
 use crate::core::events::{apply_event, event_type, BattleEvent, EventTransform};
@@ -186,11 +187,7 @@ impl BattleEngine {
                 );
                 if move_data
                     .is_some_and(|m| matches!(m.id.as_str(), "grassy_glide" | "grass_slider"))
-                    && next
-                        .field
-                        .global
-                        .iter()
-                        .any(|effect| effect.id == "grassy_terrain")
+                    && get_terrain_id(&next) == Some("grassy_terrain")
                     && get_active_creature(&next, &action.player_id)
                         .is_some_and(is_grounded_for_field)
                 {
@@ -646,7 +643,12 @@ impl BattleEngine {
 
             let mut events = apply_effects(&next, &move_data.steps, &mut effect_ctx);
 
-            events = apply_ability_event_modifiers(&next, &events, self.move_db.as_map());
+            events = apply_ability_event_modifiers(
+                &next,
+                &events,
+                self.move_db.as_map(),
+                &mut rng_recorder,
+            );
 
             let transforms = collect_event_transforms(&next, &mut rng_recorder, &self.type_chart);
             events = apply_event_transforms(&events, &transforms);
@@ -1251,11 +1253,7 @@ fn can_be_poisoned_by_toxic_spikes(
     active: &crate::core::state::CreatureState,
 ) -> bool {
     !active.types.iter().any(|t| t == "poison" || t == "steel")
-        && !state
-            .field
-            .global
-            .iter()
-            .any(|effect| effect.id == "misty_terrain")
+        && get_terrain_id(state) != Some("misty_terrain")
 }
 
 #[derive(Clone, Debug)]
@@ -1924,7 +1922,8 @@ fn expand_random_moves(
                     switch_slot: None,
                 };
                 let mut sub_events = apply_effects(state, &chosen_move.steps, &mut effect_ctx);
-                sub_events = apply_ability_event_modifiers(state, &sub_events, move_db.as_map());
+                sub_events =
+                    apply_ability_event_modifiers(state, &sub_events, move_db.as_map(), rng);
                 let transforms = collect_event_transforms(state, rng, type_chart);
                 sub_events = apply_event_transforms(&sub_events, &transforms);
                 expanded.extend(sub_events);

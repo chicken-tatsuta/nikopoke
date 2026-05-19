@@ -141,6 +141,229 @@ fn test_apply_status_existing() {
 }
 
 #[test]
+fn non_major_status_can_coexist_with_major_status() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "taunt".to_string(),
+        remaining_turns: Some(3),
+        data: HashMap::new(),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "burn".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    let statuses = &next_state.players[0].team[0].statuses;
+    assert!(statuses.iter().any(|status| status.id == "taunt"));
+    assert!(statuses.iter().any(|status| status.id == "burn"));
+}
+
+#[test]
+fn confusion_can_coexist_with_major_status() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "burn".to_string(),
+        remaining_turns: None,
+        data: HashMap::new(),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "confusion".to_string(),
+            duration: Some(3),
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    let statuses = &next_state.players[0].team[0].statuses;
+    assert!(statuses.iter().any(|status| status.id == "burn"));
+    assert!(statuses.iter().any(|status| status.id == "confusion"));
+}
+
+#[test]
+fn duplicate_check_only_applies_to_major_statuses() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "taunt".to_string(),
+        remaining_turns: Some(3),
+        data: HashMap::new(),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "taunt".to_string(),
+            duration: Some(3),
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    assert_eq!(
+        next_state.players[0].team[0]
+            .statuses
+            .iter()
+            .filter(|status| status.id == "taunt")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn major_statuses_remain_mutually_exclusive() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "paralysis".to_string(),
+        remaining_turns: None,
+        data: HashMap::new(),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "burn".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    let statuses = &next_state.players[0].team[0].statuses;
+    assert!(statuses.iter().any(|status| status.id == "paralysis"));
+    assert!(!statuses.iter().any(|status| status.id == "burn"));
+}
+
+#[test]
+fn yawn_does_not_apply_to_target_with_major_status() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "sleep".to_string(),
+        remaining_turns: Some(2),
+        data: HashMap::new(),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "yawn".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    let statuses = &next_state.players[0].team[0].statuses;
+    assert!(statuses.iter().any(|status| status.id == "sleep"));
+    assert!(!statuses.iter().any(|status| status.id == "yawn"));
+}
+
+#[test]
+fn major_status_replaces_pending_yawn() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "yawn".to_string(),
+        remaining_turns: None,
+        data: HashMap::from([("turns".to_string(), Value::Number(1.into()))]),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "burn".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    let statuses = &next_state.players[0].team[0].statuses;
+    assert!(statuses.iter().any(|status| status.id == "burn"));
+    assert!(!statuses.iter().any(|status| status.id == "yawn"));
+}
+
+#[test]
+fn duplicate_yawn_is_not_stacked() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "yawn".to_string(),
+        remaining_turns: None,
+        data: HashMap::from([("turns".to_string(), Value::Number(1.into()))]),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "yawn".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    assert_eq!(
+        next_state.players[0].team[0]
+            .statuses
+            .iter()
+            .filter(|status| status.id == "yawn")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn duplicate_minimize_is_not_stacked() {
+    let mut state = create_test_state();
+    state.players[0].team[0].statuses.push(Status {
+        id: "minimize".to_string(),
+        remaining_turns: None,
+        data: HashMap::new(),
+    });
+
+    let next_state = apply_event(
+        &state,
+        &BattleEvent::ApplyStatus {
+            target_id: "p1".to_string(),
+            status_id: "minimize".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    assert_eq!(
+        next_state.players[0].team[0]
+            .statuses
+            .iter()
+            .filter(|status| status.id == "minimize")
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn test_replace_status_missing_from() {
     let state = create_test_state();
     // No status initially

@@ -1,3 +1,4 @@
+use crate::core::abilities::is_terrain_id;
 use crate::core::effects::{apply_effects, apply_events};
 use crate::core::events::{BattleEvent, EventTransform};
 use crate::core::state::{Action, BattleState, Status};
@@ -84,7 +85,15 @@ pub fn run_field_hooks(
     let mut events = Vec::new();
     let mut event_transforms = Vec::new();
 
-    for effect in &state.field.global {
+    let active_terrain_index = state
+        .field
+        .global
+        .iter()
+        .rposition(|effect| is_terrain_id(&effect.id));
+    for (index, effect) in state.field.global.iter().enumerate() {
+        if is_terrain_id(&effect.id) && Some(index) != active_terrain_index {
+            continue;
+        }
         let result = match_field_effect(
             &working_state,
             hook,
@@ -1388,48 +1397,20 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
 
             // Apply confusion if needed (from expiring lock_move with confuseOnEnd)
             if apply_confusion && active.hp > 0 {
-                // Major status effects are mutually exclusive in Nikimon battle rules.
-                if !active
-                    .statuses
-                    .iter()
-                    .any(|s| is_exclusive_major_status(&s.id))
-                {
-                    let rng_data = HashMap::new();
-                    // Duration 2-4 turns (pseudo-random based on turn number)
-                    let duration = 2 + ((state.turn % 3) as i32);
-                    active.statuses.push(Status {
-                        id: "confusion".to_string(),
-                        remaining_turns: Some(duration),
-                        data: rng_data,
-                    });
-                    next.log
-                        .push(format!("{}は 混乱してしまった！", active.name));
-                } else {
-                    next.log.push("しかしうまく決まらなかった！".to_string());
-                }
+                let rng_data = HashMap::new();
+                // Duration 2-4 turns (pseudo-random based on turn number)
+                let duration = 2 + ((state.turn % 3) as i32);
+                active.statuses.push(Status {
+                    id: "confusion".to_string(),
+                    remaining_turns: Some(duration),
+                    data: rng_data,
+                });
+                next.log
+                    .push(format!("{}は 混乱してしまった！", active.name));
             }
         }
     }
     next
-}
-
-fn is_exclusive_major_status(status_id: &str) -> bool {
-    matches!(
-        status_id,
-        "burn"
-            | "poison"
-            | "toxic"
-            | "badly_poison"
-            | "badly_poisoned"
-            | "paralysis"
-            | "paralyzed"
-            | "freeze"
-            | "frozen"
-            | "sleep"
-            | "asleep"
-            | "confusion"
-            | "confused"
-    )
 }
 
 pub fn tick_field_effects(state: &BattleState) -> BattleState {
@@ -1442,6 +1423,19 @@ pub fn tick_field_effects(state: &BattleState) -> BattleState {
     next.field
         .global
         .retain(|e| e.remaining_turns.map(|t| t > 0).unwrap_or(true));
+    if let Some(active_terrain_index) = next
+        .field
+        .global
+        .iter()
+        .rposition(|effect| is_terrain_id(&effect.id))
+    {
+        let mut index = 0;
+        next.field.global.retain(|effect| {
+            let keep = !is_terrain_id(&effect.id) || index == active_terrain_index;
+            index += 1;
+            keep
+        });
+    }
     for effects in next.field.sides.values_mut() {
         for effect in effects.iter_mut() {
             if let Some(turns) = effect.remaining_turns {

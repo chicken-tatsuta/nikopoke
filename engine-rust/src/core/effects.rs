@@ -1,9 +1,9 @@
 use crate::core::abilities::{
-    run_ability_check_hook, run_ability_value_hook, AbilityCheckContext, AbilityValueContext,
-    WeatherKind,
+    get_terrain_id, run_ability_check_hook, run_ability_value_hook, AbilityCheckContext,
+    AbilityValueContext, WeatherKind,
 };
 use crate::core::events::{apply_event, meta_with_move_source, BattleEvent};
-use crate::core::state::BattleState;
+use crate::core::state::{BattleState, CreatureState};
 use crate::core::utils::{get_active_creature, stage_multiplier};
 use crate::data::moves::{Effect, MoveData};
 use crate::data::type_chart::TypeChart;
@@ -408,27 +408,7 @@ fn apply_damage(
             }
         }
     }
-    if attacker.statuses.iter().any(|status| {
-        status.id == "lock_on"
-            && status.data.get("targetId").and_then(|v| v.as_str()) == Some(target_id.as_str())
-    }) {
-        accuracy = 1.0;
-    }
-    let move_category = get_move_category(ctx.move_data);
-    accuracy = run_ability_value_hook(
-        state,
-        &ctx.attacker_player_id,
-        "onModifyAccuracy",
-        accuracy as f32,
-        AbilityValueContext {
-            move_data: ctx.move_data,
-            category: move_category.as_deref(),
-            target: Some(target),
-            weather: None,
-            turn: ctx.turn,
-            stages: None,
-        },
-    ) as f64;
+    accuracy = modified_accuracy(state, ctx, attacker, target, &target_id, accuracy, false);
 
     if (ctx.rng)() > accuracy {
         return vec![BattleEvent::Log {
@@ -533,6 +513,7 @@ fn apply_damage(
         ctx.move_data.map(|m| m.id.as_str()),
         Some(&ctx.attacker_player_id),
     );
+    let move_category = get_move_category(ctx.move_data);
     meta.insert("target".to_string(), Value::String(target_id.clone()));
     meta.insert("cancellable".to_string(), Value::Bool(true));
     if let Some(category) = move_category.as_deref() {
@@ -656,6 +637,61 @@ fn apply_crash_if_no_damage(
     ]
 }
 
+fn modified_accuracy(
+    state: &BattleState,
+    ctx: &EffectContext<'_>,
+    attacker: &CreatureState,
+    target: &CreatureState,
+    target_id: &str,
+    accuracy: f64,
+    force_hit: bool,
+) -> f64 {
+    let move_category = get_move_category(ctx.move_data);
+    let mut accuracy = run_ability_value_hook(
+        state,
+        &ctx.attacker_player_id,
+        "onModifyAccuracy",
+        accuracy as f32,
+        AbilityValueContext {
+            move_data: ctx.move_data,
+            category: move_category.as_deref(),
+            target: Some(target),
+            weather: None,
+            turn: ctx.turn,
+            stages: None,
+        },
+    ) as f64;
+    accuracy *= accuracy_stage_multiplier(attacker, target);
+
+    if force_hit || move_always_hits(ctx) || lock_on_applies(attacker, target_id) {
+        1.0
+    } else {
+        accuracy.clamp(0.0, 1.0)
+    }
+}
+
+fn accuracy_stage_multiplier(attacker: &CreatureState, target: &CreatureState) -> f64 {
+    let accuracy = stage_multiplier(attacker.stages.accuracy) as f64;
+    let evasion = stage_multiplier(target.stages.evasion) as f64;
+    accuracy / evasion.max(f64::EPSILON)
+}
+
+fn lock_on_applies(attacker: &CreatureState, target_id: &str) -> bool {
+    attacker.statuses.iter().any(|status| {
+        status.id == "lock_on"
+            && status.data.get("targetId").and_then(|v| v.as_str()) == Some(target_id)
+    })
+}
+
+fn move_always_hits(ctx: &EffectContext<'_>) -> bool {
+    ctx.move_data.is_some_and(|move_data| {
+        move_data
+            .tags
+            .iter()
+            .any(|tag| matches!(tag.as_str(), "always_hit" | "always-hit"))
+    })
+}
+
 fn positive_stage_total(creature: &crate::core::state::CreatureState) -> i32 {
     [
         creature.stages.atk,
@@ -759,11 +795,16 @@ fn apply_status(
             })
             .or_else(|| value_f64(effect.data.get("chance"), state, ctx))
             .unwrap_or(1.0);
-        if status_id == "toxic"
+        let force_hit = status_id == "toxic"
             && get_active_creature(state, &ctx.attacker_player_id)
-                .is_some_and(|attacker| attacker.types.iter().any(|t| t == "poison"))
-        {
-            accuracy = 1.0;
+                .is_some_and(|attacker| attacker.types.iter().any(|t| t == "poison"));
+        if let (Some(attacker), Some(target)) = (
+            get_active_creature(state, &ctx.attacker_player_id),
+            get_active_creature(state, &target_id),
+        ) {
+            accuracy = modified_accuracy(
+                state, ctx, attacker, target, &target_id, accuracy, force_hit,
+            );
         }
         if (ctx.rng)() > accuracy {
             return vec![BattleEvent::Log {
@@ -2230,33 +2271,15 @@ fn apply_ohko(
         accuracy += (attacker.level as f64 - target.level as f64) / 100.0;
     }
     accuracy = accuracy.clamp(0.0, 1.0);
-
-    let move_category = get_move_category(ctx.move_data);
-    let accuracy = run_ability_value_hook(
+    let accuracy = modified_accuracy(
         state,
-        &ctx.attacker_player_id,
-        "onModifyAccuracy",
-        accuracy as f32,
-        AbilityValueContext {
-            move_data: ctx.move_data,
-            category: move_category.as_deref(),
-            target: Some(target),
-            weather: None,
-            turn: ctx.turn,
-            stages: None,
-        },
-    ) as f64;
-
-    let lock_on_applies = attacker.statuses.iter().any(|status| {
-        status.id == "lock_on"
-            && status
-                .data
-                .get("targetId")
-                .and_then(|v| v.as_str())
-                .map(|target| target == ctx.target_player_id.as_str())
-                .unwrap_or(false)
-    });
-    let accuracy = if lock_on_applies { 1.0 } else { accuracy };
+        ctx,
+        attacker,
+        target,
+        &ctx.target_player_id,
+        accuracy,
+        false,
+    );
 
     if (ctx.rng)() > accuracy {
         return vec![BattleEvent::Log {
@@ -2580,7 +2603,11 @@ fn apply_revive_fainted(
     ctx: &mut EffectContext<'_>,
 ) -> Vec<BattleEvent> {
     let target_player_id = resolve_target(effect.data.get("target"), ctx);
-    let Some(player) = state.players.iter().find(|player| player.id == target_player_id) else {
+    let Some(player) = state
+        .players
+        .iter()
+        .find(|player| player.id == target_player_id)
+    else {
         return Vec::new();
     };
 
@@ -2620,7 +2647,10 @@ fn apply_revive_fainted(
         ctx.move_data.map(|m| m.id.as_str()),
         Some(&ctx.attacker_player_id),
     );
-    meta.insert("target".to_string(), Value::String(target_player_id.clone()));
+    meta.insert(
+        "target".to_string(),
+        Value::String(target_player_id.clone()),
+    );
     meta.insert("slot".to_string(), Value::Number((slot as i64).into()));
 
     vec![BattleEvent::ReviveTeamMember {
@@ -3384,7 +3414,11 @@ fn evaluate_condition(state: &BattleState, cond: Option<&Value>, ctx: &EffectCon
                 .get("statusId")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            state.field.global.iter().any(|e| e.id == status_id)
+            if crate::core::abilities::is_terrain_id(status_id) {
+                get_terrain_id(state) == Some(status_id)
+            } else {
+                state.field.global.iter().any(|e| e.id == status_id)
+            }
         }
         "weather_is_sunny" => weather_has_any(state, &["sunny_weather", "sunny_day", "sun"]),
         "weather_is_raining" => weather_has_any(state, &["rain", "rainy_weather", "rain_dance"]),
@@ -3428,8 +3462,6 @@ fn evaluate_condition(state: &BattleState, cond: Option<&Value>, ctx: &EffectCon
                 "frozen",
                 "sleep",
                 "asleep",
-                "confusion",
-                "confused",
             ];
             get_active_creature(state, &ctx.target_player_id).map_or(false, |c| {
                 c.statuses
@@ -3691,31 +3723,19 @@ fn calc_damage(
             _ => {}
         }
         if move_type == "electric"
-            && state
-                .field
-                .global
-                .iter()
-                .any(|effect| effect.id == "electric_terrain")
+            && get_terrain_id(state) == Some("electric_terrain")
             && is_grounded_for_field(attacker)
         {
             move_power *= 1.3;
         }
         if move_type == "grass"
-            && state
-                .field
-                .global
-                .iter()
-                .any(|effect| effect.id == "grassy_terrain")
+            && get_terrain_id(state) == Some("grassy_terrain")
             && is_grounded_for_field(attacker)
         {
             move_power *= 1.3;
         }
         if move_type == "dragon"
-            && state
-                .field
-                .global
-                .iter()
-                .any(|effect| effect.id == "misty_terrain")
+            && get_terrain_id(state) == Some("misty_terrain")
             && is_grounded_for_field(target)
         {
             move_power *= 0.5;

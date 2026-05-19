@@ -273,6 +273,9 @@ export default function TeamPreviewPage() {
                         'selectedOpponentDeck',
                         JSON.stringify(event.snapshot.remoteSelectedDeck),
                     );
+                    if (event.snapshot.remoteDeck) {
+                        sessionStorage.setItem('opponentPreviewDeck', JSON.stringify(event.snapshot.remoteDeck));
+                    }
                     navigate('/battle');
                 }
     
@@ -292,6 +295,9 @@ export default function TeamPreviewPage() {
                         'selectedOpponentDeck',
                         JSON.stringify(snapshot.remoteSelectedDeck),
                     );
+                    if (snapshot.remoteDeck) {
+                        sessionStorage.setItem('opponentPreviewDeck', JSON.stringify(snapshot.remoteDeck));
+                    }
                     navigate('/battle');
                 }
             }
@@ -350,6 +356,9 @@ export default function TeamPreviewPage() {
                 if (snapshot.localSelectedDeck && snapshot.remoteSelectedDeck) {
                     sessionStorage.setItem('selectedPlayerDeck', JSON.stringify(snapshot.localSelectedDeck));
                     sessionStorage.setItem('selectedOpponentDeck', JSON.stringify(snapshot.remoteSelectedDeck));
+                    if (snapshot.remoteDeck) {
+                        sessionStorage.setItem('opponentPreviewDeck', JSON.stringify(snapshot.remoteDeck));
+                    }
                     navigate('/battle');
                 }
             } catch (error) {

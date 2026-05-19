@@ -47,7 +47,7 @@ export interface CreatureStateWire {
     hp: number;
     maxHp: number;
     stages: { atk: number; def: number; spa: number; spd: number; spe: number; accuracy: number; evasion: number };
-    statuses: { id: string; remainingTurns: number | null }[];
+    statuses: { id: string; remainingTurns: number | null; data?: Record<string, unknown> }[];
     movePp: { [moveId: string]: number };
     volatileData?: Record<string, unknown>;
     attack: number;
@@ -108,6 +108,7 @@ const NON_VOLATILE_STATUS_IDS = new Set([
 const BATON_PASS_STATUS_IDS = new Set([
     'aqua_ring',
     'ingrain',
+    'substitute',
 ]);
 
 function hasPendingSwitch(creature: CreatureStateWire): boolean {

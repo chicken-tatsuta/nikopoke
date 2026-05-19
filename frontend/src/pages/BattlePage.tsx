@@ -117,6 +117,7 @@ const FIELD_EFFECT_LABELS: Record<string, string> = {
 };
 
 const WEATHER_FIELD_IDS = new Set(['sun', 'rain', 'sandstorm', 'snow']);
+const TERRAIN_FIELD_IDS = new Set(['electric_terrain', 'grassy_terrain', 'misty_terrain', 'psychic_terrain']);
 
 const TYPE_LABELS: Record<string, string> = {
     normal: 'ノーマル',
@@ -420,8 +421,36 @@ function normalizeEffects(
         });
 }
 
+function normalizeGlobalEffects(field?: BattleFieldLike): FieldEffectItem[] {
+    const effects = normalizeEffects(field?.global);
+    let lastWeatherIndex = -1;
+    let lastTerrainIndex = -1;
+    effects.forEach((effect, index) => {
+        if (WEATHER_FIELD_IDS.has(effect.key)) {
+            lastWeatherIndex = index;
+        }
+        if (TERRAIN_FIELD_IDS.has(effect.key)) {
+            lastTerrainIndex = index;
+        }
+    });
+
+    return effects.filter((effect, index) => {
+        if (WEATHER_FIELD_IDS.has(effect.key)) {
+            return index === lastWeatherIndex;
+        }
+        if (TERRAIN_FIELD_IDS.has(effect.key)) {
+            return index === lastTerrainIndex;
+        }
+        return true;
+    });
+}
+
 function getBattleWeatherId(field?: BattleFieldLike): string | null {
-    return normalizeEffects(field?.global).find((effect) => WEATHER_FIELD_IDS.has(effect.key))?.key ?? null;
+    return normalizeGlobalEffects(field).find((effect) => WEATHER_FIELD_IDS.has(effect.key))?.key ?? null;
+}
+
+function getBattleTerrain(field?: BattleFieldLike): FieldEffectItem | null {
+    return normalizeGlobalEffects(field).find((effect) => TERRAIN_FIELD_IDS.has(effect.key)) ?? null;
 }
 
 function getBattleWeatherClass(weatherId: string | null): string {
@@ -436,6 +465,21 @@ function getBattleWeatherClass(weatherId: string | null): string {
             return 'battle-weather-snow';
         default:
             return 'battle-weather-none';
+    }
+}
+
+function getBattleTerrainClass(terrainId: string | null): string {
+    switch (terrainId) {
+        case 'electric_terrain':
+            return 'battle-field-control-electric';
+        case 'grassy_terrain':
+            return 'battle-field-control-grassy';
+        case 'misty_terrain':
+            return 'battle-field-control-misty';
+        case 'psychic_terrain':
+            return 'battle-field-control-psychic';
+        default:
+            return 'battle-field-control-none';
     }
 }
 
@@ -483,7 +527,7 @@ function BattleFieldStatusPanel({
     localPlayerId: string;
     opponentPlayerId: string;
 }) {
-    const globalEffects = normalizeEffects(field?.global);
+    const globalEffects = normalizeGlobalEffects(field);
     const opponentSideEffects = normalizeEffects(getSideField(field?.sides, opponentPlayerId, 1));
     const playerSideEffects = normalizeEffects(getSideField(field?.sides, localPlayerId, 0));
     const fieldText = [
@@ -578,6 +622,7 @@ const HIDDEN_BATTLE_STATUS_IDS = new Set([
     'enemy_fainted',
     'faint',
     'fainted',
+    'minimize',
 ]);
 const STATUS_FLASH_COLORS: Record<BattleStatusFlashType, string> = {
     poison: '#a855f7',
@@ -741,6 +786,27 @@ function getLoggedHpDelta(logs: string[], creatureName: string): number | null {
     }
 
     return found ? delta : null;
+}
+
+function concealOpponentDamageLogs(logs: string[], opponent: PlayerStateWire): string[] {
+    const opponentNames = opponent.team
+        .map((creature) => creature.name)
+        .filter((name): name is string => Boolean(name));
+
+    if (opponentNames.length === 0) {
+        return logs;
+    }
+
+    return logs.map((log) => {
+        for (const name of opponentNames) {
+            const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const damagePattern = new RegExp(`^(${escapedName})は\\s*\\d+ダメージ\\s*受けた！$`);
+            if (damagePattern.test(log)) {
+                return `${name}は ダメージを 受けた！`;
+            }
+        }
+        return log;
+    });
 }
 
 function copyTargetAfterAction(
@@ -1827,6 +1893,7 @@ export default function BattlePage() {
         }
         const selectedPlayerDeckJson = sessionStorage.getItem('selectedPlayerDeck');
         const selectedOpponentDeckJson = sessionStorage.getItem('selectedOpponentDeck');
+        const opponentPreviewDeckJson = sessionStorage.getItem('opponentPreviewDeck');
 
         if (!selectedPlayerDeckJson || !selectedOpponentDeckJson) {
             navigate('/team-preview');
@@ -1835,6 +1902,8 @@ export default function BattlePage() {
 
         const selectedPlayerDeck: DeckPokemon[] = JSON.parse(selectedPlayerDeckJson);
         const selectedOpponentDeck: DeckPokemon[] = JSON.parse(selectedOpponentDeckJson);
+        const opponentPreviewDeck: DeckPokemon[] = onlineSnapshot.remoteDeck
+            ?? (opponentPreviewDeckJson ? JSON.parse(opponentPreviewDeckJson) : selectedOpponentDeck);
 
         if (selectedPlayerDeck.length !== 3 || selectedOpponentDeck.length !== 3) {
             navigate('/team-preview');
@@ -1847,7 +1916,7 @@ export default function BattlePage() {
             setOpponentPlayerId('guest');
             localDeckRef.current = selectedPlayerDeck;
             opponentDeckRef.current = selectedOpponentDeck;
-            opponentPreviewDeckRef.current = selectedOpponentDeck;
+            opponentPreviewDeckRef.current = opponentPreviewDeck.length > 0 ? opponentPreviewDeck : selectedOpponentDeck;
             resetBattlePersistenceState();
             createBattleState({
                 host: { team: selectedPlayerDeck, name: localUserName ?? 'host' },
@@ -1870,7 +1939,7 @@ export default function BattlePage() {
             initializedRef.current = true;
             localDeckRef.current = selectedPlayerDeck;
             opponentDeckRef.current = selectedOpponentDeck;
-            opponentPreviewDeckRef.current = selectedOpponentDeck;
+            opponentPreviewDeckRef.current = opponentPreviewDeck.length > 0 ? opponentPreviewDeck : selectedOpponentDeck;
             resetBattlePersistenceState();
             setLocalPlayerId('guest');
             setOpponentPlayerId('host');
@@ -2210,6 +2279,15 @@ if (!player || !ai) {
 
 const playerPokemon = player.team[player.activeSlot];
 const aiPokemon = ai.team[ai.activeSlot];
+const displayedBattleLogs = concealOpponentDamageLogs(battleState.log, ai);
+const opponentPreviewDeck = opponentPreviewDeckRef.current?.length
+    ? opponentPreviewDeckRef.current.slice(0, OPPONENT_TEAM_PREVIEW_SLOTS)
+    : ai.team.map((mon) => ({
+        speciesId: mon.speciesId,
+        ability: mon.ability ?? '',
+        moves: mon.moves,
+        evs: mon.evs,
+    } satisfies DeckPokemon));
 
 if (!playerPokemon || !aiPokemon) {
     return (
@@ -2253,7 +2331,9 @@ const battleStatusLabel = playback.isPlaying
         : mustSwitch
             ? '交代先を選択中'
             : '行動選択中';
-const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField).field);
+const battleField = (battleState as BattleStateWithField).field;
+const battleWeatherId = getBattleWeatherId(battleField);
+const battleTerrain = getBattleTerrain(battleField);
 
     return (
         <div className="flex min-h-dvh flex-col bg-[var(--surface-1)]">
@@ -2308,10 +2388,17 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 <BattlePopupToast popup={battlePopup} />
                 <div className="grid grid-cols-[minmax(0,42%)_minmax(0,58%)] gap-2 lg:hidden">
                     <div className="flex min-h-0 flex-col gap-2">
-                        <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
+                        <TeamIndicator
+                            team={ai.team}
+                            activeSlot={ai.activeSlot}
+                            species={species}
+                            isPlayer={false}
+                            previewDeck={opponentPreviewDeck}
+                            revealedSlots={revealedOpponentSlots}
+                        />
                         <div className="h-[21rem] min-h-0">
                             <BattleLog
-                                logs={battleState.log}
+                                logs={displayedBattleLogs}
                                 currentTurn={battleState.turn}
                                 className="h-full"
                                 compact
@@ -2352,7 +2439,14 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                 </div>
 
                 <div className="hidden items-start gap-2 sm:gap-4 lg:flex">
-                    <TeamIndicator team={ai.team} activeSlot={ai.activeSlot} species={species} isPlayer={false} />
+                    <TeamIndicator
+                        team={ai.team}
+                        activeSlot={ai.activeSlot}
+                        species={species}
+                        isPlayer={false}
+                        previewDeck={opponentPreviewDeck}
+                        revealedSlots={revealedOpponentSlots}
+                    />
                     <PokemonStatus
                         key={aiPokemon.id}
                         creature={aiPokemon}
@@ -2389,7 +2483,12 @@ const battleWeatherId = getBattleWeatherId((battleState as BattleStateWithField)
                     />
                 </div>
 
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-2.5 sm:p-3">
+                <div
+                    className={cn(
+                        'battle-field-control rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-2.5 sm:p-3',
+                        getBattleTerrainClass(battleTerrain?.key ?? null),
+                    )}
+                >
                 <div className="mb-2 grid grid-cols-2 gap-2">
     <button
         onClick={() => {
@@ -2614,7 +2713,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                 <aside className="hidden min-h-0 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 lg:block lg:min-h-0">
             <div ref={logsRef} className="h-full min-h-0 pr-1">
         <BattleLog
-            logs={battleState.log}
+            logs={displayedBattleLogs}
             currentTurn={battleState.turn}
             className="h-full"
         />
@@ -2893,15 +2992,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     ai.team.forEach((mon, idx) => {
                         selectedSlotBySpecies.set(mon.speciesId, idx);
                     });
-                    const previewDeck = opponentPreviewDeckRef.current?.length
-                        ? opponentPreviewDeckRef.current.slice(0, OPPONENT_TEAM_PREVIEW_SLOTS)
-                        : ai.team.map((mon) => ({
-                            speciesId: mon.speciesId,
-                            ability: mon.ability ?? '',
-                            moves: mon.moves,
-                            evs: mon.evs,
-                        } satisfies DeckPokemon));
-                    const displayDeck = Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => previewDeck[idx] ?? null);
+                    const displayDeck = Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => opponentPreviewDeck[idx] ?? null);
 
                     return displayDeck.map((deckMon, idx) => {
                         const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
@@ -2912,6 +3003,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                         const isFainted = Boolean(mon && mon.hp <= 0);
                         const isRevealed = selectedSlot !== undefined && Boolean(mon && (isActive || revealedOpponentSlots.has(selectedSlot)));
                         const hpPercentage = mon && mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
+                        const hpPercentLabel = `${Math.floor(hpPercentage)}%`;
                         const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
                         const portraitSrc = deckMon
                             ? getPokemonPortraitSrc(deckMon.speciesId, displayName)
@@ -2926,7 +3018,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
 	                                    ? isActive
 	                                        ? 'border-[var(--accent)] bg-[var(--accent-muted)]'
 	                                        : 'border-[var(--border)] bg-[var(--surface-3)]'
-	                                    : 'border-[var(--border)] bg-[#111111] text-white opacity-55',
+	                                    : 'border-[var(--border)] bg-[#111111] text-white opacity-70',
 	                                isFainted && 'opacity-60'
 	                            )}
                         >
@@ -2965,28 +3057,36 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                                 </span>
                                             ))}
                                         </div>
-	                                        (
-	                                            <div className="mt-1.5 flex items-center gap-2">
+	                                        <div className="mt-1.5 flex items-center gap-2">
                                                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-4)]">
                                                     <div
                                                         className={cn('h-full transition-all duration-700 ease-out', hpColor)}
                                                         style={{ width: `${hpPercentage}%` }}
                                                     />
                                                 </div>
-	                                                <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
-	                                                    {mon.hp}/{mon.maxHp}
-	                                                </div>
-	                                            </div>
-		                                        )
-	                                    </div>
+			                                                <div className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
+			                                                    {hpPercentLabel}
+			                                                </div>
+			                                            </div>
+		                                    </div>
 	                                </div>
 	                            ) : (
 	                                <div className="flex min-h-12 items-center gap-2">
-	                                    <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-white/40 bg-white text-lg font-bold text-[#888888]">
-	                                        ?
+	                                    <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/30 bg-white/10 text-lg font-bold text-white/70">
+                                            {deckMon ? (
+                                                <img
+                                                    src={portraitSrc}
+                                                    alt={displayName}
+                                                    className="size-full object-cover opacity-50 grayscale brightness-50"
+                                                />
+                                            ) : (
+                                                '?'
+                                            )}
 	                                    </div>
 	                                    <div className="min-w-0">
-	                                        <div className="text-sm font-semibold text-white">未確認</div>
+	                                        <div className="truncate text-sm font-semibold text-white">
+                                                {deckMon ? displayName : '未確認'}
+                                            </div>
 	                                        <div className="mt-1 text-xs text-white/75">未登場</div>
 	                                    </div>
 	                                </div>
@@ -3010,44 +3110,85 @@ function TeamIndicator({
     team,
     activeSlot,
     species,
-    isPlayer
+    isPlayer,
+    previewDeck,
+    revealedSlots,
 }: {
     team: CreatureStateWire[];
     activeSlot: number;
     species: SpeciesData;
     isPlayer: boolean;
+    previewDeck?: DeckPokemon[];
+    revealedSlots?: Set<number>;
 }) {
+    const selectedSlotBySpecies = new Map<string, number>();
+    team.forEach((mon, idx) => {
+        selectedSlotBySpecies.set(mon.speciesId, idx);
+    });
+    const displaySlots = isPlayer
+        ? team.map((mon, idx) => ({ mon, deckMon: null, selectedSlot: idx }))
+        : Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => {
+            const deckMon = previewDeck?.[idx] ?? null;
+            const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
+            const mon = selectedSlot !== undefined ? team[selectedSlot] : null;
+            return { mon, deckMon, selectedSlot };
+        });
+
     return (
         <div className={cn(
             'flex flex-row gap-1 sm:flex-col',
             isPlayer ? 'items-end' : 'items-start',
         )}>
-            {team.map((mon, idx) => {
-                const hpPercent = mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
-                const isActive = idx === activeSlot;
-                const isFainted = mon.hp <= 0;
-                const monSpecies = species[mon.speciesId];
+            {displaySlots.map(({ mon, deckMon, selectedSlot }, idx) => {
+                const isRevealed = isPlayer
+                    || (selectedSlot !== undefined && Boolean(mon && (selectedSlot === activeSlot || revealedSlots?.has(selectedSlot))));
+                const hpPercent = mon && mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
+                const hpPercentLabel = `${Math.floor(hpPercent)}%`;
+                const isActive = selectedSlot === activeSlot && isRevealed;
+                const isFainted = Boolean(mon && mon.hp <= 0 && isRevealed);
+                const monSpecies = species[(isRevealed ? mon?.speciesId : deckMon?.speciesId) ?? ''];
+                const title = isRevealed && mon
+                    ? isPlayer
+                        ? `${monSpecies?.name}: ${mon.hp}/${mon.maxHp} HP`
+                        : `${monSpecies?.name}: ${hpPercentLabel} HP`
+                    : `${monSpecies?.name ?? '未確認'}: 未登場`;
 
                 return (
                     <div
                         key={idx}
                         className={cn(
                             'flex items-center gap-1.5 rounded-full px-1.5 py-1 text-xs sm:gap-2 sm:px-2',
-                            isActive ? 'bg-[var(--accent-muted)]' : 'bg-[var(--surface-3)]'
+                            isRevealed
+                                ? isActive
+                                    ? 'bg-[var(--accent-muted)]'
+                                    : 'bg-[var(--surface-3)]'
+                                : 'bg-[#111111] opacity-70'
                         )}
-                        title={`${monSpecies?.name}: ${mon.hp}/${mon.maxHp} HP`}
+                        title={title}
                     >
                         <span className={cn(
                             'size-2 rounded-full',
-                            isFainted ? 'bg-red-500' : isActive ? 'bg-[var(--accent)]' : 'bg-[var(--text-muted)]'
+                            isFainted
+                                ? 'bg-red-500'
+                                : isActive
+                                    ? 'bg-[var(--accent)]'
+                                    : isRevealed
+                                        ? 'bg-[var(--text-muted)]'
+                                        : 'bg-white/45'
                         )} />
                         <div className="h-1.5 w-8 overflow-hidden rounded-full bg-[var(--surface-4)] sm:w-12">
                             <div
                                 className={cn(
                                     'h-full transition-all duration-700 ease-out',
-                                    hpPercent > 50 ? 'bg-emerald-500' : hpPercent > 20 ? 'bg-amber-500' : 'bg-red-500'
+                                    isRevealed
+                                        ? hpPercent > 50
+                                            ? 'bg-emerald-500'
+                                            : hpPercent > 20
+                                                ? 'bg-amber-500'
+                                                : 'bg-red-500'
+                                        : 'bg-white/30'
                                 )}
-                                style={{ width: `${hpPercent}%` }}
+                                style={{ width: `${isRevealed ? hpPercent : 100}%` }}
                             />
                         </div>
                     </div>
@@ -3106,6 +3247,9 @@ function PokemonStatus({
     statusFlashType?: BattleStatusFlashType;
 }) {
     const hpPercentage = creature.maxHp > 0 ? (creature.hp / creature.maxHp) * 100 : 0;
+    const hpLabel = isPlayer
+        ? `${creature.hp}/${creature.maxHp}`
+        : `${Math.floor(hpPercentage)}%`;
     const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
     const portraitSrc = getPokemonPortraitSrc(creature.speciesId, species?.name || creature.name);
     const typeColor = getTypeColor(effectType);
@@ -3168,10 +3312,10 @@ function PokemonStatus({
 
                 {/* HP Bar */}
                 <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-xs text-[var(--text-muted)]">
-                        <span>HP</span>
-                        <span className="tabular-nums">{creature.hp}/{creature.maxHp}</span>
-                    </div>
+	                    <div className="mb-1 flex justify-between text-xs text-[var(--text-muted)]">
+	                        <span>HP</span>
+	                        <span className="tabular-nums">{hpLabel}</span>
+	                    </div>
                     <div className="h-2 overflow-hidden bg-[var(--surface-4)]">
                         <div
                             className={cn('h-full transition-all duration-1400 ease-out', hpColor)}

@@ -1,12 +1,12 @@
 use crate::core::abilities::{
-    ability_label, get_weather, is_weather_id, modify_stages_with_ability, run_ability_check_hook,
-    AbilityCheckContext, WeatherKind,
+    ability_label, get_terrain_id, get_weather, is_terrain_id, is_weather_id,
+    modify_stages_with_ability, run_ability_check_hook, AbilityCheckContext, WeatherKind,
 };
 use crate::core::state::{BattleState, CreatureState, StatStages, Status};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
-const BATON_PASS_STATUS_IDS: &[&str] = &["aqua_ring", "ingrain"];
+const BATON_PASS_STATUS_IDS: &[&str] = &["aqua_ring", "ingrain", "substitute"];
 
 #[derive(Clone, Debug)]
 pub enum BattleEvent {
@@ -408,7 +408,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             active.item = Some(item_id.clone());
                         }
                     }
-                    if !stack {
+                    if !stack && is_unique_status(status_id) {
                         if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
                         {
                             next.log
@@ -416,14 +416,25 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             return next;
                         }
                     }
-                    if is_exclusive_major_status(status_id)
-                        && active
+                    if status_id == "yawn" {
+                        if active
                             .statuses
                             .iter()
                             .any(|status| is_exclusive_major_status(&status.id))
-                    {
-                        next.log.push("しかしうまく決まらなかった！".to_string());
-                        return next;
+                        {
+                            next.log.push("しかしうまく決まらなかった！".to_string());
+                            return next;
+                        }
+                    } else if is_exclusive_major_status(status_id) {
+                        if active
+                            .statuses
+                            .iter()
+                            .any(|status| is_exclusive_major_status(&status.id))
+                        {
+                            next.log.push("しかしうまく決まらなかった！".to_string());
+                            return next;
+                        }
+                        active.statuses.retain(|status| status.id != "yawn");
                     }
                     active.statuses.push(Status {
                         id: status_id.clone(),
@@ -564,10 +575,11 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     });
                 }
             } else {
-                if !*stack {
-                    if is_weather_id(status_id) {
-                        next.field.global.retain(|e| !is_weather_id(&e.id));
-                    }
+                if is_weather_id(status_id) {
+                    next.field.global.retain(|e| !is_weather_id(&e.id));
+                } else if is_terrain_id(status_id) {
+                    next.field.global.retain(|e| !is_terrain_id(&e.id));
+                } else if !*stack {
                     next.field.global.retain(|e| e.id != *status_id);
                 }
                 next.field.global.push(crate::core::state::FieldEffect {
@@ -691,18 +703,21 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
             }
         }
         BattleEvent::ReviveTeamMember {
-            player_id, slot, hp, ..
+            player_id,
+            slot,
+            hp,
+            ..
         } => {
             if let Some(player) = next.players.iter_mut().find(|p| p.id == *player_id) {
                 if let Some(creature) = player.team.get_mut(*slot) {
                     if creature.hp <= 0 {
                         let restored = (*hp).clamp(1, creature.max_hp.max(1));
                         creature.hp = restored;
-                        creature.statuses.retain(|status| status.id != "pending_switch");
-                        next.log.push(format!(
-                            "{}は さいきのいのりで 復活した！",
-                            creature.name
-                        ));
+                        creature
+                            .statuses
+                            .retain(|status| status.id != "pending_switch");
+                        next.log
+                            .push(format!("{}は さいきのいのりで 復活した！", creature.name));
                         next.log
                             .push(format!("{}の HPが {}回復した！", creature.name, restored));
 
@@ -985,9 +1000,11 @@ fn is_exclusive_major_status(status_id: &str) -> bool {
             | "frozen"
             | "sleep"
             | "asleep"
-            | "confusion"
-            | "confused"
     )
+}
+
+fn is_unique_status(status_id: &str) -> bool {
+    is_exclusive_major_status(status_id) || matches!(status_id, "yawn" | "minimize")
 }
 
 fn status_blocked_by_type_or_field(
@@ -998,14 +1015,7 @@ fn status_blocked_by_type_or_field(
     let grounded = !active.types.iter().any(|t| t == "flying")
         && active.ability.as_deref() != Some("levitate")
         && !active.statuses.iter().any(|s| s.id == "magnet_rise");
-    if grounded
-        && status_id == "sleep"
-        && state
-            .field
-            .global
-            .iter()
-            .any(|effect| effect.id == "electric_terrain")
-    {
+    if grounded && status_id == "sleep" && get_terrain_id(state) == Some("electric_terrain") {
         return true;
     }
     if grounded
@@ -1013,11 +1023,7 @@ fn status_blocked_by_type_or_field(
             status_id,
             "burn" | "poison" | "toxic" | "badly_poisoned" | "paralysis" | "freeze" | "sleep"
         )
-        && state
-            .field
-            .global
-            .iter()
-            .any(|effect| effect.id == "misty_terrain")
+        && get_terrain_id(state) == Some("misty_terrain")
     {
         return true;
     }
@@ -1342,6 +1348,47 @@ mod tests {
             .statuses
             .iter()
             .any(|status| status.id == "ingrain"));
+        assert!(!incoming
+            .statuses
+            .iter()
+            .any(|status| status.id == "protect"));
+    }
+
+    #[test]
+    fn baton_pass_switch_carries_substitute_to_incoming_creature() {
+        let mut state = test_state();
+        state.players[0].team[0].statuses.push(Status {
+            id: "substitute".to_string(),
+            remaining_turns: None,
+            data: HashMap::from([("hp".to_string(), Value::Number(25.into()))]),
+        });
+        state.players[0].team[0].statuses.push(Status {
+            id: "protect".to_string(),
+            remaining_turns: None,
+            data: HashMap::new(),
+        });
+        state.players[0].team[0]
+            .volatile_data
+            .insert("batonPass".to_string(), Value::Bool(true));
+
+        let next = apply_event(
+            &state,
+            &BattleEvent::Switch {
+                player_id: "player".to_string(),
+                slot: 1,
+            },
+        );
+
+        let outgoing = &next.players[0].team[0];
+        let incoming = &next.players[0].team[1];
+        assert!(!outgoing
+            .statuses
+            .iter()
+            .any(|status| status.id == "substitute"));
+        assert!(incoming.statuses.iter().any(|status| {
+            status.id == "substitute"
+                && status.data.get("hp").and_then(|value| value.as_i64()) == Some(25)
+        }));
         assert!(!incoming
             .statuses
             .iter()

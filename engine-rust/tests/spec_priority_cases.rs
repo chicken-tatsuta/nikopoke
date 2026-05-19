@@ -602,7 +602,12 @@ fn side_field_status_count(state: &BattleState, side_id: &str, status_id: &str) 
         .field
         .sides
         .get(side_id)
-        .map(|effects| effects.iter().filter(|effect| effect.id == status_id).count())
+        .map(|effects| {
+            effects
+                .iter()
+                .filter(|effect| effect.id == status_id)
+                .count()
+        })
         .unwrap_or(0)
 }
 
@@ -987,6 +992,96 @@ fn p0_spec_field_status_non_stack_replaces_existing_copy() {
         1,
         "non-stack field status should keep only one copy after reapplication"
     );
+}
+
+#[test]
+fn p0_spec_terrain_status_replaces_existing_terrain() {
+    let engine = make_engine(vec![
+        field_status_move("set_grassy_terrain", "grassy_terrain"),
+        field_status_move("set_electric_terrain", "electric_terrain"),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter")
+                .moves(&["set_grassy_terrain", "set_electric_terrain"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+
+    let turns = vec![
+        vec![
+            move_action("p1", "set_grassy_terrain", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        vec![
+            move_action("p1", "set_electric_terrain", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+    ];
+    let next = run_turns_with_seed(&engine, state, &turns, 112);
+
+    assert_eq!(
+        field_status_count(&next, "grassy_terrain"),
+        0,
+        "new terrain should remove previous terrain"
+    );
+    assert_eq!(
+        field_status_count(&next, "electric_terrain"),
+        1,
+        "new terrain should remain active"
+    );
+}
+
+#[test]
+fn p0_spec_only_latest_terrain_runs_field_hooks() {
+    let engine = make_engine(vec![wait_move()]);
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Grounded")
+                .moves(&["wait"])
+                .hp(50, 100)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").moves(&["wait"]).build()],
+        ),
+    ]);
+    state.field.global.push(FieldEffect {
+        id: "grassy_terrain".to_string(),
+        remaining_turns: Some(5),
+        data: HashMap::new(),
+    });
+    state.field.global.push(FieldEffect {
+        id: "electric_terrain".to_string(),
+        remaining_turns: Some(5),
+        data: HashMap::new(),
+    });
+
+    let actions = vec![
+        move_action("p1", "wait", "p2"),
+        move_action("p2", "wait", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 113);
+
+    assert_active_hp(&next, "p1", 50);
+    assert_eq!(
+        field_status_count(&next, "grassy_terrain"),
+        0,
+        "stale terrain should be removed after field effects tick"
+    );
+    assert_eq!(field_status_count(&next, "electric_terrain"), 1);
 }
 
 #[test]
@@ -1399,9 +1494,7 @@ fn p0_spec_poison_type_switch_in_absorbs_toxic_spikes() {
             "p1",
             "P1",
             vec![
-                CreatureBuilder::new("c1", "Lead")
-                    .moves(&["wait"])
-                    .build(),
+                CreatureBuilder::new("c1", "Lead").moves(&["wait"]).build(),
                 CreatureBuilder::new("c2", "PoisonSwitch")
                     .types(&["poison"])
                     .moves(&["wait"])
@@ -1435,10 +1528,7 @@ fn p0_spec_poison_type_switch_in_absorbs_toxic_spikes() {
     let next = run_turn_with_seed(
         &engine,
         &state,
-        &[
-            switch_action("p1", 1),
-            move_action("p2", "wait", "p1"),
-        ],
+        &[switch_action("p1", 1), move_action("p2", "wait", "p1")],
         12,
     );
 
@@ -1484,7 +1574,9 @@ fn p0_spec_spikes_stacks_up_to_three_layers_and_then_fails() {
         player(
             "p2",
             "P2",
-            vec![CreatureBuilder::new("c2", "Target").moves(&["wait"]).build()],
+            vec![CreatureBuilder::new("c2", "Target")
+                .moves(&["wait"])
+                .build()],
         ),
     ]);
     let turns = vec![
@@ -1531,9 +1623,7 @@ fn p0_spec_spikes_switch_in_damage_scales_by_layer_count() {
                 "p1",
                 "P1",
                 vec![
-                    CreatureBuilder::new("c1", "Lead")
-                        .moves(&["wait"])
-                        .build(),
+                    CreatureBuilder::new("c1", "Lead").moves(&["wait"]).build(),
                     CreatureBuilder::new("c2", "Incoming")
                         .moves(&["wait"])
                         .hp(120, 120)
@@ -1562,10 +1652,7 @@ fn p0_spec_spikes_switch_in_damage_scales_by_layer_count() {
         let next = run_turn_with_seed(
             &engine,
             &state,
-            &[
-                switch_action("p1", 1),
-                move_action("p2", "wait", "p1"),
-            ],
+            &[switch_action("p1", 1), move_action("p2", "wait", "p1")],
             14,
         );
 
