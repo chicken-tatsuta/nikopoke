@@ -4091,32 +4091,8 @@
     "steps": [
       {
         "accuracy": 1,
-        "thresholds": [
-          {
-            "power": 1,
-            "ratio": 0.0417
-          },
-          {
-            "power": 15,
-            "ratio": 0.1042
-          },
-          {
-            "power": 31,
-            "ratio": 0.2083
-          },
-          {
-            "power": 52,
-            "ratio": 0.3542
-          },
-          {
-            "power": 103,
-            "ratio": 0.6875
-          },
-          {
-            "power": 150,
-            "ratio": 1
-          }
-        ],
+        "maxPower": 150,
+        "powerFromUserHpRatio": true,
         "type": "hp_ratio_damage"
       }
     ],
@@ -5972,12 +5948,30 @@
     "priority": 0,
     "steps": [
       {
-        "stages": {
-          "atk": 1,
-          "spa": 1
+        "else": [
+          {
+            "stages": {
+              "atk": 1,
+              "spa": 1
+            },
+            "target": "self",
+            "type": "modify_stage"
+          }
+        ],
+        "if": {
+          "type": "weather_is_sunny"
         },
-        "target": "self",
-        "type": "modify_stage"
+        "then": [
+          {
+            "stages": {
+              "atk": 2,
+              "spa": 2
+            },
+            "target": "self",
+            "type": "modify_stage"
+          }
+        ],
+        "type": "conditional"
       }
     ],
     "tags": [],
@@ -7525,25 +7519,25 @@
     "priority": 0,
     "steps": [
       {
-        "type": "damage",
+        "accuracy": 1,
         "power": 80,
-        "accuracy": 1.0
+        "type": "damage"
       },
       {
-        "type": "apply_status",
+        "immuneTypes": [
+          "ghost"
+        ],
         "statusId": "trapped",
         "target": "target",
-        "immuneTypes": [
-          "ghost"
-        ]
+        "type": "apply_status"
       },
       {
-        "type": "apply_status",
-        "statusId": "trapped",
-        "target": "user",
         "immuneTypes": [
           "ghost"
-        ]
+        ],
+        "statusId": "trapped",
+        "target": "user",
+        "type": "apply_status"
       }
     ],
     "tags": [
@@ -15079,32 +15073,8 @@
     "steps": [
       {
         "accuracy": 1,
-        "thresholds": [
-          {
-            "power": 1,
-            "ratio": 0.0417
-          },
-          {
-            "power": 15,
-            "ratio": 0.1042
-          },
-          {
-            "power": 31,
-            "ratio": 0.2083
-          },
-          {
-            "power": 52,
-            "ratio": 0.3542
-          },
-          {
-            "power": 103,
-            "ratio": 0.6875
-          },
-          {
-            "power": 150,
-            "ratio": 1
-          }
-        ],
+        "maxPower": 150,
+        "powerFromUserHpRatio": true,
         "type": "hp_ratio_damage"
       }
     ],

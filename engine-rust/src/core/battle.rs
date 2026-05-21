@@ -618,6 +618,7 @@ impl BattleEngine {
                 ignore_ability: false,
                 is_sound: false,
                 last_damage: None,
+                move_blocked_by_protect: false,
                 switch_slot: action.slot,
             };
             let move_name = move_data.name.as_deref().unwrap_or(&move_id);
@@ -1919,6 +1920,7 @@ fn expand_random_moves(
                     ignore_ability: false,
                     is_sound: false,
                     last_damage: None,
+                    move_blocked_by_protect: false,
                     switch_slot: None,
                 };
                 let mut sub_events = apply_effects(state, &chosen_move.steps, &mut effect_ctx);

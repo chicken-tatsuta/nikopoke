@@ -26,7 +26,7 @@ export default function RankingPage() {
             .from('profiles')
             .select('id, username, rating')
             .order('rating', { ascending: false })
-            .limit(50)
+            .limit(100)
             .then(({ data, error: loadError }) => {
                 if (loadError) {
                     setError('ランキングの読み込みに失敗しました。');
@@ -54,7 +54,7 @@ export default function RankingPage() {
                             <Trophy className="size-5 text-[var(--accent)]" />
                             プレイヤーランキング
                         </h1>
-                        <p className="text-sm text-[var(--text-muted)]">レートが高いトレーナー上位50人</p>
+                        <p className="text-sm text-[var(--text-muted)]">レートが高いトレーナー上位100人</p>
                     </div>
                 </div>
             </header>

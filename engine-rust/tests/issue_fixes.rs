@@ -1,10 +1,10 @@
 use engine_rust::core::abilities::{run_ability_hooks, AbilityHookContext};
-use engine_rust::core::effects::{apply_effects, EffectContext};
+use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
 use engine_rust::core::events::{apply_event, BattleEvent};
 use engine_rust::core::state::{
-    BattleState, CreatureState, EVStats, FieldState, PlayerState, StatStages,
+    BattleState, CreatureState, EVStats, FieldEffect, FieldState, PlayerState, StatStages,
 };
-use engine_rust::data::moves::MoveDatabase;
+use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
 use std::collections::HashMap;
 
@@ -108,6 +108,7 @@ fn test_morning_sun_healing() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -129,6 +130,157 @@ fn test_morning_sun_healing() {
 
     let next_state = apply_event(&state, heal_event.unwrap());
     assert_eq!(next_state.players[0].team[0].hp, 70); // 20 + 50
+}
+
+#[test]
+fn growth_raises_attack_and_sp_attack_by_two_under_sun() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("growth").unwrap();
+    let mut state = create_test_state();
+    state.field.global.push(FieldEffect {
+        id: "sun".to_string(),
+        remaining_turns: Some(5),
+        data: HashMap::new(),
+    });
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+    let active = &next_state.players[0].team[0];
+    assert_eq!(active.stages.atk, 2);
+    assert_eq!(active.stages.spa, 2);
+}
+
+#[test]
+fn synthesis_heals_two_thirds_under_sun_and_one_quarter_in_rain() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("synthesis").unwrap();
+    let type_chart = TypeChart::new();
+
+    for (weather_id, expected_amount) in [("sun", -66), ("rain", -25)] {
+        let mut state = create_test_state();
+        state.players[0].team[0].hp = 1;
+        state.field.global.push(FieldEffect {
+            id: weather_id.to_string(),
+            remaining_turns: Some(5),
+            data: HashMap::new(),
+        });
+        let mut rng = || 0.5;
+        let mut ctx = EffectContext {
+            attacker_player_id: "p1".to_string(),
+            target_player_id: "p2".to_string(),
+            move_data: Some(move_data),
+            rng: &mut rng,
+            turn: 1,
+            type_chart: &type_chart,
+            bypass_protect: false,
+            ignore_immunity: false,
+            bypass_substitute: false,
+            ignore_substitute: false,
+            ignore_ability: false,
+            is_sound: false,
+            last_damage: None,
+            move_blocked_by_protect: false,
+            switch_slot: None,
+        };
+
+        let events = apply_effects(&state, &move_data.steps, &mut ctx);
+        let heal_amount = events
+            .iter()
+            .find_map(|event| match event {
+                BattleEvent::Damage { amount, .. } => Some(*amount),
+                _ => None,
+            })
+            .expect("synthesis should emit healing as negative damage");
+        assert_eq!(heal_amount, expected_amount, "weather: {weather_id}");
+    }
+}
+
+#[test]
+fn eruption_and_water_spout_use_continuous_user_hp_ratio_power() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    for (move_id, expected_power) in [("eruption", 37), ("water_spout", 75)] {
+        let move_data = move_db.get(move_id).unwrap();
+        let mut state = create_test_state();
+        state.players[0].team[0].hp = if move_id == "eruption" { 25 } else { 50 };
+        state.players[0].team[0].sp_attack = 100;
+        state.players[1].team[0].sp_defense = 100;
+
+        let actual = first_damage_amount_for_move(&state, move_data);
+        let reference_move = MoveData {
+            id: format!("{move_id}_reference"),
+            name: None,
+            move_type: move_data.move_type.clone(),
+            category: move_data.category.clone(),
+            pp: move_data.pp,
+            power: Some(expected_power),
+            accuracy: Some(1.0),
+            priority: Some(0),
+            description: None,
+            steps: vec![Effect {
+                effect_type: "damage".to_string(),
+                data: serde_json::json!({ "power": expected_power, "accuracy": 1.0 })
+                    .as_object()
+                    .cloned()
+                    .unwrap(),
+            }],
+            tags: Vec::new(),
+            crit_rate: None,
+        };
+        let expected = first_damage_amount_for_move(&state, &reference_move);
+        assert_eq!(
+            actual, expected,
+            "{move_id} should use floor(150 * current HP / max HP)"
+        );
+    }
+}
+
+fn first_damage_amount_for_move(state: &BattleState, move_data: &MoveData) -> i32 {
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+    apply_effects(state, &move_data.steps, &mut ctx)
+        .iter()
+        .find_map(|event| match event {
+            BattleEvent::Damage { amount, .. } => Some(*amount),
+            _ => None,
+        })
+        .expect("move should emit damage")
 }
 
 #[test]

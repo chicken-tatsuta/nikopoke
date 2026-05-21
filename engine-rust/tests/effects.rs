@@ -147,6 +147,7 @@ fn effect_context<'a>(
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     }
 }
@@ -265,6 +266,7 @@ fn revival_blessing_restores_first_fainted_bench_member() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -313,6 +315,7 @@ fn revival_blessing_uses_selected_fainted_slot() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: Some(2),
     };
 
@@ -354,6 +357,7 @@ fn revival_blessing_fails_without_fainted_bench_member() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -393,6 +397,7 @@ fn modify_damage_scales_last_damage_event() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -427,6 +432,7 @@ fn crit_scales_last_damage_event() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -474,6 +480,7 @@ fn cure_all_status_clears_statuses() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -503,6 +510,7 @@ fn lock_move_forces_specific_move() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -558,6 +566,7 @@ fn self_switch_marks_pending_switch() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -612,6 +621,7 @@ fn force_switch_randomly_switches_target() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -656,6 +666,7 @@ fn force_switch_with_only_one_pokemon_logs_failure() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 

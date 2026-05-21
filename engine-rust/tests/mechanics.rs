@@ -577,6 +577,7 @@ fn test_protect_reset_on_failure() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 
@@ -654,6 +655,7 @@ fn test_parental_bond() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 

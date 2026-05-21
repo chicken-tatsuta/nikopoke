@@ -440,6 +440,7 @@ fn sampled_move_effects_match_expected_events() {
             ignore_ability: false,
             is_sound: false,
             last_damage: None,
+            move_blocked_by_protect: false,
             switch_slot: None,
         };
 

@@ -96,6 +96,7 @@ fn substitute_initializes_hp_on_apply() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
 

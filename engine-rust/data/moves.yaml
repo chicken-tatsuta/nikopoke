@@ -2957,19 +2957,8 @@ eruption:
   priority: 0
   steps:
     - accuracy: 1
-      thresholds:
-        - power: 1
-          ratio: 0.0417
-        - power: 15
-          ratio: 0.1042
-        - power: 31
-          ratio: 0.2083
-        - power: 52
-          ratio: 0.3542
-        - power: 103
-          ratio: 0.6875
-        - power: 150
-          ratio: 1
+      maxPower: 150
+      powerFromUserHpRatio: true
       type: hp_ratio_damage
   tags: []
   type: fire
@@ -4279,11 +4268,21 @@ growth:
   pp: 20
   priority: 0
   steps:
-    - stages:
-        atk: 1
-        spa: 1
-      target: self
-      type: modify_stage
+    - else:
+        - stages:
+            atk: 1
+            spa: 1
+          target: self
+          type: modify_stage
+      if:
+        type: weather_is_sunny
+      then:
+        - stages:
+            atk: 2
+            spa: 2
+          target: self
+          type: modify_stage
+      type: conditional
   tags: []
   type: normal
 grudge_hatred:
@@ -5389,6 +5388,16 @@ jaw_lock:
     - accuracy: 1
       power: 80
       type: damage
+    - immuneTypes:
+        - ghost
+      statusId: trapped
+      target: target
+      type: apply_status
+    - immuneTypes:
+        - ghost
+      statusId: trapped
+      target: user
+      type: apply_status
   tags:
     - contact
   type: dark
@@ -9294,8 +9303,8 @@ stealth_rock:
   pp: 20
   priority: 0
   steps:
-    - statusId: stealth_rock
-      side: false
+    - side: false
+      statusId: stealth_rock
       type: apply_field_status
   tags: []
   type: rock
@@ -10858,19 +10867,8 @@ water_spout:
   priority: 0
   steps:
     - accuracy: 1
-      thresholds:
-        - power: 1
-          ratio: 0.0417
-        - power: 15
-          ratio: 0.1042
-        - power: 31
-          ratio: 0.2083
-        - power: 52
-          ratio: 0.3542
-        - power: 103
-          ratio: 0.6875
-        - power: 150
-          ratio: 1
+      maxPower: 150
+      powerFromUserHpRatio: true
       type: hp_ratio_damage
   tags: []
   type: water

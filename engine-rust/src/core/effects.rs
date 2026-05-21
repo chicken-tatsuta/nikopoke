@@ -24,6 +24,7 @@ pub struct EffectContext<'a> {
     pub ignore_ability: bool,
     pub is_sound: bool,
     pub last_damage: Option<i32>,
+    pub move_blocked_by_protect: bool,
     pub switch_slot: Option<usize>,
 }
 
@@ -59,6 +60,10 @@ pub fn apply_effects(
                 let mut effect_events = apply_effect(&working_state, effect, ctx);
                 clamp_damage_events_to_remaining_hp(&working_state, &mut effect_events);
                 update_last_damage_from_events(ctx, &effect_events);
+                if ctx.move_blocked_by_protect {
+                    events.extend(effect_events);
+                    break;
+                }
                 if effect.effect_type == "damage" && !damage_step_connected(&effect_events) {
                     ctx.last_damage = Some(0);
                     block_follow_up_effects = true;
@@ -395,6 +400,18 @@ fn apply_damage(
     let Some(target) = get_active_creature(state, &target_id) else {
         return Vec::new();
     };
+
+    if !ctx.bypass_protect && target.statuses.iter().any(|status| status.id == "protect") {
+        ctx.last_damage = Some(0);
+        ctx.move_blocked_by_protect = true;
+        return vec![BattleEvent::Log {
+            message: format!("{}は 攻撃から 身を 守った！", target.name),
+            meta: meta_with_move_source(
+                ctx.move_data.map(|m| m.id.as_str()),
+                Some(&ctx.attacker_player_id),
+            ),
+        }];
+    }
 
     let mut accuracy = value_f64(effect.data.get("accuracy"), state, ctx).unwrap_or(1.0);
     if let Some(Value::Array(overrides)) = effect.data.get("accuracyIf") {
@@ -1123,9 +1140,9 @@ fn apply_damage_ratio(
         }
     }
     let mut amount = if let Some(ratio) = value_f64(effect.data.get("ratioCurrentHp"), state, ctx) {
-        (target.hp as f64 * ratio).floor() as i32
+        scaled_ratio_amount(target.hp, ratio)
     } else {
-        (target.max_hp as f64 * selected_ratio_max_hp).floor() as i32
+        scaled_ratio_amount(target.max_hp, selected_ratio_max_hp)
     };
     let ratio = value_f64(effect.data.get("ratioCurrentHp"), state, ctx)
         .or_else(|| Some(selected_ratio_max_hp))
@@ -1149,6 +1166,15 @@ fn apply_damage_ratio(
         amount,
         meta,
     }]
+}
+
+fn scaled_ratio_amount(base: i32, ratio: f64) -> i32 {
+    let amount = base as f64 * ratio;
+    if amount < 0.0 {
+        amount.ceil() as i32
+    } else {
+        amount.floor() as i32
+    }
 }
 
 fn apply_hp_based_damage(
@@ -1313,7 +1339,16 @@ fn apply_hp_ratio_damage(
         return Vec::new();
     };
     let ratio = user.hp as f64 / user.max_hp.max(1) as f64;
-    let mut chosen_power = 20;
+    let mut chosen_power = value_i32(effect.data.get("basePower"), state, ctx).unwrap_or(20);
+    if effect
+        .data
+        .get("powerFromUserHpRatio")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        let max_power = value_i32(effect.data.get("maxPower"), state, ctx).unwrap_or(150);
+        chosen_power = ((max_power as f64) * ratio).floor().max(1.0) as i32;
+    }
     if let Some(Value::Array(thresholds)) = effect.data.get("thresholds") {
         let mut parsed: Vec<(f64, i32)> = thresholds
             .iter()
@@ -3293,6 +3328,35 @@ fn apply_move_tag_flags(ctx: &mut EffectContext<'_>) {
 
 fn apply_meta_flags(events: &mut [BattleEvent], ctx: &EffectContext<'_>) {
     for event in events {
+        if let BattleEvent::Damage {
+            target_id,
+            amount,
+            meta,
+        } = event
+        {
+            if !meta.contains_key("hpChangeSource") {
+                let source = meta.get("source").and_then(|value| value.as_str());
+                let source_kind = if *amount < 0 {
+                    "recovery"
+                } else if source == Some(target_id.as_str()) {
+                    "self"
+                } else if *amount > 0
+                    && source.is_some()
+                    && meta.get("moveId").is_some()
+                    && ctx
+                        .move_data
+                        .is_some_and(|move_data| move_data.category.as_deref() != Some("status"))
+                {
+                    "attack"
+                } else {
+                    "other"
+                };
+                meta.insert(
+                    "hpChangeSource".to_string(),
+                    Value::String(source_kind.to_string()),
+                );
+            }
+        }
         if let Some(meta) = event_meta_mut(event) {
             if let Some(category) = ctx.move_data.and_then(|m| m.category.as_deref()) {
                 meta.entry("category".to_string())
@@ -4104,6 +4168,7 @@ mod tests {
             ignore_ability: false,
             is_sound: false,
             last_damage: None,
+            move_blocked_by_protect: false,
             switch_slot: None,
         }
     }

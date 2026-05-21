@@ -670,13 +670,16 @@ pub fn get_terrain_id(state: &BattleState) -> Option<&str> {
 
 fn set_weather(state: &BattleState, weather: WeatherKind, turns: Option<i32>) -> BattleState {
     let mut next = state.clone();
-    next.field.global.retain(|e| !is_weather_id(&e.id));
     let id = match weather {
         WeatherKind::Sun => "sun",
         WeatherKind::Rain => "rain",
         WeatherKind::Sandstorm => "sandstorm",
         WeatherKind::Snow => "snow",
     };
+    if next.field.global.iter().any(|e| e.id == id) {
+        return next;
+    }
+    next.field.global.retain(|e| !is_weather_id(&e.id));
     next.field.global.push(crate::core::state::FieldEffect {
         id: id.to_string(),
         remaining_turns: turns,
@@ -926,7 +929,9 @@ fn try_lightning_rod(
 
 fn after_stamina(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
-        BattleEvent::Damage { target_id, .. } if target_id == player_id => {
+        BattleEvent::Damage {
+            target_id, amount, ..
+        } if target_id == player_id && *amount > 0 && is_attack_damage_event(event, player_id) => {
             let mut stages = HashMap::new();
             stages.insert("def".to_string(), 1);
             vec![
@@ -959,11 +964,7 @@ fn after_cotton_down(
             target_id,
             amount,
             meta,
-        } if target_id == player_id
-            && *amount > 0
-            && event_meta_move_id(event).is_some()
-            && event_meta_source(event).is_some_and(|source_id| source_id != player_id) =>
-        {
+        } if target_id == player_id && *amount > 0 && is_attack_damage_event(event, player_id) => {
             let mut events = vec![BattleEvent::Log {
                 message: format!(
                     "{}の 特性『{}』！",
@@ -1007,6 +1008,9 @@ fn after_static(
         return Vec::new();
     };
     if target_id != player_id || *amount <= 0 {
+        return Vec::new();
+    }
+    if !is_attack_damage_event(event, player_id) {
         return Vec::new();
     }
     let Some(source_id) = event_meta_source(event) else {
@@ -1217,6 +1221,22 @@ fn event_meta_source(event: &BattleEvent) -> Option<String> {
             .map(|s| s.to_string()),
         _ => None,
     }
+}
+
+fn is_attack_damage_event(event: &BattleEvent, target_player_id: &str) -> bool {
+    let BattleEvent::Damage { amount, meta, .. } = event else {
+        return false;
+    };
+    if *amount <= 0 {
+        return false;
+    }
+    let is_attack = meta
+        .get("hpChangeSource")
+        .and_then(|v| v.as_str())
+        .is_some_and(|source| source == "attack");
+    is_attack
+        && event_meta_move_id(event).is_some()
+        && event_meta_source(event).is_some_and(|source_id| source_id != target_player_id)
 }
 
 fn event_meta_flag(event: &BattleEvent, key: &str) -> bool {

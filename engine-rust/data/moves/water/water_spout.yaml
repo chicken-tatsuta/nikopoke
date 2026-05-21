@@ -10,17 +10,6 @@ description: 潮を　吹きつけて　攻撃する。 自分の　ＨＰが　
 steps:
 - type: hp_ratio_damage
   accuracy: 1.0
-  thresholds:
-  - ratio: 0.0417
-    power: 1
-  - ratio: 0.1042
-    power: 15
-  - ratio: 0.2083
-    power: 31
-  - ratio: 0.3542
-    power: 52
-  - ratio: 0.6875
-    power: 103
-  - ratio: 1.0
-    power: 150
+  powerFromUserHpRatio: true
+  maxPower: 150
 tags: []

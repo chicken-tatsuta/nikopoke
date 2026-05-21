@@ -242,7 +242,11 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     }
                     let mut effective_amount = *amount;
                     let is_move_damage = meta.and_then(|meta| meta.get("moveId")).is_some();
+                    let is_attack_damage = meta
+                        .and_then(|meta| meta_get_string(meta, "hpChangeSource"))
+                        .is_some_and(|source| source == "attack");
                     let endured = is_move_damage
+                        && is_attack_damage
                         && effective_amount > 0
                         && active.hp > 0
                         && active.hp - effective_amount <= 0
@@ -258,7 +262,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     active.hp = new_hp.clamp(0, active.max_hp);
                     if effective_amount > 0 {
                         if let Some(meta) = event_meta(event) {
-                            if meta.get("moveId").is_some() {
+                            if is_attack_damage {
                                 active.volatile_data.insert(
                                     "lastDamageTakenAmount".to_string(),
                                     Value::Number(effective_amount.into()),
@@ -566,6 +570,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                 if !side_id.is_empty() {
                     let effects = next.field.sides.entry(side_id).or_default();
                     if !*stack {
+                        if effects.iter().any(|e| e.id == *status_id) {
+                            return next;
+                        }
                         effects.retain(|e| e.id != *status_id);
                     }
                     effects.push(crate::core::state::FieldEffect {
@@ -576,10 +583,19 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                 }
             } else {
                 if is_weather_id(status_id) {
+                    if next.field.global.iter().any(|e| e.id == *status_id) {
+                        return next;
+                    }
                     next.field.global.retain(|e| !is_weather_id(&e.id));
                 } else if is_terrain_id(status_id) {
+                    if next.field.global.iter().any(|e| e.id == *status_id) {
+                        return next;
+                    }
                     next.field.global.retain(|e| !is_terrain_id(&e.id));
                 } else if !*stack {
+                    if next.field.global.iter().any(|e| e.id == *status_id) {
+                        return next;
+                    }
                     next.field.global.retain(|e| e.id != *status_id);
                 }
                 next.field.global.push(crate::core::state::FieldEffect {
@@ -597,6 +613,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                 }
             } else {
                 next.field.global.retain(|e| e.id != *status_id);
+                for effects in next.field.sides.values_mut() {
+                    effects.retain(|e| e.id != *status_id);
+                }
             }
         }
         BattleEvent::Switch { player_id, slot } => {

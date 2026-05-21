@@ -308,6 +308,143 @@ fn cotton_down_triggers_on_attack_damage() {
 }
 
 #[test]
+fn stamina_does_not_trigger_from_self_hp_loss() {
+    let mut move_db = MoveDatabase::new();
+    move_db.insert(MoveData {
+        id: "self_cut".to_string(),
+        name: Some("Self Cut".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "damage_ratio",
+            json!({ "target": "self", "ratioMaxHp": 0.25 }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+    move_db.insert(MoveData {
+        id: "wait".to_string(),
+        name: Some("Wait".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+
+    let state = make_state(
+        make_creature("c1", "Alpha", None, vec!["wait".to_string()]),
+        make_creature("c2", "Beta", Some("stamina"), vec!["self_cut".to_string()]),
+    );
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("wait".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+        Action {
+            player_id: "p2".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("self_cut".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+    ];
+
+    let mut rng = || 0.0;
+    let engine = BattleEngine::new(move_db, TypeChart::new());
+    let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+
+    assert_eq!(next.players[1].team[0].stages.def, 0);
+    assert!(!next
+        .log
+        .iter()
+        .any(|line| line.contains("Betaの 特性『じきゅうりょく』")));
+}
+
+#[test]
+fn rage_fist_hit_counter_does_not_increase_from_self_hp_loss() {
+    let mut move_db = MoveDatabase::new();
+    move_db.insert(MoveData {
+        id: "self_cut".to_string(),
+        name: Some("Self Cut".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![effect(
+            "damage_ratio",
+            json!({ "target": "self", "ratioMaxHp": 0.25 }),
+        )],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+    move_db.insert(MoveData {
+        id: "wait".to_string(),
+        name: Some("Wait".to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("status".to_string()),
+        pp: Some(10),
+        power: None,
+        accuracy: None,
+        priority: Some(0),
+        description: None,
+        steps: vec![],
+        tags: Vec::new(),
+        crit_rate: None,
+    });
+
+    let state = make_state(
+        make_creature("c1", "Alpha", None, vec!["wait".to_string()]),
+        make_creature("c2", "Beta", None, vec!["self_cut".to_string()]),
+    );
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("wait".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+        Action {
+            player_id: "p2".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("self_cut".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+    ];
+
+    let mut rng = || 0.0;
+    let engine = BattleEngine::new(move_db, TypeChart::new());
+    let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+
+    assert!(next.players[1].team[0]
+        .volatile_data
+        .get("moveHitsTaken")
+        .is_none());
+}
+
+#[test]
 fn static_can_paralyze_contact_attacker() {
     let mut move_db = MoveDatabase::new();
     move_db.insert(MoveData {

@@ -8,9 +8,19 @@ accuracy: null
 priority: 0
 description: 体を　一気に 大きく　生長させて 攻撃と　特攻を　あげる。
 steps:
-- type: modify_stage
-  target: self
-  stages:
-    atk: 1
-    spa: 1
+- type: conditional
+  if:
+    type: weather_is_sunny
+  then:
+  - type: modify_stage
+    target: self
+    stages:
+      atk: 2
+      spa: 2
+  else:
+  - type: modify_stage
+    target: self
+    stages:
+      atk: 1
+      spa: 1
 tags: []

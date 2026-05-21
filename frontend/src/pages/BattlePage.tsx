@@ -538,7 +538,7 @@ function BattleFieldStatusPanel({
 
     return (
         <div className="flex justify-end">
-            <div className="max-w-full truncate text-right text-xs text-[var(--text-muted)]">
+            <div className="max-w-full text-right text-xs leading-relaxed whitespace-normal break-words text-[var(--text-muted)]">
                 {fieldText ? `場の状態 / ${fieldText}` : '場の状態 / なし'}
             </div>
         </div>

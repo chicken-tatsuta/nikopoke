@@ -406,6 +406,37 @@ fn damage_move_with_priority(
     }
 }
 
+fn damage_move_with_follow_ups(id: &str) -> MoveData {
+    MoveData {
+        id: id.to_string(),
+        name: Some(id.to_string()),
+        move_type: Some("normal".to_string()),
+        category: Some("physical".to_string()),
+        pp: Some(10),
+        power: Some(90),
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![
+            effect("damage", json!({ "power": 90, "accuracy": 1.0 })),
+            effect(
+                "recoil_last_damage",
+                json!({ "target": "self", "ratio": 0.5 }),
+            ),
+            effect(
+                "modify_stage",
+                json!({ "target": "target", "stages": { "def": -1 } }),
+            ),
+            effect(
+                "modify_stage",
+                json!({ "target": "self", "stages": { "atk": -1 } }),
+            ),
+        ],
+        tags: Vec::new(),
+        crit_rate: None,
+    }
+}
+
 fn sucker_punch_move() -> MoveData {
     MoveData {
         id: "sucker_punch".to_string(),
@@ -422,6 +453,39 @@ fn sucker_punch_move() -> MoveData {
             json!({
                 "if": { "type": "target_selected_attacking_move" },
                 "then": [{ "type": "damage", "power": 70, "accuracy": 1.0 }],
+                "else": [{ "type": "log", "message": "しかし うまく きまらなかった！" }]
+            }),
+        )],
+        tags: vec!["contact".to_string()],
+        crit_rate: None,
+    }
+}
+
+fn upper_hand_move() -> MoveData {
+    MoveData {
+        id: "upper_hand".to_string(),
+        name: Some("はやてがえし".to_string()),
+        move_type: Some("fighting".to_string()),
+        category: Some("physical".to_string()),
+        pp: Some(15),
+        power: Some(65),
+        accuracy: Some(1.0),
+        priority: Some(3),
+        description: None,
+        steps: vec![effect(
+            "conditional",
+            json!({
+                "if": {
+                    "type": "all",
+                    "conditions": [
+                        { "type": "target_selected_priority_positive" },
+                        { "type": "target_has_not_acted_this_turn" }
+                    ]
+                },
+                "then": [
+                    { "type": "damage", "power": 65, "accuracy": 1.0 },
+                    { "type": "apply_status", "statusId": "flinch", "target": "target", "chance": 1 }
+                ],
                 "else": [{ "type": "log", "message": "しかし うまく きまらなかった！" }]
             }),
         )],
@@ -995,6 +1059,180 @@ fn p0_spec_field_status_non_stack_replaces_existing_copy() {
 }
 
 #[test]
+fn p0_spec_reapplying_same_global_field_status_keeps_existing_turns() {
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter").build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").build()],
+        ),
+    ]);
+    state.field.global.push(FieldEffect {
+        id: "sun".to_string(),
+        remaining_turns: Some(2),
+        data: HashMap::new(),
+    });
+
+    let next = engine_rust::core::events::apply_event(
+        &state,
+        &BattleEvent::ApplyFieldStatus {
+            status_id: "sun".to_string(),
+            duration: Some(5),
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    );
+
+    let sun_effects: Vec<_> = next
+        .field
+        .global
+        .iter()
+        .filter(|effect| effect.id == "sun")
+        .collect();
+    assert_eq!(sun_effects.len(), 1);
+    assert_eq!(sun_effects[0].remaining_turns, Some(2));
+}
+
+#[test]
+fn p0_spec_reapplying_same_side_field_status_keeps_existing_turns() {
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter").build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy").build()],
+        ),
+    ]);
+    state.field.sides.insert(
+        "p1".to_string(),
+        vec![FieldEffect {
+            id: "reflect".to_string(),
+            remaining_turns: Some(2),
+            data: HashMap::new(),
+        }],
+    );
+    let mut data = HashMap::new();
+    data.insert("scope".to_string(), Value::String("side".to_string()));
+    data.insert("sideId".to_string(), Value::String("p1".to_string()));
+
+    let next = engine_rust::core::events::apply_event(
+        &state,
+        &BattleEvent::ApplyFieldStatus {
+            status_id: "reflect".to_string(),
+            duration: Some(5),
+            stack: false,
+            data,
+            meta: Map::new(),
+        },
+    );
+
+    let reflect_effects = next.field.sides.get("p1").unwrap();
+    assert_eq!(reflect_effects.len(), 1);
+    assert_eq!(reflect_effects[0].remaining_turns, Some(2));
+}
+
+#[test]
+fn p0_spec_side_screens_are_attached_to_user_side() {
+    let engine = make_engine(vec![
+        side_field_status_move("set_reflect", "reflect"),
+        side_field_status_move("set_light_screen", "light_screen"),
+        wait_move(),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter")
+                .moves(&["set_reflect", "set_light_screen"])
+                .stats(50, 50, 50, 50, 100)
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Dummy")
+                .moves(&["wait"])
+                .stats(50, 50, 50, 50, 80)
+                .build()],
+        ),
+    ]);
+
+    let after_reflect = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "set_reflect", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        113,
+    );
+    assert_eq!(field_status_count(&after_reflect, "reflect"), 0);
+    assert_eq!(side_field_status_count(&after_reflect, "p1", "reflect"), 1);
+
+    let after_light_screen = run_turn_with_seed(
+        &engine,
+        &after_reflect,
+        &[
+            move_action("p1", "set_light_screen", "p2"),
+            move_action("p2", "wait", "p1"),
+        ],
+        114,
+    );
+    assert_eq!(
+        side_field_status_count(&after_light_screen, "p1", "reflect"),
+        1
+    );
+    assert_eq!(
+        side_field_status_count(&after_light_screen, "p1", "light_screen"),
+        1
+    );
+}
+
+#[test]
+fn p0_spec_remove_field_status_clears_side_screen_without_side_meta() {
+    let mut state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Setter").build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Breaker").build()],
+        ),
+    ]);
+    state.field.sides.insert(
+        "p1".to_string(),
+        vec![FieldEffect {
+            id: "reflect".to_string(),
+            remaining_turns: Some(5),
+            data: HashMap::new(),
+        }],
+    );
+
+    let next = engine_rust::core::events::apply_event(
+        &state,
+        &BattleEvent::RemoveFieldStatus {
+            status_id: "reflect".to_string(),
+            meta: Map::new(),
+        },
+    );
+
+    assert_eq!(side_field_status_count(&next, "p1", "reflect"), 0);
+}
+
+#[test]
 fn p0_spec_terrain_status_replaces_existing_terrain() {
     let engine = make_engine(vec![
         field_status_move("set_grassy_terrain", "grassy_terrain"),
@@ -1190,6 +1428,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
     let low_events = apply_effects(&state, &[damage_step.clone()], &mut low_ctx);
@@ -1212,6 +1451,7 @@ fn p0_spec_damage_roll_matches_golden_fixture() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
     let high_events = apply_effects(&state, &[damage_step], &mut high_ctx);
@@ -1382,6 +1622,177 @@ fn p0_spec_sucker_punch_fails_when_target_selected_status_move() {
             .any(|line| line.contains("しかし うまく きまらなかった")),
         "failed sucker punch should be logged"
     );
+}
+
+#[test]
+fn p0_spec_upper_hand_hits_priority_move_before_target_acts() {
+    let engine = make_engine(vec![
+        upper_hand_move(),
+        damage_move_with_priority("quick_hit", "physical", 40, None, 1),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Upper")
+                .moves(&["upper_hand"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Priority")
+                .moves(&["quick_hit"])
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "upper_hand", "p2"),
+            move_action("p2", "quick_hit", "p1"),
+        ],
+        31,
+    );
+
+    assert!(
+        active_hp(&next, "p2") < 100,
+        "upper hand should damage a target readying a priority move"
+    );
+    assert_active_hp(&next, "p1", 100);
+    assert!(
+        next.log.iter().any(|line| line.contains("ひるんで 動けない")),
+        "upper hand should flinch the target after a successful hit"
+    );
+}
+
+#[test]
+fn p0_spec_upper_hand_fails_against_non_priority_move() {
+    let engine = make_engine(vec![
+        upper_hand_move(),
+        damage_move("normal_hit", "physical", 40, None),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Upper")
+                .moves(&["upper_hand"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Normal")
+                .moves(&["normal_hit"])
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "upper_hand", "p2"),
+            move_action("p2", "normal_hit", "p1"),
+        ],
+        32,
+    );
+
+    assert_active_hp(&next, "p2", 100);
+    assert!(
+        active_hp(&next, "p1") < 100,
+        "non-priority target should still be allowed to move"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく きまらなかった")),
+        "failed upper hand should be logged"
+    );
+}
+
+#[test]
+fn p0_spec_upper_hand_fails_after_target_already_acted() {
+    let engine = make_engine(vec![
+        upper_hand_move(),
+        damage_move_with_priority("faster_priority", "physical", 40, None, 4),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Upper")
+                .moves(&["upper_hand"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Faster")
+                .moves(&["faster_priority"])
+                .build()],
+        ),
+    ]);
+
+    let next = run_turn_with_seed(
+        &engine,
+        &state,
+        &[
+            move_action("p1", "upper_hand", "p2"),
+            move_action("p2", "faster_priority", "p1"),
+        ],
+        33,
+    );
+
+    assert_active_hp(&next, "p2", 100);
+    assert!(
+        active_hp(&next, "p1") < 100,
+        "the faster priority move should already have resolved"
+    );
+    assert!(
+        next.log
+            .iter()
+            .any(|line| line.contains("しかし うまく きまらなかった")),
+        "upper hand should fail after the target has already acted"
+    );
+}
+
+#[test]
+fn p1_spec_upper_hand_data_uses_priority_and_target_action_gate() {
+    let move_db =
+        MoveDatabase::load_from_yaml_file(Path::new("data/moves.yaml")).expect("load moves.yaml");
+    let upper_hand = move_db.get("upper_hand").expect("upper_hand should exist");
+    assert_eq!(upper_hand.name.as_deref(), Some("はやてがえし"));
+    assert_eq!(upper_hand.priority, Some(3));
+    assert_eq!(upper_hand.category.as_deref(), Some("physical"));
+    assert_eq!(upper_hand.power, Some(65));
+
+    let conditional = upper_hand
+        .steps
+        .iter()
+        .find(|effect| effect.effect_type == "conditional")
+        .expect("upper_hand should gate its effects with a conditional");
+    let condition = conditional
+        .data
+        .get("if")
+        .and_then(|value| value.as_object())
+        .expect("upper_hand conditional should have an object condition");
+    assert_eq!(
+        condition.get("type").and_then(|value| value.as_str()),
+        Some("all")
+    );
+    let condition_types: HashSet<&str> = condition
+        .get("conditions")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.get("type").and_then(|value| value.as_str()))
+        .collect();
+    assert!(condition_types.contains("target_selected_priority_positive"));
+    assert!(condition_types.contains("target_has_not_acted_this_turn"));
 }
 
 #[test]
@@ -2066,6 +2477,7 @@ fn p0_spec_protect_chain_probability_is_one_third_then_one_ninth() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
     let events = apply_effects(&state, &[effect("protect", json!({}))], &mut ctx);
@@ -2119,6 +2531,7 @@ fn p0_spec_protect_chain_success_increments_counter() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
     let events = apply_effects(&state, &[effect("protect", json!({}))], &mut ctx);
@@ -2219,6 +2632,49 @@ fn p0_spec_protect_blocks_incoming_damage_when_used_first() {
     assert!(
         next.log.iter().any(|line| line.contains("守った")),
         "protect resolution should be visible in battle log"
+    );
+}
+
+#[test]
+fn p0_spec_protect_blocks_damaging_move_follow_up_effects() {
+    let engine = make_engine(vec![
+        protect_move("protect_plus4", 4),
+        damage_move_with_follow_ups("strike_with_extras"),
+    ]);
+    let state = battle_state(vec![
+        player(
+            "p1",
+            "P1",
+            vec![CreatureBuilder::new("c1", "Guard")
+                .moves(&["protect_plus4"])
+                .build()],
+        ),
+        player(
+            "p2",
+            "P2",
+            vec![CreatureBuilder::new("c2", "Attacker")
+                .moves(&["strike_with_extras"])
+                .stats(100, 50, 50, 50, 50)
+                .build()],
+        ),
+    ]);
+    let actions = vec![
+        move_action("p1", "protect_plus4", "p2"),
+        move_action("p2", "strike_with_extras", "p1"),
+    ];
+    let next = run_turn_with_seed(&engine, &state, &actions, 120);
+
+    assert_active_hp(&next, "p1", 100);
+    assert_active_hp(&next, "p2", 100);
+    let guard = &next.players[0].team[next.players[0].active_slot];
+    let attacker = &next.players[1].team[next.players[1].active_slot];
+    assert_eq!(
+        guard.stages.def, 0,
+        "protected target should not receive stat drops"
+    );
+    assert_eq!(
+        attacker.stages.atk, 0,
+        "attacker self stat drops should not happen after protect blocks the hit"
     );
 }
 
@@ -2380,6 +2836,7 @@ fn p0_spec_endure_shares_protect_chain_counter() {
         ignore_ability: false,
         is_sound: false,
         last_damage: None,
+        move_blocked_by_protect: false,
         switch_slot: None,
     };
     let events = apply_effects(&state, &[effect("endure", json!({}))], &mut ctx);
@@ -2638,6 +3095,7 @@ fn p0_manual_effects_must_not_be_silent_noop() {
                 ignore_ability: false,
                 is_sound: false,
                 last_damage: None,
+                move_blocked_by_protect: false,
                 switch_slot: None,
             };
             let events = apply_effects(&state, &[manual_effect], &mut ctx);
