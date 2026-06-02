@@ -1,8 +1,0 @@
-id: yubi_o_furu
-name: ゆびをふる
-type: normal
-category: status
-pp: 10
-steps:
-- type: random_move
-  pool: all

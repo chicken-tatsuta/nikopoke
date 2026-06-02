@@ -27,6 +27,7 @@ fn create_test_state() -> BattleState {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+            consumed_item: None,
 
             evs: EVStats::default(),
             ability: None,
@@ -477,6 +478,7 @@ fn mist_filters_only_stage_drops_from_shell_smash() {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+            consumed_item: None,
             evs: EVStats::default(),
             ability: None,
             volatile_data: HashMap::new(),
@@ -620,6 +622,7 @@ fn test_parental_bond() {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+            consumed_item: None,
 
             evs: EVStats::default(),
             ability: None,

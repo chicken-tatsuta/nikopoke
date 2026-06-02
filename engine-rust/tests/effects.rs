@@ -20,6 +20,7 @@ fn make_creature(id: &str, name: &str) -> CreatureState {
         moves: vec!["tackle".to_string()],
         ability: Some("none".to_string()),
         item: None,
+        consumed_item: None,
 
         evs: EVStats::default(),
         hp: 100,

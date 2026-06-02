@@ -1,8 +1,0 @@
-id: speed_star
-name: スピードスター
-type: normal
-category: special
-pp: 20
-steps:
-- type: damage
-  power: 60

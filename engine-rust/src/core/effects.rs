@@ -488,7 +488,7 @@ fn apply_damage(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     let offensive_stat = effect.data.get("useOffensiveStat").and_then(|v| v.as_str());
-    let (amount, is_crit) = calc_damage(
+    let (mut amount, is_crit, mut consumed_item) = calc_damage(
         power,
         state,
         &attacker_id,
@@ -500,6 +500,16 @@ fn apply_damage(
     );
 
     let mut events = Vec::new();
+
+    if amount > 0
+        && target.item.as_deref() == Some("focus_sash")
+        && target.hp == target.max_hp
+        && amount >= target.hp
+        && target.hp > 1
+    {
+        amount = target.hp - 1;
+        consumed_item = Some("focus_sash".to_string());
+    }
 
     if amount > 0 {
         if is_crit {
@@ -524,6 +534,34 @@ fn apply_damage(
                 });
             }
         }
+        if let Some(item_id) = consumed_item.as_deref() {
+            if item_id == "focus_sash" {
+                events.push(BattleEvent::Log {
+                    message: format!("{}は {}で 持ちこたえた！", target.name, item_label(item_id)),
+                    meta: Map::new(),
+                });
+            } else {
+                events.push(BattleEvent::Log {
+                    message: format!(
+                        "{}の {}で ダメージを半減した！",
+                        target.name,
+                        item_label(item_id)
+                    ),
+                    meta: Map::new(),
+                });
+            }
+        }
+    } else if ctx.move_data.and_then(|m| m.move_type.as_deref()) == Some("ground")
+        && target.item.as_deref() == Some("air_balloon")
+    {
+        events.push(BattleEvent::Log {
+            message: format!(
+                "{}は {}で じめん技を 受けない！",
+                target.name,
+                item_label("air_balloon")
+            ),
+            meta: Map::new(),
+        });
     }
 
     let mut meta = meta_with_move_source(
@@ -541,6 +579,13 @@ fn apply_damage(
         amount,
         meta,
     });
+    if let Some(item_id) = consumed_item {
+        events.push(BattleEvent::ConsumeItem {
+            target_id: target_id.clone(),
+            item_id,
+            meta: Map::new(),
+        });
+    }
     if charge_boost {
         events.push(BattleEvent::RemoveStatus {
             target_id: attacker_id.clone(),
@@ -555,7 +600,7 @@ fn apply_damage(
     if attacker.ability.as_deref() == Some("parental_bond") {
         let second_power = (power as f32 * 0.25).floor() as i32;
         // Pass true for is_secondary_hit, parental bond 2nd hit doesn't crit
-        let (second_amount, _) = calc_damage(
+        let (second_amount, _, _) = calc_damage(
             second_power,
             state,
             &attacker_id,
@@ -605,6 +650,11 @@ fn apply_last_damage_ratio(
         amount = 1;
     }
     if healing {
+        if get_active_creature(state, &ctx.attacker_player_id)
+            .is_some_and(|active| active.item.as_deref() == Some("big_root"))
+        {
+            amount = ((amount as f64) * 1.3).floor().max(1.0) as i32;
+        }
         amount = -amount;
     }
     let target_id = resolve_target(effect.data.get("target"), ctx);
@@ -2171,18 +2221,11 @@ fn apply_consume_item(
         }];
     }
     let item_id = get_item_id(target).unwrap_or_else(|| "item".to_string());
-    let mut events = vec![
-        BattleEvent::RemoveStatus {
-            target_id: target_id.clone(),
-            status_id: "item".to_string(),
-            meta: Map::new(),
-        },
-        BattleEvent::RemoveStatus {
-            target_id: target_id.clone(),
-            status_id: "berry".to_string(),
-            meta: Map::new(),
-        },
-    ];
+    let mut events = vec![BattleEvent::ConsumeItem {
+        target_id: target_id.clone(),
+        item_id: item_id.clone(),
+        meta: Map::new(),
+    }];
     if effect
         .data
         .get("markBerryConsumed")
@@ -3658,6 +3701,9 @@ fn compute_speed(state: &BattleState, player_id: &str, turn: u32) -> f32 {
     if creature.statuses.iter().any(|s| s.id == "paralysis") {
         speed *= 0.5;
     }
+    if creature.item.as_deref() == Some("choice_scarf") {
+        speed *= 1.5;
+    }
     let weather = crate::core::abilities::get_weather(state);
     speed = run_ability_value_hook(
         state,
@@ -3681,6 +3727,63 @@ fn compute_speed(state: &BattleState, player_id: &str, turn: u32) -> f32 {
     speed
 }
 
+fn item_type<'a>(item_id: Option<&'a str>, prefix: &str) -> Option<&'a str> {
+    item_id?.strip_prefix(prefix)?.strip_prefix('_')
+}
+
+fn item_label(item_id: &str) -> String {
+    match item_id {
+        "lum_berry" => return "ラムのみ".to_string(),
+        "sitrus_berry" => return "オボンのみ".to_string(),
+        "weakness_policy" => return "じゃくてんほけん".to_string(),
+        "leftovers" => return "たべのこし".to_string(),
+        "choice_scarf" => return "こだわりスカーフ".to_string(),
+        "focus_sash" => return "きあいのタスキ".to_string(),
+        "big_root" => return "おおきなねっこ".to_string(),
+        "blunder_policy" => return "からぶりほけん".to_string(),
+        "eject_pack" => return "だっしゅつパック".to_string(),
+        "air_balloon" => return "ふうせん".to_string(),
+        "kee_berry" => return "アッキのみ".to_string(),
+        "throat_spray" => return "のどスプレー".to_string(),
+        "flame_orb" => return "かえんだま".to_string(),
+        "scope_lens" => return "ピントレンズ".to_string(),
+        _ => {}
+    }
+    let Some((kind, item_type)) = item_id.split_once('_') else {
+        return item_id.to_string();
+    };
+    let kind_label = match kind {
+        "boost" => "ブースト",
+        "resist" => "レジスト",
+        _ => return item_id.to_string(),
+    };
+    format!("{}（{}）", kind_label, type_label(item_type))
+}
+
+fn type_label(type_id: &str) -> &str {
+    match type_id {
+        "normal" => "ノーマル",
+        "fire" => "ほのお",
+        "water" => "みず",
+        "electric" => "でんき",
+        "grass" => "くさ",
+        "ice" => "こおり",
+        "fighting" => "かくとう",
+        "poison" => "どく",
+        "ground" => "じめん",
+        "flying" => "ひこう",
+        "psychic" => "エスパー",
+        "bug" => "むし",
+        "rock" => "いわ",
+        "ghost" => "ゴースト",
+        "dragon" => "ドラゴン",
+        "dark" => "あく",
+        "steel" => "はがね",
+        "fairy" => "フェアリー",
+        _ => type_id,
+    }
+}
+
 fn calc_damage(
     power: i32,
     state: &BattleState,
@@ -3690,21 +3793,24 @@ fn calc_damage(
     is_secondary_hit: bool,
     use_defensive_stat: bool,
     offensive_stat: Option<&str>,
-) -> (i32, bool) {
+) -> (i32, bool, Option<String>) {
     let Some(attacker) = get_active_creature(state, attacker_id) else {
-        return (0, false);
+        return (0, false, None);
     };
     let Some(target) = get_active_creature(state, target_id) else {
-        return (0, false);
+        return (0, false, None);
     };
     let power = power.max(0) as f32;
     if power <= 0.0 {
-        return (0, false);
+        return (0, false, None);
     }
 
     let category = get_move_category(ctx.move_data).unwrap_or_else(|| "physical".to_string());
     let mut crit_stage = ctx.move_data.and_then(|m| m.crit_rate).unwrap_or(0) as f32;
     crit_stage += attacker.stages.crit as f32;
+    if attacker.item.as_deref() == Some("scope_lens") {
+        crit_stage += 1.0;
+    }
     crit_stage = run_ability_value_hook(
         state,
         attacker_id,
@@ -3923,7 +4029,11 @@ fn calc_damage(
     let roll = (85 + roll_index) as f32 / 100.0;
 
     let mut modifier = 1.0;
+    let mut consumed_item: Option<String> = None;
     if let Some(move_type) = ctx.move_data.and_then(|m| m.move_type.as_deref()) {
+        if item_type(attacker.item.as_deref(), "boost") == Some(move_type) {
+            modifier *= 1.2;
+        }
         let attacker_types = effective_types(attacker);
         let target_types = effective_types(target);
         if attacker_types
@@ -3941,7 +4051,11 @@ fn calc_damage(
         let gravity_active = state.field.global.iter().any(|e| e.id == "gravity");
         let magnet_rise_active = target.statuses.iter().any(|s| s.id == "magnet_rise");
         if move_type == "ground" && magnet_rise_active && !gravity_active {
-            return (0, false);
+            return (0, false, None);
+        }
+        if move_type == "ground" && target.item.as_deref() == Some("air_balloon") && !gravity_active
+        {
+            return (0, false, None);
         }
         let mut effectiveness = ctx.type_chart.effectiveness(move_type, &target_types);
         if let Some(move_data) = ctx.move_data {
@@ -3953,7 +4067,17 @@ fn calc_damage(
             if ctx.ignore_immunity || (gravity_active && move_type == "ground") {
                 effectiveness = 1.0;
             } else {
-                return (0, false);
+                return (0, false, None);
+            }
+        }
+        if effectiveness > 1.0 {
+            if let Some(item_id) = target.item.as_deref() {
+                if item_type(Some(item_id), "resist") == Some(move_type)
+                    && target.consumed_item.as_deref() != Some(item_id)
+                {
+                    modifier *= 0.5;
+                    consumed_item = Some(item_id.to_string());
+                }
             }
         }
         modifier *= effectiveness;
@@ -3987,9 +4111,12 @@ fn calc_damage(
 
     if is_crit {
         modifier *= 1.5;
+        if attacker.ability.as_deref() == Some("sniper") {
+            modifier *= 1.5;
+        }
     }
     let damage = (base * roll * modifier).floor() as i32;
-    (damage.max(1), is_crit)
+    (damage.max(1), is_crit, consumed_item)
 }
 
 fn is_item_status(status_id: &str) -> bool {
@@ -4092,6 +4219,7 @@ mod tests {
             moves: Vec::new(),
             ability: None,
             item: None,
+            consumed_item: None,
             evs: EVStats::default(),
             hp: 100,
             max_hp: 100,

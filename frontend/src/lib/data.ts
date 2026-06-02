@@ -1,9 +1,11 @@
 // Data loading utilities
-import type { SpeciesData, MoveData, Learnset } from '../types/pokemon';
+import type { SpeciesData, MoveData, Learnset, ItemData } from '../types/pokemon';
 
 let speciesCache: SpeciesData | null = null;
 let movesCache: MoveData | null = null;
 let learnsetsCache: Learnset | null = null;
+let itemsCache: ItemData | null = null;
+let moveIdMigrationsCache: Map<string, string> | null = null;
 
 function dataUrl(path: string): string {
     return `${path}?v=${encodeURIComponent(__APP_VERSION__)}`;
@@ -51,13 +53,129 @@ export async function loadLearnsets(): Promise<Learnset> {
     return learnsetsCache!;
 }
 
+export async function loadItems(): Promise<ItemData> {
+    if (itemsCache) return itemsCache;
+
+    const response = await fetch(dataUrl('/data/items.json'), { cache: 'no-cache' });
+    itemsCache = await response.json();
+    return itemsCache!;
+}
+
+export async function loadMoveIdMigrations(): Promise<Map<string, string>> {
+    if (moveIdMigrationsCache) return moveIdMigrationsCache;
+
+    try {
+        const response = await fetch(dataUrl('/data/move_id_migration_report.json'), { cache: 'no-cache' });
+        const migrations = await response.json() as { old_id?: string; new_id?: string }[];
+        moveIdMigrationsCache = new Map(
+            migrations
+                .filter((entry) => entry.old_id && entry.new_id)
+                .map((entry) => [entry.old_id!, entry.new_id!]),
+        );
+    } catch {
+        moveIdMigrationsCache = new Map();
+    }
+
+    return moveIdMigrationsCache;
+}
+
+export function normalizeMoveName(name: string | undefined): string {
+    return String(name || '')
+        .replace(/[ \t\r\n\u3000]+/g, '')
+        .trim();
+}
+
+export function canonicalizeMoveId(
+    moveId: string,
+    moves: MoveData,
+    moveIdMigrations: Map<string, string>,
+): string {
+    const migratedMoveId = moveIdMigrations.get(moveId);
+    if (!migratedMoveId || !moves[migratedMoveId]) {
+        return moveId;
+    }
+
+    if (!moves[moveId]) {
+        return migratedMoveId;
+    }
+
+    const currentName = normalizeMoveName(moves[moveId]?.name);
+    const migratedName = normalizeMoveName(moves[migratedMoveId]?.name);
+    return currentName && currentName === migratedName ? migratedMoveId : moveId;
+}
+
+export function canonicalizeMoveIds(
+    moveIds: string[],
+    moves: MoveData,
+    moveIdMigrations: Map<string, string>,
+): string[] {
+    return moveIds
+        .map((moveId) => canonicalizeMoveId(moveId, moves, moveIdMigrations))
+        .filter((moveId, index, self) => self.indexOf(moveId) === index);
+}
+
+function canonicalizeLearnsets(
+    learnsets: Learnset,
+    moves: MoveData,
+    moveIdMigrations: Map<string, string>,
+): Learnset {
+    return Object.fromEntries(
+        Object.entries(learnsets).map(([speciesId, moveIds]) => [
+            speciesId,
+            canonicalizeMoveIds(moveIds, moves, moveIdMigrations),
+        ]),
+    );
+}
+
+function buildSafeMoveIdMigrations(
+    moveIdMigrations: Map<string, string>,
+    moves: MoveData,
+    learnsets: Learnset,
+): Map<string, string> {
+    const learnsetUseCounts = new Map<string, number>();
+    for (const moveIds of Object.values(learnsets)) {
+        for (const moveId of moveIds) {
+            learnsetUseCounts.set(moveId, (learnsetUseCounts.get(moveId) ?? 0) + 1);
+        }
+    }
+
+    const safeMigrations = new Map<string, string>();
+    for (const [oldId, newId] of moveIdMigrations.entries()) {
+        if (!moves[newId]) {
+            continue;
+        }
+
+        if (!moves[oldId]) {
+            safeMigrations.set(oldId, newId);
+            continue;
+        }
+
+        const oldName = normalizeMoveName(moves[oldId]?.name);
+        const newName = normalizeMoveName(moves[newId]?.name);
+        if (oldName && oldName === newName && !learnsetUseCounts.has(oldId)) {
+            safeMigrations.set(oldId, newId);
+        }
+    }
+
+    return safeMigrations;
+}
+
 export async function loadAllData() {
-    const [species, moves, learnsets] = await Promise.all([
+    const [species, moves, learnsets, items, rawMoveIdMigrations] = await Promise.all([
         loadSpecies(),
         loadMoves(),
-        loadLearnsets()
+        loadLearnsets(),
+        loadItems(),
+        loadMoveIdMigrations(),
     ]);
-    return { species, moves, learnsets };
+    const moveIdMigrations = buildSafeMoveIdMigrations(rawMoveIdMigrations, moves, learnsets);
+    return {
+        species,
+        moves,
+        items,
+        learnsets: canonicalizeLearnsets(learnsets, moves, moveIdMigrations),
+        moveIdMigrations,
+    };
 }
 
 // Type color mapping - Muted sophisticated palette

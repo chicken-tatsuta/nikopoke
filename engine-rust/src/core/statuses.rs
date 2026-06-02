@@ -400,9 +400,14 @@ fn match_status(
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0)
                         + 1;
+                    let effective_sleep_turn = if active.ability.as_deref() == Some("early_bird") {
+                        sleep_turn * 2
+                    } else {
+                        sleep_turn
+                    };
 
-                    let wakes_up =
-                        sleep_turn >= 3 || (sleep_turn == 2 && (ctx.rng)() < (1.0 / 3.0));
+                    let wakes_up = effective_sleep_turn >= 3
+                        || (effective_sleep_turn == 2 && (ctx.rng)() < (1.0 / 3.0));
                     if wakes_up {
                         return StatusHookResult {
                             events: vec![

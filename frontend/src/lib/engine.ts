@@ -12,8 +12,8 @@ import init, {
     replaceFaintedPokemon as wasmReplaceFaintedPokemon,
 } from './engine-rust/engine_rust.js';
 
-import type { DeckPokemon, EVStats } from '../types/pokemon';
-import { loadAllData } from './data';
+import type { DeckPokemon, EVStats, MoveData } from '../types/pokemon';
+import { canonicalizeMoveId, loadAllData, normalizeMoveName } from './data';
 import { normalizeEvs } from './evs';
 
 // WASM initialization state
@@ -43,6 +43,7 @@ export interface CreatureStateWire {
     moves: string[];
     ability: string | null;
     item: string | null;
+    consumedItem?: string | null;
     evs: EVStats;
     hp: number;
     maxHp: number;
@@ -189,14 +190,8 @@ export function replaceFaintedPokemon(
     return replaceFaintedPokemonLocally(state, playerId, slot);
 }
 
-function normalizeMoveName(name: string | undefined): string {
-    return String(name || '')
-        .replace(/[ \t\r\n\u3000]+/g, '')
-        .trim();
-}
-
 function buildSameNameMoveIds(
-    moves: Record<string, { name?: string }>,
+    moves: MoveData,
 ): Map<string, string[]> {
     const byName = new Map<string, string[]>();
     for (const [moveId, move] of Object.entries(moves)) {
@@ -230,9 +225,21 @@ function canUseMoveWithCurrentWasm(speciesId: string, moveId: string): boolean {
 function resolveCompatibleMoveId(
     speciesId: string,
     moveId: string,
-    moves: Record<string, { name?: string }>,
+    moves: MoveData,
     sameNameMoveIds: Map<string, string[]>,
+    moveIdMigrations: Map<string, string>,
 ): string | null {
+    const canonicalMoveId = canonicalizeMoveId(moveId, moves, moveIdMigrations);
+    if (canonicalMoveId !== moveId) {
+        return resolveCompatibleMoveId(
+            speciesId,
+            canonicalMoveId,
+            moves,
+            sameNameMoveIds,
+            moveIdMigrations,
+        );
+    }
+
     if (canUseMoveWithCurrentWasm(speciesId, moveId)) {
         return moveId;
     }
@@ -258,19 +265,27 @@ function resolveCompatibleMoveId(
 function normalizeDeckPokemon(
     pokemon: DeckPokemon,
     learnsets: Record<string, string[]>,
-    moves: Record<string, { pp: number; name?: string }>,
+    moves: MoveData,
     sameNameMoveIds: Map<string, string[]>,
+    moveIdMigrations: Map<string, string>,
 ): DeckPokemon {
     const learnableMoves = learnsets[pokemon.speciesId] ?? [];
 
     const selectedMoves = pokemon.moves
         .filter((moveId, index, self) => self.indexOf(moveId) === index)
         .map((moveId) => {
-            if (moves[moveId]) {
-                return moveId;
+            const canonicalMoveId = canonicalizeMoveId(moveId, moves, moveIdMigrations);
+            if (moves[canonicalMoveId]) {
+                return canonicalMoveId;
             }
 
-            return resolveCompatibleMoveId(pokemon.speciesId, moveId, moves, sameNameMoveIds);
+            return resolveCompatibleMoveId(
+                pokemon.speciesId,
+                canonicalMoveId,
+                moves,
+                sameNameMoveIds,
+                moveIdMigrations,
+            );
         })
         .filter((moveId): moveId is string => Boolean(moveId))
         .filter((moveId, index, self) => self.indexOf(moveId) === index)
@@ -285,7 +300,13 @@ function normalizeDeckPokemon(
             continue;
         }
 
-        const compatibleMoveId = resolveCompatibleMoveId(pokemon.speciesId, moveId, moves, sameNameMoveIds);
+        const compatibleMoveId = resolveCompatibleMoveId(
+            pokemon.speciesId,
+            moveId,
+            moves,
+            sameNameMoveIds,
+            moveIdMigrations,
+        );
 
         if (compatibleMoveId && !selectedMoves.includes(compatibleMoveId)) {
             selectedMoves.push(compatibleMoveId);
@@ -304,7 +325,7 @@ export async function createBattleState(playerDecks: {
     [playerId: string]: { team: DeckPokemon[]; name?: string }
 }): Promise<BattleStateWire> {
     await initEngine();
-    const { moves, learnsets } = await loadAllData();
+    const { moves, learnsets, moveIdMigrations } = await loadAllData();
     const sameNameMoveIds = buildSameNameMoveIds(moves);
 
     // Create creatures for each player
@@ -314,10 +335,17 @@ export async function createBattleState(playerDecks: {
         const team: CreatureStateWire[] = [];
 
         for (const pokemon of playerData.team) {
-            const normalizedPokemon = normalizeDeckPokemon(pokemon, learnsets, moves, sameNameMoveIds);
+            const normalizedPokemon = normalizeDeckPokemon(
+                pokemon,
+                learnsets,
+                moves,
+                sameNameMoveIds,
+                moveIdMigrations,
+            );
             const creature = wasmCreateCreature(normalizedPokemon.speciesId, {
                 moves: normalizedPokemon.moves,
                 ability: normalizedPokemon.ability,
+                item: normalizedPokemon.item ?? null,
                 evs: normalizedPokemon.evs,
             });
             team.push(creature);

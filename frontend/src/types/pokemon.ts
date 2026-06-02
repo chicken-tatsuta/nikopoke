@@ -52,6 +52,17 @@ export interface MoveData {
     [id: string]: Move;
 }
 
+export interface Item {
+    id: string;
+    name: string;
+    kind: "boost" | "resist" | "attack" | "defense" | "support";
+    type?: string;
+}
+
+export interface ItemData {
+    [id: string]: Item;
+}
+
 // Battle State Types
 export interface BattleCreature {
     id: string;
@@ -62,6 +73,8 @@ export interface BattleCreature {
     maxHp: number;
     moves: string[];
     ability: string;
+    item?: string | null;
+    consumedItem?: string | null;
     status?: string;
     stats: BaseStats;
 }
@@ -94,5 +107,6 @@ export interface DeckPokemon {
     speciesId: string;
     moves: string[];
     ability: string;
+    item?: string | null;
     evs?: EVStats;
 }

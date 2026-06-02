@@ -1,0 +1,24 @@
+id: shaka_shaka_ho
+name: シャカシャカほう
+type: grass
+category: special
+pp: 15
+power: 80
+accuracy: 0.9
+priority: 0
+description: 相手に与えたダメージの半分だけ自分のHPが回復する。また、20%の確率で相手をやけど状態にする。
+steps:
+- type: damage
+  power: 80
+  accuracy: 0.9
+- type: heal_last_damage
+  target: self
+  ratio: 0.5
+- type: chance
+  p: 0.2
+  then:
+  - type: apply_status
+    statusId: burn
+    target: target
+tags:
+- drain

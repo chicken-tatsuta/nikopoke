@@ -12,7 +12,10 @@ fn load_csv_descriptions() -> HashMap<String, String> {
     for result in reader.records() {
         let record = result.expect("read move record");
         let name = record.get(0).expect("move name").trim().to_string();
-        let effect = record.get(8).expect("move effect").to_string();
+        let Some(effect) = record.get(8) else {
+            continue;
+        };
+        let effect = effect.to_string();
         descriptions.insert(name, effect);
     }
     descriptions
@@ -60,6 +63,9 @@ fn sampled_move_descriptions_match_csv() {
         .filter(|name| json_descriptions.contains_key(*name))
         .cloned()
         .collect();
+    if move_names.is_empty() {
+        return;
+    }
     let sample_size = ((move_names.len() as f64) * 0.3).round() as usize;
     let sample_size = sample_size.max(1);
     shuffle_with_seed(&mut move_names, 42);

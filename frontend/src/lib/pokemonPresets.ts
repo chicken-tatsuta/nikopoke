@@ -1,7 +1,9 @@
 import type { EVStats, MoveData } from "../types/pokemon";
+import { canonicalizeMoveId } from "./data";
 
 export type PokemonPreset = {
   itemId?: string;
+  abilityId?: string;
   nature?: {
     name: string;
     increased: keyof EVStats;
@@ -117,6 +119,30 @@ export const POKEMON_PRESETS: Record<string, PokemonPreset> = {
     evs: createEvs({ atk: 32, spe: 32, hp: 1 }),
     moveNames: ["close_combat", "bullet_punch", "meteor_mash", "dragon_dance"],
   },
+  zosueda: {
+    abilityId: "steely_spirit",
+    nature: ADAMANT,
+    evs: createEvs({ hp: 32, atk: 32, def: 1 }),
+    moveNames: ["bullet_punch", "meteor_mash", "iron_defense", "flare_blitz"],
+  },
+  shiraishi: {
+    abilityId: "disguise",
+    nature: MODEST,
+    evs: createEvs({ hp: 32, spa: 32, spe: 1 }),
+    moveNames: ["scorching_sands", "moonblast", "freeze_dry", "psychic_noise"],
+  },
+  otyamichi: {
+    abilityId: "hospitality",
+    nature: MODEST,
+    evs: createEvs({ hp: 32, spa: 32, spd: 1 }),
+    moveNames: ["shaka_shaka_ho", "leech_seed", "protect", "chilling_water"],
+  },
+  toumac: {
+    abilityId: "early_bird",
+    nature: JOLLY,
+    evs: createEvs({ atk: 32, spe: 32, hp: 1 }),
+    moveNames: ["rage_fist", "knock_off", "close_combat", "rest"],
+  },
   michii: {
     itemId: "choiceSpecs",
     nature: TIMID,
@@ -174,6 +200,7 @@ export function resolvePresetMoveIds(
   preset: PokemonPreset | undefined,
   moves: MoveData,
   fallbackMoveIds: string[],
+  moveIdMigrations: Map<string, string> = new Map(),
 ): string[] {
   const fallbackValidMoveIds = fallbackMoveIds.filter(
     (moveId) => moves[moveId],
@@ -192,10 +219,11 @@ export function resolvePresetMoveIds(
   const presetMoveIds = preset.moveNames
     .map((moveName) => {
       if (moves[moveName]) {
-        return moveName;
+        return canonicalizeMoveId(moveName, moves, moveIdMigrations);
       }
 
-      return moveIdByName.get(moveName);
+      const moveId = moveIdByName.get(moveName);
+      return moveId ? canonicalizeMoveId(moveId, moves, moveIdMigrations) : undefined;
     })
     .filter((moveId): moveId is string => Boolean(moveId))
     .filter((moveId) => moves[moveId]);

@@ -26,6 +26,7 @@ fn make_creature(id: &str, name: &str, types: Vec<String>, moves: Vec<String>) -
         moves,
         ability: Some("none".to_string()),
         item: None,
+        consumed_item: None,
 
         evs: EVStats::default(),
         hp: 100,

@@ -4,8 +4,12 @@ use crate::core::abilities::{
     AbilityValueContext,
 };
 use crate::core::effects::{apply_effects, apply_events, has_item, EffectContext};
-use crate::core::events::{apply_event, event_type, BattleEvent, EventTransform};
-use crate::core::state::{Action, ActionType, BattleHistory, BattleState, BattleTurn};
+use crate::core::events::{
+    apply_event, event_type, meta_with_move_source, BattleEvent, EventTransform,
+};
+use crate::core::state::{
+    Action, ActionType, BattleHistory, BattleState, BattleTurn, CreatureState,
+};
 use crate::core::statuses::{
     run_field_hooks, run_status_hooks, tick_field_effects, tick_statuses, StatusHookContext,
 };
@@ -15,7 +19,7 @@ use crate::core::utils::{
 use crate::data::moves::{Effect, MoveData, MoveDatabase};
 use crate::data::type_chart::TypeChart;
 use serde_json::{Map, Value};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Clone, Debug)]
 pub struct BattleOptions {
@@ -566,6 +570,28 @@ impl BattleEngine {
                 }
             }
 
+            if let Some(active) = get_active_creature(&next, &player_id) {
+                if active.item.as_deref() == Some("choice_scarf") {
+                    if let Some(locked_move) = active
+                        .volatile_data
+                        .get("choiceLockedMove")
+                        .and_then(|v| v.as_str())
+                    {
+                        if locked_move != move_id {
+                            next.log.push(format!(
+                                "{}は こだわっていて {}しか 出せない！",
+                                attacker_name,
+                                self.move_db
+                                    .get(locked_move)
+                                    .and_then(|m| m.name.as_deref())
+                                    .unwrap_or(locked_move)
+                            ));
+                            continue;
+                        }
+                    }
+                }
+            }
+
             if let Some(active) = get_active_creature_mut(&mut next, &player_id) {
                 if !consume_move_pp(active, &move_id, move_data) {
                     let move_name = move_data.name.clone().unwrap_or_else(|| move_id.clone());
@@ -650,6 +676,7 @@ impl BattleEngine {
                 self.move_db.as_map(),
                 &mut rng_recorder,
             );
+            events = apply_item_event_modifiers(&next, &events, Some(move_data));
 
             let transforms = collect_event_transforms(&next, &mut rng_recorder, &self.type_chart);
             events = apply_event_transforms(&events, &transforms);
@@ -677,6 +704,20 @@ impl BattleEngine {
                 }
             }
             let failed = move_failed(&events);
+            if !failed
+                && action.action_type != ActionType::Switch
+                && get_active_creature(&next, &player_id)
+                    .is_some_and(|active| active.item.as_deref() == Some("choice_scarf"))
+            {
+                next = apply_event(
+                    &next,
+                    &BattleEvent::SetVolatile {
+                        target_id: player_id.clone(),
+                        key: "choiceLockedMove".to_string(),
+                        value: Value::String(move_id.clone()),
+                    },
+                );
+            }
             if let Some(active) = get_active_creature_mut(&mut next, &player_id) {
                 active
                     .volatile_data
@@ -776,6 +817,10 @@ impl BattleEngine {
 
         // 4. 道具効果（たべのこし、くろいヘドロ）
         for player in next.players.clone() {
+            let events = item_turn_end_events(&next, &player.id);
+            for event in events {
+                next = apply_event(&next, &event);
+            }
             let item_result = run_status_hooks(
                 &next,
                 &player.id,
@@ -1007,6 +1052,372 @@ fn apply_switch_in_effects(
     apply_switch_in_field_effects(state, player_id, type_chart)
 }
 
+fn apply_item_event_modifiers(
+    state: &BattleState,
+    events: &[BattleEvent],
+    move_data: Option<&MoveData>,
+) -> Vec<BattleEvent> {
+    let mut output = Vec::new();
+    let mut working_state = state.clone();
+    for event in events {
+        output.push(event.clone());
+        working_state = apply_event(&working_state, event);
+
+        let reactions = item_reactions_after_event(&working_state, event, move_data);
+        for reaction in reactions {
+            output.push(reaction.clone());
+            working_state = apply_event(&working_state, &reaction);
+        }
+    }
+
+    if move_data.is_some_and(|m| m.tags.iter().any(|tag| tag == "sound")) {
+        let source_id = events.iter().find_map(event_meta_source);
+        if let Some(source_id) = source_id {
+            if let Some(active) = get_active_creature(&working_state, &source_id) {
+                if active.item.as_deref() == Some("throat_spray") {
+                    let reactions = item_activation_with_consume(
+                        &source_id,
+                        active,
+                        "throat_spray",
+                        vec![modify_stage_event(&source_id, "spa", 1, Some(&source_id))],
+                    );
+                    for reaction in reactions {
+                        output.push(reaction.clone());
+                        working_state = apply_event(&working_state, &reaction);
+                    }
+                }
+            }
+        }
+    }
+
+    output
+}
+
+fn item_reactions_after_event(
+    state: &BattleState,
+    event: &BattleEvent,
+    move_data: Option<&MoveData>,
+) -> Vec<BattleEvent> {
+    match event {
+        BattleEvent::Damage {
+            target_id,
+            amount,
+            meta,
+        } => {
+            if *amount <= 0 {
+                return Vec::new();
+            }
+            let Some(target) = get_active_creature(state, target_id) else {
+                return Vec::new();
+            };
+            if target.hp <= 0 {
+                return Vec::new();
+            }
+            if let Some(item_id) = target.item.as_deref() {
+                if item_id == "sitrus_berry" && target.hp <= target.max_hp / 2 {
+                    let heal = (target.max_hp / 4).max(1);
+                    return item_activation_with_consume(
+                        target_id,
+                        target,
+                        item_id,
+                        vec![BattleEvent::Damage {
+                            target_id: target_id.clone(),
+                            amount: -heal,
+                            meta: Map::new(),
+                        }],
+                    );
+                }
+                if item_id == "air_balloon" && is_attack_damage(meta) {
+                    return item_activation_with_consume(target_id, target, item_id, Vec::new());
+                }
+                if item_id == "kee_berry" && meta_bool(meta, "contact") {
+                    return item_activation_with_consume(
+                        target_id,
+                        target,
+                        item_id,
+                        vec![modify_stage_event(target_id, "def", 1, meta_source(meta))],
+                    );
+                }
+                if item_id == "weakness_policy" && is_super_effective_hit(target, meta, move_data) {
+                    return item_activation_with_consume(
+                        target_id,
+                        target,
+                        item_id,
+                        vec![
+                            modify_stage_event(target_id, "atk", 2, meta_source(meta)),
+                            modify_stage_event(target_id, "spa", 2, meta_source(meta)),
+                        ],
+                    );
+                }
+            }
+        }
+        BattleEvent::ApplyStatus {
+            target_id,
+            status_id,
+            ..
+        } => {
+            if !lum_cures(status_id) {
+                return Vec::new();
+            }
+            let Some(target) = get_active_creature(state, target_id) else {
+                return Vec::new();
+            };
+            if target.item.as_deref() == Some("lum_berry")
+                && target.statuses.iter().any(|status| status.id == *status_id)
+            {
+                return item_activation_with_consume(
+                    target_id,
+                    target,
+                    "lum_berry",
+                    vec![BattleEvent::RemoveStatus {
+                        target_id: target_id.clone(),
+                        status_id: status_id.clone(),
+                        meta: Map::new(),
+                    }],
+                );
+            }
+        }
+        BattleEvent::ReplaceStatus { target_id, to, .. } => {
+            if !lum_cures(to) {
+                return Vec::new();
+            }
+            let Some(target) = get_active_creature(state, target_id) else {
+                return Vec::new();
+            };
+            if target.item.as_deref() == Some("lum_berry")
+                && target.statuses.iter().any(|status| status.id == *to)
+            {
+                return item_activation_with_consume(
+                    target_id,
+                    target,
+                    "lum_berry",
+                    vec![BattleEvent::RemoveStatus {
+                        target_id: target_id.clone(),
+                        status_id: to.clone(),
+                        meta: Map::new(),
+                    }],
+                );
+            }
+        }
+        BattleEvent::Log { message, meta } => {
+            if message.contains("はずれた") {
+                if let Some(source_id) = meta_source(meta) {
+                    if let Some(active) = get_active_creature(state, source_id) {
+                        if active.item.as_deref() == Some("blunder_policy")
+                            && move_data.is_none_or(|m| !m.tags.iter().any(|tag| tag == "ohko"))
+                        {
+                            return item_activation_with_consume(
+                                source_id,
+                                active,
+                                "blunder_policy",
+                                vec![modify_stage_event(source_id, "spe", 2, Some(source_id))],
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        BattleEvent::ModifyStage {
+            target_id,
+            stages,
+            meta,
+            ..
+        } => {
+            if !stages.values().any(|delta| *delta < 0) {
+                return Vec::new();
+            }
+            if meta_source(meta) != Some(target_id.as_str()) {
+                return Vec::new();
+            }
+            let Some(active) = get_active_creature(state, target_id) else {
+                return Vec::new();
+            };
+            if active.item.as_deref() == Some("eject_pack") {
+                return item_activation_with_consume(
+                    target_id,
+                    active,
+                    "eject_pack",
+                    vec![BattleEvent::ApplyStatus {
+                        target_id: target_id.clone(),
+                        status_id: "pending_switch".to_string(),
+                        duration: None,
+                        stack: false,
+                        data: HashMap::new(),
+                        meta: Map::new(),
+                    }],
+                );
+            }
+        }
+        _ => {}
+    }
+    Vec::new()
+}
+
+fn item_turn_end_events(state: &BattleState, player_id: &str) -> Vec<BattleEvent> {
+    let Some(active) = get_active_creature(state, player_id) else {
+        return Vec::new();
+    };
+    match active.item.as_deref() {
+        Some("leftovers") if active.hp > 0 && active.hp < active.max_hp => vec![
+            item_activation_log(active, "leftovers"),
+            BattleEvent::Damage {
+                target_id: player_id.to_string(),
+                amount: -((active.max_hp / 16).max(1)),
+                meta: Map::new(),
+            },
+        ],
+        Some("flame_orb") if active.hp > 0 && !has_major_status(active) => vec![
+            item_activation_log(active, "flame_orb"),
+            BattleEvent::ApplyStatus {
+                target_id: player_id.to_string(),
+                status_id: "burn".to_string(),
+                duration: None,
+                stack: false,
+                data: HashMap::new(),
+                meta: Map::new(),
+            },
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn item_activation_with_consume(
+    target_id: &str,
+    active: &CreatureState,
+    item_id: &str,
+    mut effects: Vec<BattleEvent>,
+) -> Vec<BattleEvent> {
+    let mut events = vec![item_activation_log(active, item_id)];
+    events.append(&mut effects);
+    events.push(BattleEvent::ConsumeItem {
+        target_id: target_id.to_string(),
+        item_id: item_id.to_string(),
+        meta: Map::new(),
+    });
+    events
+}
+
+fn item_activation_log(active: &CreatureState, item_id: &str) -> BattleEvent {
+    BattleEvent::Log {
+        message: format!("{}の {}が 発動した！", active.name, item_label(item_id)),
+        meta: Map::new(),
+    }
+}
+
+fn modify_stage_event(
+    target_id: &str,
+    stat: &str,
+    delta: i32,
+    source_id: Option<&str>,
+) -> BattleEvent {
+    let mut stages = HashMap::new();
+    stages.insert(stat.to_string(), delta);
+    BattleEvent::ModifyStage {
+        target_id: target_id.to_string(),
+        stages,
+        clamp: true,
+        fail_if_no_change: false,
+        show_event: true,
+        meta: meta_with_move_source(None, source_id),
+    }
+}
+
+fn is_attack_damage(meta: &Map<String, Value>) -> bool {
+    meta.get("hpChangeSource").and_then(|v| v.as_str()) == Some("attack")
+}
+
+fn is_super_effective_hit(
+    target: &CreatureState,
+    meta: &Map<String, Value>,
+    move_data: Option<&MoveData>,
+) -> bool {
+    if !is_attack_damage(meta) {
+        return false;
+    }
+    let Some(move_type) = meta.get("moveType").and_then(|v| v.as_str()) else {
+        return false;
+    };
+    let target_types = effective_types_for_field(target);
+    let mut effectiveness = TypeChart::new().effectiveness(move_type, &target_types);
+    if move_data.is_some_and(|move_data| move_data.id == "freeze_dry")
+        && target_types
+            .iter()
+            .any(|pokemon_type| pokemon_type == "water")
+    {
+        effectiveness *= 4.0;
+    }
+    effectiveness > 1.0
+}
+
+fn lum_cures(status_id: &str) -> bool {
+    matches!(
+        status_id,
+        "poison" | "toxic" | "burn" | "paralysis" | "sleep" | "confusion" | "freeze"
+    )
+}
+
+fn has_major_status(active: &CreatureState) -> bool {
+    active
+        .statuses
+        .iter()
+        .any(|status| lum_cures(&status.id) && status.id != "confusion")
+}
+
+fn meta_source(meta: &Map<String, Value>) -> Option<&str> {
+    meta.get("source").and_then(|v| v.as_str())
+}
+
+fn event_meta_source(event: &BattleEvent) -> Option<&str> {
+    match event {
+        BattleEvent::Log { meta, .. }
+        | BattleEvent::Damage { meta, .. }
+        | BattleEvent::ApplyStatus { meta, .. }
+        | BattleEvent::RemoveStatus { meta, .. }
+        | BattleEvent::ReplaceStatus { meta, .. }
+        | BattleEvent::ModifyStage { meta, .. }
+        | BattleEvent::ClearStages { meta, .. }
+        | BattleEvent::ResetStages { meta, .. }
+        | BattleEvent::CureAllStatus { meta, .. }
+        | BattleEvent::ApplyFieldStatus { meta, .. }
+        | BattleEvent::RemoveFieldStatus { meta, .. }
+        | BattleEvent::RandomMove { meta, .. }
+        | BattleEvent::SetAbility { meta, .. }
+        | BattleEvent::SwapAbilities { meta, .. }
+        | BattleEvent::SetItem { meta, .. }
+        | BattleEvent::SwapItems { meta, .. }
+        | BattleEvent::SetStages { meta, .. }
+        | BattleEvent::SwapStages { meta, .. }
+        | BattleEvent::AverageStats { meta, .. }
+        | BattleEvent::SwapAttackDefense { meta, .. }
+        | BattleEvent::ConsumeItem { meta, .. } => meta_source(meta),
+        _ => None,
+    }
+}
+
+fn meta_bool(meta: &Map<String, Value>, key: &str) -> bool {
+    meta.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+fn item_label(item_id: &str) -> String {
+    match item_id {
+        "lum_berry" => "ラムのみ".to_string(),
+        "sitrus_berry" => "オボンのみ".to_string(),
+        "weakness_policy" => "じゃくてんほけん".to_string(),
+        "leftovers" => "たべのこし".to_string(),
+        "choice_scarf" => "こだわりスカーフ".to_string(),
+        "focus_sash" => "きあいのタスキ".to_string(),
+        "big_root" => "おおきなねっこ".to_string(),
+        "blunder_policy" => "からぶりほけん".to_string(),
+        "eject_pack" => "だっしゅつパック".to_string(),
+        "air_balloon" => "ふうせん".to_string(),
+        "kee_berry" => "アッキのみ".to_string(),
+        "throat_spray" => "のどスプレー".to_string(),
+        "flame_orb" => "かえんだま".to_string(),
+        "scope_lens" => "ピントレンズ".to_string(),
+        _ => item_id.to_string(),
+    }
+}
+
 fn move_failed(events: &[BattleEvent]) -> bool {
     if events.iter().any(|event| matches!(event, BattleEvent::Log { message, .. } if message.contains("はずれた") || message.contains("効かない"))) {
         return true;
@@ -1030,7 +1441,8 @@ fn move_failed(events: &[BattleEvent]) -> bool {
         | BattleEvent::SetStages { .. }
         | BattleEvent::SwapStages { .. }
         | BattleEvent::AverageStats { .. }
-        | BattleEvent::SwapAttackDefense { .. } => true,
+        | BattleEvent::SwapAttackDefense { .. }
+        | BattleEvent::ConsumeItem { .. } => true,
         _ => false,
     });
     !has_progress
@@ -1431,6 +1843,9 @@ fn creature_speed(state: &BattleState, player_id: &str) -> i32 {
     if creature.statuses.iter().any(|s| s.id == "paralysis") {
         speed *= 0.5;
     }
+    if creature.item.as_deref() == Some("choice_scarf") {
+        speed *= 1.5;
+    }
     let weather = get_weather(state);
     speed = run_ability_value_hook(
         state,
@@ -1460,6 +1875,7 @@ fn is_grounded_for_field(creature: &crate::core::state::CreatureState) -> bool {
             .iter()
             .any(|t| t == "flying"))
         && creature.ability.as_deref() != Some("levitate")
+        && creature.item.as_deref() != Some("air_balloon")
         && !creature.statuses.iter().any(|s| s.id == "magnet_rise")
 }
 

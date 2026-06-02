@@ -29,6 +29,7 @@ fn create_creature(
         stages: StatStages::default(),
         statuses: Vec::new(),
         item: None,
+        consumed_item: None,
 
         evs: EVStats::default(),
         ability: ability.map(|s| s.to_string()),

@@ -101,6 +101,11 @@ pub enum BattleEvent {
         item_id: Option<String>,
         meta: Map<String, Value>,
     },
+    ConsumeItem {
+        target_id: String,
+        item_id: String,
+        meta: Map<String, Value>,
+    },
     SwapItems {
         left_id: String,
         right_id: String,
@@ -183,6 +188,7 @@ pub fn event_type(event: &BattleEvent) -> &str {
         BattleEvent::SetAbility { .. } => "set_ability",
         BattleEvent::SwapAbilities { .. } => "swap_abilities",
         BattleEvent::SetItem { .. } => "set_item",
+        BattleEvent::ConsumeItem { .. } => "consume_item",
         BattleEvent::SwapItems { .. } => "swap_items",
         BattleEvent::SetStages { .. } => "set_stages",
         BattleEvent::SwapStages { .. } => "swap_stages",
@@ -245,6 +251,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     let is_attack_damage = meta
                         .and_then(|meta| meta_get_string(meta, "hpChangeSource"))
                         .is_some_and(|source| source == "attack");
+                    let tracks_damage_taken = is_attack_damage || is_move_damage;
                     let endured = is_move_damage
                         && is_attack_damage
                         && effective_amount > 0
@@ -262,7 +269,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     active.hp = new_hp.clamp(0, active.max_hp);
                     if effective_amount > 0 {
                         if let Some(meta) = event_meta(event) {
-                            if is_attack_damage {
+                            if tracks_damage_taken {
                                 active.volatile_data.insert(
                                     "lastDamageTakenAmount".to_string(),
                                     Value::Number(effective_amount.into()),
@@ -410,6 +417,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     if status_id == "item" || status_id == "berry" {
                         if let Some(Value::String(item_id)) = data.get("itemId") {
                             active.item = Some(item_id.clone());
+                            active.consumed_item = None;
                         }
                     }
                     if !stack && is_unique_status(status_id) {
@@ -674,7 +682,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             outgoing.ability = Some(original.to_string());
                         }
                         outgoing.ability_data.clear();
-                        outgoing.volatile_data.clear();
+                        outgoing
+                            .volatile_data
+                            .retain(|key, _| key == "disguiseUsed");
                     }
                     player.active_slot = *slot;
                     if let Some(incoming) = player.team.get_mut(player.active_slot) {
@@ -844,6 +854,22 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         .statuses
                         .retain(|s| s.id != "item" && s.id != "berry");
                     active.item = item_id.clone();
+                    active.consumed_item = None;
+                    update_unburden_after_item_change(active, had_item);
+                }
+            }
+        }
+        BattleEvent::ConsumeItem {
+            target_id, item_id, ..
+        } => {
+            if let Some(player) = next.players.iter_mut().find(|p| p.id == *target_id) {
+                if let Some(active) = player.team.get_mut(player.active_slot) {
+                    let had_item = creature_has_item(active);
+                    active
+                        .statuses
+                        .retain(|s| s.id != "item" && s.id != "berry");
+                    active.item = None;
+                    active.consumed_item = Some(item_id.clone());
                     update_unburden_after_item_change(active, had_item);
                 }
             }
@@ -868,6 +894,8 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                     .retain(|s| s.id != "item" && s.id != "berry");
                 next.players[left_idx].team[left_slot].item = right_item;
                 next.players[right_idx].team[right_slot].item = left_item;
+                next.players[left_idx].team[left_slot].consumed_item = None;
+                next.players[right_idx].team[right_slot].consumed_item = None;
                 update_unburden_after_item_change(
                     &mut next.players[left_idx].team[left_slot],
                     left_had_item,
@@ -1212,6 +1240,7 @@ fn event_meta(event: &BattleEvent) -> Option<&Map<String, Value>> {
         | BattleEvent::SetAbility { meta, .. }
         | BattleEvent::SwapAbilities { meta, .. }
         | BattleEvent::SetItem { meta, .. }
+        | BattleEvent::ConsumeItem { meta, .. }
         | BattleEvent::SwapItems { meta, .. }
         | BattleEvent::SetStages { meta, .. }
         | BattleEvent::SwapStages { meta, .. }
@@ -1261,6 +1290,7 @@ mod tests {
             moves: Vec::new(),
             ability: None,
             item: None,
+            consumed_item: None,
             evs: EVStats::default(),
             hp: 100,
             max_hp: 100,

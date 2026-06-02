@@ -10,12 +10,14 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function main() {
+async function main() {
   const movesPath = path.join(engineDataDir, 'moves.json');
   const learnsetsPath = path.join(engineDataDir, 'learnsets.json');
   const moves = readJson(movesPath);
   const learnsets = readJson(learnsetsPath);
-  const wasm = require(path.join(repoRoot, 'engine-rust', 'pkg', 'engine_rust.js'));
+  const wasm = await import(path.join(repoRoot, 'engine-rust', 'pkg', 'engine_rust.js'));
+  const wasmBytes = fs.readFileSync(path.join(repoRoot, 'engine-rust', 'pkg', 'engine_rust_bg.wasm'));
+  await wasm.default({ module_or_path: wasmBytes });
 
   const moveIds = new Set(Object.keys(moves));
   const unknown = [];
@@ -72,4 +74,7 @@ function main() {
   process.exit(1);
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

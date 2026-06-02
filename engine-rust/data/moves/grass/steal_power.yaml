@@ -1,8 +1,0 @@
-id: steal_power
-name: ちからをすいとる
-type: grass
-category: status
-pp: 10
-steps:
-- type: strength_sap_effect
-tags: []

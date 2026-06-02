@@ -59,6 +59,8 @@ pub struct CreatureState {
     pub ability: Option<String>,
     pub item: Option<String>,
     #[serde(default)]
+    pub consumed_item: Option<String>,
+    #[serde(default)]
     pub evs: EVStats,
     pub hp: i32,
     pub max_hp: i32,

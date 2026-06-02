@@ -45,21 +45,6 @@
     ],
     "type": "grass"
   },
-  "accel_rock": {
-    "category": "physical",
-    "id": "accel_rock",
-    "name": "アクセルロック",
-    "pp": 20,
-    "priority": 1,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 40,
-        "type": "damage"
-      }
-    ],
-    "type": "rock"
-  },
   "accelerock": {
     "accuracy": 1,
     "category": "physical",
@@ -128,31 +113,6 @@
           "def": 2
         },
         "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "poison"
-  },
-  "acid_bomb": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "acid_bomb",
-    "name": "アシッドボム",
-    "power": 40,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 40,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spd": -2
-        },
-        "target": "target",
         "type": "modify_stage"
       }
     ],
@@ -428,63 +388,6 @@
     "tags": [],
     "type": "rock"
   },
-  "angel_kiss": {
-    "accuracy": 0.75,
-    "category": "status",
-    "description": "相手を1～4ターンの間『こんらん』状態にする。",
-    "id": "angel_kiss",
-    "name": "てんしのキッス",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "duration": {
-          "max": 4,
-          "min": 1
-        },
-        "statusId": "confusion",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "fairy"
-  },
-  "aqua_break": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "20%の確率で相手の『ぼうぎょ』ランクを1段階下げる。",
-    "id": "aqua_break",
-    "name": "アクアブレイク",
-    "power": 85,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 85,
-        "type": "damage"
-      },
-      {
-        "p": 0.2,
-        "then": [
-          {
-            "stages": {
-              "def": -1
-            },
-            "target": "target",
-            "type": "modify_stage"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "water"
-  },
   "aqua_cutter": {
     "accuracy": 1,
     "category": "physical",
@@ -595,58 +498,6 @@
     ],
     "type": "water"
   },
-  "aria": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "相手の『やけど』状態を治す。音系の技。",
-    "id": "aria",
-    "name": "うたかたのアリア",
-    "power": 90,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 90,
-        "type": "damage"
-      },
-      {
-        "statusId": "burn",
-        "target": "target",
-        "type": "remove_status"
-      }
-    ],
-    "tags": [
-      "sound",
-      "bypass_substitute"
-    ],
-    "type": "water"
-  },
-  "arm_hammer": {
-    "category": "physical",
-    "id": "arm_hammer",
-    "name": "アームハンマー",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 100,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spe": -1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [
-      "contact",
-      "punch"
-    ],
-    "type": "fighting"
-  },
   "arm_thrust": {
     "accuracy": 1,
     "category": "physical",
@@ -676,26 +527,6 @@
       "contact"
     ],
     "type": "fighting"
-  },
-  "assist_power": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "assist_power",
-    "name": "アシストパワー",
-    "power": 20,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "basePower": 20,
-        "power": 20,
-        "powerPerPositiveStage": 20,
-        "type": "damage"
-      }
-    ],
-    "tags": [],
-    "type": "psychic"
   },
   "assurance": {
     "accuracy": 1,
@@ -944,28 +775,6 @@
     ],
     "type": "poison"
   },
-  "bark_out": {
-    "category": "special",
-    "id": "bark_out",
-    "name": "バークアウト",
-    "pp": 15,
-    "steps": [
-      {
-        "accuracy": 0.95,
-        "power": 55,
-        "type": "damage"
-      },
-      {
-        "chance": 1,
-        "stages": {
-          "spa": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "dark"
-  },
   "baton_pass": {
     "accuracy": null,
     "category": "status",
@@ -1129,41 +938,6 @@
     ],
     "tags": [],
     "type": "ghost"
-  },
-  "black_fog": {
-    "accuracy": null,
-    "category": "status",
-    "id": "black_fog",
-    "name": "くろいきり",
-    "power": null,
-    "pp": 30,
-    "priority": 0,
-    "steps": [
-      {
-        "type": "haze_effect"
-      }
-    ],
-    "tags": [],
-    "type": "ice"
-  },
-  "blast_burn": {
-    "category": "special",
-    "id": "blast_burn",
-    "name": "てっていこうせん",
-    "pp": 5,
-    "steps": [
-      {
-        "accuracy": 0.95,
-        "power": 140,
-        "type": "damage"
-      },
-      {
-        "ratioMaxHp": 0.5,
-        "target": "self",
-        "type": "damage_ratio"
-      }
-    ],
-    "type": "steel"
   },
   "blaze_kick": {
     "accuracy": 0.9,
@@ -1330,27 +1104,6 @@
     ],
     "type": "normal"
   },
-  "bolt_change": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "bolt_change",
-    "name": "ボルトチェンジ",
-    "power": 70,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 70,
-        "type": "damage"
-      },
-      {
-        "type": "self_switch"
-      }
-    ],
-    "tags": [],
-    "type": "electric"
-  },
   "bone_rush": {
     "accuracy": 0.9,
     "category": "physical",
@@ -1378,27 +1131,6 @@
     ],
     "tags": [],
     "type": "ground"
-  },
-  "boom_burst": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "通常攻撃。音系の技。",
-    "id": "boom_burst",
-    "name": "ばくおんぱ",
-    "power": 140,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 140,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "sound"
-    ],
-    "type": "normal"
   },
   "boomburst": {
     "accuracy": 1,
@@ -1824,29 +1556,6 @@
     "tags": [],
     "type": "fire"
   },
-  "butterfly_dance": {
-    "accuracy": null,
-    "category": "status",
-    "description": "自分の『とくこう』『とくぼう』『すばやさ』ランクが1段階ずつ上がる。",
-    "id": "butterfly_dance",
-    "name": "ちょうのまい",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "stages": {
-          "spa": 1,
-          "spd": 1,
-          "spe": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "bug"
-  },
   "calm_mind": {
     "accuracy": null,
     "category": "status",
@@ -1868,21 +1577,6 @@
     ],
     "tags": [],
     "type": "psychic"
-  },
-  "catastrophe": {
-    "accuracy": 0.9,
-    "category": "special",
-    "id": "catastrophe",
-    "name": "カタストロフィ",
-    "pp": 10,
-    "steps": [
-      {
-        "ratioCurrentHp": 0.5,
-        "target": "target",
-        "type": "damage_ratio"
-      }
-    ],
-    "type": "dark"
   },
   "charge": {
     "accuracy": null,
@@ -1964,59 +1658,6 @@
     ],
     "tags": [],
     "type": "fairy"
-  },
-  "charm_voice": {
-    "accuracy": null,
-    "category": "special",
-    "description": "自分の命中率、相手の回避率に関係なく必ず命中する。音系の技。相手の『みがわり』状態を貫通する。",
-    "id": "charm_voice",
-    "name": "チャームボイス",
-    "power": 40,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 40,
-        "type": "damage"
-      },
-      {
-        "type": "bypass_substitute"
-      },
-      {
-        "type": "sound"
-      }
-    ],
-    "tags": [
-      "sound",
-      "always_hit"
-    ],
-    "type": "fairy"
-  },
-  "cheek_pouch": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "cheek_pouch",
-    "name": "ほっぺすりすり",
-    "power": 20,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 20,
-        "type": "damage"
-      },
-      {
-        "statusId": "paralysis",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "electric"
   },
   "chilling_water": {
     "accuracy": 1,
@@ -2169,89 +1810,6 @@
     ],
     "tags": [],
     "type": "poison"
-  },
-  "coil_up": {
-    "accuracy": null,
-    "category": "status",
-    "id": "coil_up",
-    "name": "とぐろをまく",
-    "power": null,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "stages": {
-          "accuracy": 1,
-          "atk": 1,
-          "def": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "poison"
-  },
-  "cold_water": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "100%の確率で相手の『こうげき』ランクを1段階下げる。",
-    "id": "cold_water",
-    "name": "ひやみず",
-    "power": 50,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 50,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "atk": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "water"
-  },
-  "comet_punch": {
-    "accuracy": 0.9,
-    "category": "physical",
-    "description": "20%の確率で自分の『こうげき』ランクが1段階上がる。",
-    "id": "comet_punch",
-    "name": "コメットパンチ",
-    "power": 90,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 90,
-        "type": "damage"
-      },
-      {
-        "p": 0.2,
-        "then": [
-          {
-            "stages": {
-              "atk": 1
-            },
-            "target": "self",
-            "type": "modify_stage"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "contact",
-      "punch"
-    ],
-    "type": "steel"
   },
   "confide": {
     "accuracy": null,
@@ -2561,31 +2119,6 @@
     "tags": [],
     "type": "ghost"
   },
-  "daimonji": {
-    "category": "special",
-    "id": "daimonji",
-    "name": "だいもんじ",
-    "pp": 5,
-    "steps": [
-      {
-        "accuracy": 0.85,
-        "power": 110,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "burn",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "type": "fire"
-  },
   "dark_pulse": {
     "accuracy": 1,
     "category": "special",
@@ -2708,69 +2241,6 @@
     "tags": [],
     "type": "flying"
   },
-  "denji_fuyu": {
-    "accuracy": null,
-    "category": "status",
-    "id": "denji_fuyu",
-    "name": "でんじふゆう",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "duration": 5,
-        "statusId": "magnet_rise",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "electric"
-  },
-  "desperate": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "相手のHPが自分のHPと同じになるようにダメージを与える。",
-    "id": "desperate",
-    "name": "がむしゃら",
-    "power": null,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "type": "endeavor_effect"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "normal"
-  },
-  "desperation": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "前のターンに自分の技が失敗していると威力が2倍になる。",
-    "id": "desperation",
-    "name": "やけっぱち",
-    "power": 75,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 75,
-        "powerMultiplier": 2,
-        "powerMultiplierIf": {
-          "type": "user_last_move_failed"
-        },
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "fire"
-  },
   "destiny_bond": {
     "accuracy": null,
     "category": "status",
@@ -2790,30 +2260,6 @@
     ],
     "tags": [],
     "type": "ghost"
-  },
-  "destruction_beam": {
-    "category": "special",
-    "id": "destruction_beam",
-    "name": "はかいこうせん",
-    "pp": 5,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 150,
-        "type": "damage"
-      },
-      {
-        "duration": 1,
-        "statusId": "recharge",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "recharge",
-      "beam"
-    ],
-    "type": "normal"
   },
   "detect": {
     "accuracy": null,
@@ -2955,29 +2401,6 @@
     ],
     "type": "water"
   },
-  "diving": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "1ターン目に水中へ潜り、2ターン目に攻撃する。",
-    "id": "diving",
-    "name": "ダイビング",
-    "power": 80,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "semiStatusId": "dive",
-        "type": "charge_attack"
-      }
-    ],
-    "tags": [
-      "contact",
-      "charge"
-    ],
-    "type": "water"
-  },
   "doom_desire": {
     "accuracy": 1,
     "category": "special",
@@ -3004,26 +2427,6 @@
     ],
     "tags": [],
     "type": "steel"
-  },
-  "double_attack": {
-    "category": "physical",
-    "id": "double_attack",
-    "name": "ダブルアタック",
-    "pp": 10,
-    "steps": [
-      {
-        "steps": [
-          {
-            "accuracy": 0.9,
-            "power": 35,
-            "type": "damage"
-          }
-        ],
-        "times": 2,
-        "type": "repeat"
-      }
-    ],
-    "type": "normal"
   },
   "double_edge": {
     "accuracy": 1,
@@ -3133,33 +2536,6 @@
     "tags": [],
     "type": "normal"
   },
-  "double_wing": {
-    "accuracy": 0.9,
-    "category": "physical",
-    "description": "1ターンに2回連続で攻撃する。",
-    "id": "double_wing",
-    "name": "ダブルウイング",
-    "power": 40,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "steps": [
-          {
-            "accuracy": 0.9,
-            "power": 40,
-            "type": "damage"
-          }
-        ],
-        "times": 2,
-        "type": "repeat"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "flying"
-  },
   "draco_meteor": {
     "accuracy": 0.9,
     "category": "special",
@@ -3259,51 +2635,6 @@
     "tags": [],
     "type": "dragon"
   },
-  "dragon_dive": {
-    "accuracy": 0.75,
-    "category": "physical",
-    "id": "dragon_dive",
-    "name": "ドラゴンダイブ",
-    "power": 100,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.75,
-        "accuracyIf": [
-          {
-            "accuracy": 1,
-            "if": {
-              "statusId": "minimize",
-              "type": "target_has_status"
-            }
-          }
-        ],
-        "power": 100,
-        "powerMultiplier": 2,
-        "powerMultiplierIf": {
-          "statusId": "minimize",
-          "type": "target_has_status"
-        },
-        "type": "damage"
-      },
-      {
-        "p": 0.2,
-        "then": [
-          {
-            "statusId": "flinch",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "dragon"
-  },
   "dragon_pulse": {
     "accuracy": 1,
     "category": "special",
@@ -3395,30 +2726,6 @@
       "contact"
     ],
     "type": "dragon"
-  },
-  "drain_kiss": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "相手に与えたダメージの3/4だけ自分のHPが回復する。",
-    "id": "drain_kiss",
-    "name": "ドレインキッス",
-    "power": 50,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "type": "damage"
-      },
-      {
-        "ratio": 0.75,
-        "target": "self",
-        "type": "heal_last_damage"
-      }
-    ],
-    "tags": [
-      "drain"
-    ],
-    "type": "fairy"
   },
   "drain_punch": {
     "accuracy": 1,
@@ -3581,41 +2888,6 @@
     ],
     "type": "flying"
   },
-  "dust_shoot": {
-    "accuracy": 0.8,
-    "category": "physical",
-    "id": "dust_shoot",
-    "name": "ダストシュート",
-    "power": 120,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.8,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "p": 0.3,
-        "then": [
-          {
-            "immuneTypes": [
-              "poison",
-              "steel"
-            ],
-            "statusId": "poison",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "bomb"
-    ],
-    "type": "poison"
-  },
   "dynamic_punch": {
     "accuracy": 0.5,
     "category": "physical",
@@ -3702,23 +2974,6 @@
     "tags": [],
     "type": "ground"
   },
-  "echo_voice": {
-    "category": "special",
-    "id": "echo_voice",
-    "name": "エコーボイス",
-    "pp": 15,
-    "steps": [
-      {
-        "power": 40,
-        "type": "damage"
-      },
-      {
-        "statusId": "echo_voice_power_up",
-        "type": "apply_field_status"
-      }
-    ],
-    "type": "normal"
-  },
   "echoed_voice": {
     "accuracy": 1,
     "category": "special",
@@ -3742,26 +2997,6 @@
     "tags": [],
     "type": "normal"
   },
-  "eda_zuki": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "eda_zuki",
-    "name": "えだづき",
-    "power": 40,
-    "pp": 40,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 40,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "grass"
-  },
   "eerie_impulse": {
     "accuracy": 1,
     "category": "status",
@@ -3778,95 +3013,6 @@
         },
         "target": "target",
         "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "electric"
-  },
-  "electric_ball": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "electric_ball",
-    "name": "エレキボール",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "basePower": 40,
-        "thresholds": [
-          {
-            "power": 150,
-            "ratio": 4
-          },
-          {
-            "power": 120,
-            "ratio": 3
-          },
-          {
-            "power": 80,
-            "ratio": 2
-          },
-          {
-            "power": 60,
-            "ratio": 1
-          }
-        ],
-        "type": "speed_based_damage"
-      }
-    ],
-    "tags": [
-      "ball"
-    ],
-    "type": "electric"
-  },
-  "electric_net": {
-    "category": "special",
-    "id": "electric_net",
-    "name": "エレキネット",
-    "pp": 15,
-    "steps": [
-      {
-        "accuracy": 0.95,
-        "power": 55,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spe": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "electric"
-  },
-  "electric_shock": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "electric_shock",
-    "name": "でんきショック",
-    "power": 40,
-    "pp": 30,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 40,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "paralysis",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
       }
     ],
     "tags": [],
@@ -3954,19 +3100,6 @@
     ],
     "tags": [],
     "type": "electric"
-  },
-  "embargo": {
-    "category": "status",
-    "id": "embargo",
-    "name": "いちゃもん",
-    "pp": 15,
-    "steps": [
-      {
-        "duration": null,
-        "type": "disable_move"
-      }
-    ],
-    "type": "dark"
   },
   "encore": {
     "accuracy": 1,
@@ -4603,27 +3736,6 @@
     "tags": [],
     "type": "fire"
   },
-  "firefly": {
-    "accuracy": null,
-    "category": "status",
-    "description": "自分の『とくこう』ランクが3段階上がる。",
-    "id": "firefly",
-    "name": "ほたるび",
-    "power": null,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "stages": {
-          "spa": 3
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "bug"
-  },
   "first_impression": {
     "accuracy": 1,
     "category": "physical",
@@ -4726,43 +3838,6 @@
     ],
     "type": "normal"
   },
-  "flame_ball": {
-    "accuracy": 0.9,
-    "category": "physical",
-    "description": "攻撃し、10%で相手を『やけど』状態にする。",
-    "id": "flame_ball",
-    "name": "かえんボール",
-    "power": 120,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "burn",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      },
-      {
-        "statusId": "freeze",
-        "target": "self",
-        "type": "remove_status"
-      }
-    ],
-    "tags": [
-      "ball"
-    ],
-    "type": "fire"
-  },
   "flame_charge": {
     "accuracy": 1,
     "category": "physical",
@@ -4788,33 +3863,6 @@
     ],
     "tags": [
       "contact"
-    ],
-    "type": "fire"
-  },
-  "flame_dance": {
-    "category": "special",
-    "id": "flame_dance",
-    "name": "ほのおのまい",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      },
-      {
-        "p": 0.5,
-        "then": [
-          {
-            "stages": {
-              "spa": 1
-            },
-            "target": "self",
-            "type": "modify_stage"
-          }
-        ],
-        "type": "chance"
-      }
     ],
     "type": "fire"
   },
@@ -4952,83 +4000,6 @@
     ],
     "type": "fire"
   },
-  "flare_drive": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "攻撃し、10%で相手を『やけど』状態にする。反動あり。",
-    "id": "flare_drive",
-    "name": "フレアドライブ",
-    "power": 120,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "burn",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      },
-      {
-        "if": {
-          "statusId": "freeze",
-          "type": "user_has_status"
-        },
-        "then": [
-          {
-            "statusId": "freeze",
-            "target": "self",
-            "type": "remove_status"
-          }
-        ],
-        "type": "conditional"
-      },
-      {
-        "ratio": 0.3333333333,
-        "target": "self",
-        "type": "recoil_last_damage"
-      }
-    ],
-    "tags": [
-      "contact",
-      "recoil"
-    ],
-    "type": "fire"
-  },
-  "flare_song": {
-    "category": "special",
-    "id": "flare_song",
-    "name": "フレアソング",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spa": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [
-      "sound",
-      "bypass_substitute"
-    ],
-    "type": "fire"
-  },
   "flash_cannon": {
     "accuracy": 1,
     "category": "special",
@@ -5150,48 +4121,6 @@
       "charge"
     ],
     "type": "flying"
-  },
-  "flying_kick": {
-    "category": "physical",
-    "id": "flying_kick",
-    "name": "とびひざげり",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 130,
-        "type": "damage"
-      },
-      {
-        "else": [
-          {
-            "else": [
-              {
-                "ratioMaxHp": 0.5,
-                "target": "self",
-                "type": "damage_ratio"
-              }
-            ],
-            "p": 0.9,
-            "then": [],
-            "type": "chance"
-          }
-        ],
-        "if": {
-          "statusId": "protect",
-          "type": "target_has_status"
-        },
-        "then": [
-          {
-            "ratioMaxHp": 0.5,
-            "target": "self",
-            "type": "damage_ratio"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "type": "fighting"
   },
   "focus_blast": {
     "accuracy": 0.7,
@@ -5365,69 +4294,6 @@
     "tags": [],
     "type": "ice"
   },
-  "freezing_beam": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "freezing_beam",
-    "name": "れいとうビーム",
-    "power": 90,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 90,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "freeze",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "beam"
-    ],
-    "type": "ice"
-  },
-  "freezing_punch": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "freezing_punch",
-    "name": "れいとうパンチ",
-    "power": 75,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 75,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "freeze",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "contact",
-      "punch"
-    ],
-    "type": "ice"
-  },
   "frenzy_plant": {
     "accuracy": 0.9,
     "category": "special",
@@ -5530,29 +4396,6 @@
     ],
     "type": "bug"
   },
-  "fury_swipes": {
-    "category": "physical",
-    "id": "fury_swipes",
-    "name": "みだれづき",
-    "pp": 20,
-    "steps": [
-      {
-        "steps": [
-          {
-            "accuracy": 0.85,
-            "power": 15,
-            "type": "damage"
-          }
-        ],
-        "times": {
-          "max": 5,
-          "min": 2
-        },
-        "type": "repeat"
-      }
-    ],
-    "type": "normal"
-  },
   "future_sight": {
     "accuracy": 1,
     "category": "special",
@@ -5597,45 +4440,6 @@
     ],
     "tags": [],
     "type": "poison"
-  },
-  "gear_change": {
-    "category": "status",
-    "id": "gear_change",
-    "name": "ギアチェンジ",
-    "pp": 10,
-    "steps": [
-      {
-        "stages": {
-          "atk": 1,
-          "spe": 2
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "steel"
-  },
-  "ghost_dive": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "ghost_dive",
-    "name": "ゴーストダイブ",
-    "power": 90,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 90,
-        "semiStatusId": "phantom_force",
-        "type": "charge_attack"
-      }
-    ],
-    "tags": [
-      "contact",
-      "charge"
-    ],
-    "type": "ghost"
   },
   "giga_drain": {
     "accuracy": 1,
@@ -5691,52 +4495,6 @@
     ],
     "type": "normal"
   },
-  "gigadrain": {
-    "category": "special",
-    "id": "gigadrain",
-    "name": "ギガドレイン",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 75,
-        "type": "damage"
-      },
-      {
-        "ratio": 0.5,
-        "target": "self",
-        "type": "heal_last_damage"
-      }
-    ],
-    "tags": [
-      "drain"
-    ],
-    "type": "grass"
-  },
-  "gigaimpact": {
-    "category": "physical",
-    "id": "gigaimpact",
-    "name": "ギガインパクト",
-    "pp": 5,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 150,
-        "type": "damage"
-      },
-      {
-        "duration": 1,
-        "statusId": "recharge",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "contact",
-      "recharge"
-    ],
-    "type": "normal"
-  },
   "god_bird": {
     "accuracy": 0.9,
     "category": "physical",
@@ -5772,75 +4530,6 @@
     ],
     "type": "flying"
   },
-  "gold_rush": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "攻撃後、自分の『とくこう』ランクが1段階下がる。",
-    "id": "gold_rush",
-    "name": "ゴールドラッシュ",
-    "power": 120,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spa": -1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "steel"
-  },
-  "grass_divide": {
-    "category": "physical",
-    "id": "grass_divide",
-    "name": "くさわけ",
-    "pp": 20,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 50,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spe": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "grass"
-  },
-  "grass_field": {
-    "category": "status",
-    "id": "grass_field",
-    "name": "グラスフィールド",
-    "pp": 10,
-    "steps": [
-      {
-        "data": {
-          "boost_grass": 1.3,
-          "weaken_ground": true
-        },
-        "duration": 5,
-        "statusId": "grassy_terrain",
-        "type": "apply_field_status"
-      }
-    ],
-    "tags": [],
-    "type": "grass"
-  },
   "grass_knot": {
     "accuracy": 1,
     "category": "special",
@@ -5856,26 +4545,6 @@
       }
     ],
     "tags": [],
-    "type": "grass"
-  },
-  "grass_slider": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "grass_slider",
-    "name": "グラススライダー",
-    "power": 55,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 55,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
     "type": "grass"
   },
   "grassy_glide": {
@@ -5976,55 +4645,6 @@
     ],
     "tags": [],
     "type": "normal"
-  },
-  "grudge_hatred": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "grudge_hatred",
-    "name": "うらみつらみ",
-    "power": 75,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 75,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "atk": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "ghost"
-  },
-  "guard_share": {
-    "accuracy": null,
-    "category": "status",
-    "id": "guard_share",
-    "name": "ガードシェア",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "stats": [
-          "def",
-          "spd"
-        ],
-        "type": "average_stages"
-      },
-      {
-        "message": "NOTE: ガードシェアは本来ランクではなく実数値のぼうぎょ・とくぼうを平均化する。現在はランク平均として処理。",
-        "type": "log"
-      }
-    ],
-    "tags": [],
-    "type": "psychic"
   },
   "guard_split": {
     "accuracy": null,
@@ -6191,97 +4811,6 @@
     ],
     "type": "steel"
   },
-  "hadou_dan": {
-    "accuracy": null,
-    "category": "special",
-    "id": "hadou_dan",
-    "name": "はどうだん",
-    "power": 80,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "pulse",
-      "always_hit"
-    ],
-    "type": "fighting"
-  },
-  "haisuinonjin": {
-    "category": "status",
-    "id": "haisuinonjin",
-    "name": "はいすいのじん",
-    "pp": 5,
-    "steps": [
-      {
-        "else": [
-          {
-            "stages": {
-              "atk": 1,
-              "def": 1,
-              "spa": 1,
-              "spd": 1,
-              "spe": 1
-            },
-            "target": "self",
-            "type": "modify_stage"
-          },
-          {
-            "statusId": "trapped",
-            "target": "self",
-            "type": "apply_status"
-          },
-          {
-            "statusId": "no_retreat",
-            "target": "self",
-            "type": "apply_status"
-          }
-        ],
-        "if": {
-          "statusId": "no_retreat",
-          "type": "user_has_status"
-        },
-        "then": [
-          {
-            "message": "しかし うまく きまらなかった！",
-            "type": "log"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "type": "fighting"
-  },
-  "hakkei": {
-    "category": "physical",
-    "id": "hakkei",
-    "name": "はっけい",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 60,
-        "type": "damage"
-      },
-      {
-        "p": 0.3,
-        "then": [
-          {
-            "statusId": "paralysis",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "type": "fighting"
-  },
   "hammer_arm": {
     "accuracy": 0.9,
     "category": "physical",
@@ -6328,29 +4857,6 @@
     ],
     "tags": [],
     "type": "normal"
-  },
-  "hard_plant": {
-    "category": "special",
-    "id": "hard_plant",
-    "name": "ハードプラント",
-    "pp": 5,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 150,
-        "type": "damage"
-      },
-      {
-        "duration": 1,
-        "statusId": "recharge",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "recharge"
-    ],
-    "type": "grass"
   },
   "hard_press": {
     "accuracy": 1,
@@ -6431,14 +4937,6 @@
     ],
     "tags": [],
     "type": "ice"
-  },
-  "hazure": {
-    "category": "status",
-    "id": "hazure",
-    "name": "はねる",
-    "pp": 40,
-    "steps": [],
-    "type": "normal"
   },
   "headbutt": {
     "accuracy": 1,
@@ -6566,75 +5064,6 @@
       "contact"
     ],
     "type": "steel"
-  },
-  "hell_blow": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "この　技を　受けた　相手は 地獄の　苦しみから　２ターンの間 音の　技を　出すことが　できなくなる。",
-    "id": "hell_blow",
-    "name": "じごくづき",
-    "power": 80,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      },
-      {
-        "duration": 2,
-        "statusId": "throat_chop",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "dark"
-  },
-  "hell_fire": {
-    "accuracy": 0.5,
-    "category": "special",
-    "description": "攻撃し、100%で相手を『やけど』状態にする。",
-    "id": "hell_fire",
-    "name": "れんごく",
-    "power": 100,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.5,
-        "power": 100,
-        "type": "damage"
-      },
-      {
-        "statusId": "burn",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "fire"
-  },
-  "helping_hand": {
-    "accuracy": null,
-    "category": "status",
-    "description": "味方の技の威力を1.5倍にする。シングルでは基本的に効果なし。",
-    "id": "helping_hand",
-    "name": "てだすけ",
-    "power": null,
-    "pp": 20,
-    "priority": 5,
-    "steps": [
-      {
-        "message": "しかし うまく きまらなかった！",
-        "type": "log"
-      }
-    ],
-    "tags": [],
-    "type": "normal"
   },
   "hex": {
     "accuracy": 1,
@@ -7008,27 +5437,6 @@
     ],
     "type": "ice"
   },
-  "ice_breath": {
-    "accuracy": 0.9,
-    "category": "special",
-    "critRate": 6,
-    "id": "ice_breath",
-    "name": "こおりのいぶき",
-    "power": 60,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 60,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "always_crit"
-    ],
-    "type": "ice"
-  },
   "ice_fang": {
     "accuracy": 0.95,
     "category": "physical",
@@ -7193,31 +5601,6 @@
     ],
     "type": "ice"
   },
-  "ice_wind": {
-    "accuracy": 0.95,
-    "category": "special",
-    "id": "ice_wind",
-    "name": "こごえるかぜ",
-    "power": 55,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.95,
-        "power": 55,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spe": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "ice"
-  },
   "icicle_crash": {
     "accuracy": 0.9,
     "category": "physical",
@@ -7379,28 +5762,6 @@
     ],
     "tags": [],
     "type": "bug"
-  },
-  "infight": {
-    "category": "physical",
-    "id": "infight",
-    "name": "インファイト",
-    "pp": 5,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "def": -1,
-          "spd": -1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "fighting"
   },
   "ingrain": {
     "accuracy": null,
@@ -7567,201 +5928,6 @@
     ],
     "type": "water"
   },
-  "jin_tsu_riki": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "jin_tsu_riki",
-    "name": "じんつうりき",
-    "power": 80,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "flinch",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [],
-    "type": "psychic"
-  },
-  "kafun_dango": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "味方に使った場合、ダメージではなく味方のHPを最大HPの1/2回復する。",
-    "id": "kafun_dango",
-    "name": "かふんだんご",
-    "power": 90,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 90,
-        "type": "damage"
-      }
-    ],
-    "tags": [],
-    "type": "bug"
-  },
-  "kage_bunshin": {
-    "category": "status",
-    "id": "kage_bunshin",
-    "name": "かげぶんしん",
-    "pp": 15,
-    "steps": [
-      {
-        "stages": {
-          "eva": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "normal"
-  },
-  "kaidenpa": {
-    "accuracy": 1,
-    "category": "status",
-    "id": "kaidenpa",
-    "name": "かいでんぱ",
-    "power": null,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "stages": {
-          "spa": -2
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "electric"
-  },
-  "kairiki": {
-    "category": "physical",
-    "id": "kairiki",
-    "name": "かいりき",
-    "pp": 15,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      }
-    ],
-    "type": "normal"
-  },
-  "kanashibari": {
-    "accuracy": 1,
-    "category": "status",
-    "description": "相手が最後に使った技を4ターンの間使えなくする。",
-    "id": "kanashibari",
-    "name": "かなしばり",
-    "power": null,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "duration": 4,
-        "target": "target",
-        "type": "disable_last_move"
-      }
-    ],
-    "tags": [],
-    "type": "normal"
-  },
-  "karagenki": {
-    "category": "physical",
-    "id": "karagenki",
-    "name": "からげんき",
-    "pp": 20,
-    "steps": [
-      {
-        "else": [
-          {
-            "else": [
-              {
-                "else": [
-                  {
-                    "else": [
-                      {
-                        "accuracy": 1,
-                        "power": 70,
-                        "type": "damage"
-                      }
-                    ],
-                    "if": {
-                      "statusId": "burn",
-                      "type": "user_has_status"
-                    },
-                    "then": [
-                      {
-                        "accuracy": 1,
-                        "power": 140,
-                        "type": "damage"
-                      }
-                    ],
-                    "type": "conditional"
-                  }
-                ],
-                "if": {
-                  "statusId": "paralysis",
-                  "type": "user_has_status"
-                },
-                "then": [
-                  {
-                    "accuracy": 1,
-                    "power": 140,
-                    "type": "damage"
-                  }
-                ],
-                "type": "conditional"
-              }
-            ],
-            "if": {
-              "statusId": "toxic",
-              "type": "user_has_status"
-            },
-            "then": [
-              {
-                "accuracy": 1,
-                "power": 140,
-                "type": "damage"
-              }
-            ],
-            "type": "conditional"
-          }
-        ],
-        "if": {
-          "statusId": "poison",
-          "type": "user_has_status"
-        },
-        "then": [
-          {
-            "accuracy": 1,
-            "power": 140,
-            "type": "damage"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "type": "normal"
-  },
   "knock_off": {
     "accuracy": 1,
     "category": "physical",
@@ -7782,28 +5948,6 @@
       "contact"
     ],
     "type": "dark"
-  },
-  "kuroi_manazashi": {
-    "accuracy": null,
-    "category": "status",
-    "description": "相手は交代できなくなる。",
-    "id": "kuroi_manazashi",
-    "name": "くろいまなざし",
-    "power": null,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "immuneTypes": [
-          "ghost"
-        ],
-        "statusId": "trapped",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "normal"
   },
   "lash_out": {
     "accuracy": 1,
@@ -8133,33 +6277,6 @@
     ],
     "type": "bug"
   },
-  "luster_cannon": {
-    "category": "special",
-    "id": "luster_cannon",
-    "name": "ラスターカノン",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "stages": {
-              "spd": -1
-            },
-            "target": "target",
-            "type": "modify_stage"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "type": "steel"
-  },
   "mach_punch": {
     "accuracy": 1,
     "category": "physical",
@@ -8182,32 +6299,6 @@
     ],
     "type": "fighting"
   },
-  "magical_flame": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "攻撃し、100%で相手の『とくこう』ランクを1段階下げる。",
-    "id": "magical_flame",
-    "name": "マジカルフレイム",
-    "power": 75,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 75,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spa": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "fire"
-  },
   "magical_leaf": {
     "accuracy": null,
     "category": "special",
@@ -8228,25 +6319,6 @@
       "always_hit"
     ],
     "type": "grass"
-  },
-  "magical_shine": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "通常攻撃。",
-    "id": "magical_shine",
-    "name": "マジカルシャイン",
-    "power": 80,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      }
-    ],
-    "tags": [],
-    "type": "fairy"
   },
   "magnet_rise": {
     "accuracy": null,
@@ -8315,23 +6387,6 @@
     ],
     "tags": [],
     "type": "normal"
-  },
-  "meditate": {
-    "category": "status",
-    "id": "meditate",
-    "name": "めいそう",
-    "pp": 20,
-    "steps": [
-      {
-        "stages": {
-          "spa": 1,
-          "spd": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "psychic"
   },
   "mega_drain": {
     "accuracy": 1,
@@ -8606,34 +6661,6 @@
     "tags": [],
     "type": "psychic"
   },
-  "missile_needle": {
-    "accuracy": 0.95,
-    "category": "physical",
-    "description": "1ターンに2～5回連続で攻撃する。",
-    "id": "missile_needle",
-    "name": "ミサイルばり",
-    "power": 25,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "steps": [
-          {
-            "accuracy": 0.95,
-            "power": 25,
-            "type": "damage"
-          }
-        ],
-        "times": {
-          "max": 5,
-          "min": 2
-        },
-        "type": "repeat"
-      }
-    ],
-    "tags": [],
-    "type": "bug"
-  },
   "mist": {
     "accuracy": null,
     "category": "status",
@@ -8653,57 +6680,6 @@
     ],
     "tags": [],
     "type": "ice"
-  },
-  "mist_burst": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "攻撃後、自分が『ひんし』状態になる。ミストフィールド下で威力が上がる。",
-    "id": "mist_burst",
-    "name": "ミストバースト",
-    "power": 100,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "power": 100,
-        "powerMultiplier": 1.5,
-        "powerMultiplierIf": {
-          "statusId": "misty_terrain",
-          "type": "field_has_status"
-        },
-        "type": "damage"
-      },
-      {
-        "ratioCurrentHp": 1,
-        "target": "self",
-        "type": "damage_ratio"
-      }
-    ],
-    "tags": [],
-    "type": "fairy"
-  },
-  "mist_field": {
-    "accuracy": null,
-    "category": "status",
-    "description": "5ターンの間、場の状態を『ミストフィールド』にする。",
-    "id": "mist_field",
-    "name": "ミストフィールド",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "data": {
-          "dragonDamageReduction": 0.5,
-          "preventsStatus": true
-        },
-        "duration": 5,
-        "statusId": "misty_terrain",
-        "type": "apply_field_status"
-      }
-    ],
-    "tags": [],
-    "type": "fairy"
   },
   "misty_explosion": {
     "accuracy": 1,
@@ -8953,38 +6929,6 @@
     "tags": [],
     "type": "ground"
   },
-  "mud_stream": {
-    "accuracy": 0.85,
-    "category": "special",
-    "description": "30%の確率で相手の命中率を1段階下げる。",
-    "id": "mud_stream",
-    "name": "だくりゅう",
-    "power": 90,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.85,
-        "power": 90,
-        "type": "damage"
-      },
-      {
-        "p": 0.3,
-        "then": [
-          {
-            "stages": {
-              "accuracy": -1
-            },
-            "target": "target",
-            "type": "modify_stage"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [],
-    "type": "water"
-  },
   "muddy_water": {
     "accuracy": 0.85,
     "category": "special",
@@ -9016,29 +6960,6 @@
     ],
     "tags": [],
     "type": "water"
-  },
-  "mushroom_spore": {
-    "accuracy": 1,
-    "category": "status",
-    "id": "mushroom_spore",
-    "name": "キノコのほうし",
-    "power": null,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "immuneTypes": [
-          "grass"
-        ],
-        "statusId": "sleep",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "powder"
-    ],
-    "type": "grass"
   },
   "mystical_fire": {
     "accuracy": 1,
@@ -9082,189 +7003,6 @@
         },
         "target": "self",
         "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "dark"
-  },
-  "nayanomi_tane": {
-    "accuracy": 1,
-    "category": "status",
-    "id": "nayanomi_tane",
-    "name": "なやみのタネ",
-    "power": null,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "abilityId": "insomnia",
-        "target": "target",
-        "type": "set_ability"
-      }
-    ],
-    "tags": [],
-    "type": "grass"
-  },
-  "nayshobanashi": {
-    "category": "status",
-    "id": "nayshobanashi",
-    "name": "ないしょばなし",
-    "pp": 20,
-    "steps": [
-      {
-        "stages": {
-          "spa": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "normal"
-  },
-  "neppuu": {
-    "accuracy": 0.9,
-    "category": "special",
-    "description": "攻撃し、10%で相手を『やけど』状態にする。",
-    "id": "neppuu",
-    "name": "ねっぷう",
-    "power": 95,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 95,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "burn",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [],
-    "type": "fire"
-  },
-  "netsu_no_daichi": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "netsu_no_daichi",
-    "name": "ねっさのだいち",
-    "power": 70,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 70,
-        "type": "damage"
-      },
-      {
-        "p": 0.3,
-        "then": [
-          {
-            "statusId": "burn",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      },
-      {
-        "if": {
-          "statusId": "freeze",
-          "type": "user_has_status"
-        },
-        "then": [
-          {
-            "statusId": "freeze",
-            "target": "self",
-            "type": "remove_status"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "tags": [
-      "thaws_user"
-    ],
-    "type": "ground"
-  },
-  "nettou": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "30%の確率で相手を『やけど』状態にする。",
-    "id": "nettou",
-    "name": "ねっとう",
-    "power": 80,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      },
-      {
-        "p": 0.3,
-        "then": [
-          {
-            "statusId": "burn",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      },
-      {
-        "statusId": "freeze",
-        "target": "self",
-        "type": "remove_status"
-      },
-      {
-        "statusId": "freeze",
-        "target": "target",
-        "type": "remove_status"
-      }
-    ],
-    "tags": [
-      "thaws_user"
-    ],
-    "type": "water"
-  },
-  "night_burst": {
-    "accuracy": 0.95,
-    "category": "special",
-    "description": "暗黒の　衝撃波を とばして　相手を　攻撃する。 命中率を　さげることが　ある。",
-    "id": "night_burst",
-    "name": "ナイトバースト",
-    "power": 85,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.95,
-        "power": 85,
-        "type": "damage"
-      },
-      {
-        "p": 0.4,
-        "then": [
-          {
-            "stages": {
-              "accuracy": -1
-            },
-            "target": "target",
-            "type": "modify_stage"
-          }
-        ],
-        "type": "chance"
       }
     ],
     "tags": [],
@@ -9323,27 +7061,6 @@
       "contact"
     ],
     "type": "dark"
-  },
-  "nitro_charge": {
-    "category": "physical",
-    "id": "nitro_charge",
-    "name": "ニトロチャージ",
-    "pp": 20,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 50,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spe": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "fire"
   },
   "no_retreat": {
     "accuracy": null,
@@ -9476,139 +7193,6 @@
     ],
     "type": "ghost"
   },
-  "ominous_wind": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "ominous_wind",
-    "name": "たたりめ",
-    "power": 65,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "else": [
-          {
-            "else": [
-              {
-                "else": [
-                  {
-                    "else": [
-                      {
-                        "else": [
-                          {
-                            "else": [
-                              {
-                                "accuracy": 1,
-                                "power": 65,
-                                "type": "damage"
-                              }
-                            ],
-                            "if": {
-                              "statusId": "freeze",
-                              "type": "target_has_status"
-                            },
-                            "then": [
-                              {
-                                "accuracy": 1,
-                                "power": 130,
-                                "type": "damage"
-                              }
-                            ],
-                            "type": "conditional"
-                          }
-                        ],
-                        "if": {
-                          "statusId": "sleep",
-                          "type": "target_has_status"
-                        },
-                        "then": [
-                          {
-                            "accuracy": 1,
-                            "power": 130,
-                            "type": "damage"
-                          }
-                        ],
-                        "type": "conditional"
-                      }
-                    ],
-                    "if": {
-                      "statusId": "paralysis",
-                      "type": "target_has_status"
-                    },
-                    "then": [
-                      {
-                        "accuracy": 1,
-                        "power": 130,
-                        "type": "damage"
-                      }
-                    ],
-                    "type": "conditional"
-                  }
-                ],
-                "if": {
-                  "statusId": "burn",
-                  "type": "target_has_status"
-                },
-                "then": [
-                  {
-                    "accuracy": 1,
-                    "power": 130,
-                    "type": "damage"
-                  }
-                ],
-                "type": "conditional"
-              }
-            ],
-            "if": {
-              "statusId": "toxic",
-              "type": "target_has_status"
-            },
-            "then": [
-              {
-                "accuracy": 1,
-                "power": 130,
-                "type": "damage"
-              }
-            ],
-            "type": "conditional"
-          }
-        ],
-        "if": {
-          "statusId": "poison",
-          "type": "target_has_status"
-        },
-        "then": [
-          {
-            "accuracy": 1,
-            "power": 130,
-            "type": "damage"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "tags": [],
-    "type": "ghost"
-  },
-  "onibi": {
-    "accuracy": 0.85,
-    "category": "status",
-    "description": "相手を『やけど』状態にする。",
-    "id": "onibi",
-    "name": "おにび",
-    "power": null,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "statusId": "burn",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "fire"
-  },
   "outrage": {
     "accuracy": 1,
     "category": "physical",
@@ -9683,48 +7267,6 @@
     "tags": [],
     "type": "normal"
   },
-  "painsplit": {
-    "accuracy": null,
-    "category": "status",
-    "description": "お互いのHPを足して2で割り、それぞれのHPにする。",
-    "id": "painsplit",
-    "name": "いたみわけ",
-    "power": null,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "type": "pain_split_effect"
-      }
-    ],
-    "tags": [],
-    "type": "normal"
-  },
-  "parabola_charge": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "parabola_charge",
-    "name": "パラボラチャージ",
-    "power": 65,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 65,
-        "type": "damage"
-      },
-      {
-        "ratio": 0.5,
-        "target": "self",
-        "type": "heal_last_damage"
-      }
-    ],
-    "tags": [
-      "drain"
-    ],
-    "type": "electric"
-  },
   "parabolic_charge": {
     "accuracy": 1,
     "category": "special",
@@ -9750,31 +7292,6 @@
       "drain"
     ],
     "type": "electric"
-  },
-  "paralysis_powder": {
-    "accuracy": 0.75,
-    "category": "status",
-    "id": "paralysis_powder",
-    "name": "しびれごな",
-    "power": null,
-    "pp": 30,
-    "priority": 0,
-    "steps": [
-      {
-        "chance": 0.75,
-        "immuneTypes": [
-          "grass",
-          "electric"
-        ],
-        "statusId": "paralysis",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "powder"
-    ],
-    "type": "grass"
   },
   "parting_shot": {
     "accuracy": 1,
@@ -9884,33 +7401,6 @@
           "confuseOnEnd": true,
           "mode": "force_specific",
           "moveId": "petal_dance"
-        },
-        "duration": 3,
-        "target": "self",
-        "type": "lock_move"
-      }
-    ],
-    "tags": [
-      "locked_move"
-    ],
-    "type": "grass"
-  },
-  "petals_dance": {
-    "category": "special",
-    "id": "petals_dance",
-    "name": "はなびらのまい",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "data": {
-          "confuseOnEnd": true,
-          "mode": "force_specific",
-          "moveId": "petals_dance"
         },
         "duration": 3,
         "target": "self",
@@ -10573,76 +8063,6 @@
     ],
     "type": "psychic"
   },
-  "psycho_fang": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "psycho_fang",
-    "name": "サイコファング",
-    "power": 85,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 85,
-        "type": "damage"
-      },
-      {
-        "statusId": "reflect",
-        "type": "remove_field_status"
-      },
-      {
-        "statusId": "light_screen",
-        "type": "remove_field_status"
-      },
-      {
-        "statusId": "aurora_veil",
-        "type": "remove_field_status"
-      }
-    ],
-    "tags": [
-      "contact",
-      "bite"
-    ],
-    "type": "psychic"
-  },
-  "psycho_field": {
-    "category": "status",
-    "id": "psycho_field",
-    "name": "サイコフィールド",
-    "pp": 10,
-    "steps": [
-      {
-        "data": {
-          "psychic_boost": 1.3
-        },
-        "duration": 5,
-        "statusId": "psychic_terrain",
-        "type": "apply_field_status"
-      }
-    ],
-    "tags": [],
-    "type": "psychic"
-  },
-  "psycho_shock": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "psycho_shock",
-    "name": "サイコショック",
-    "power": 80,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage",
-        "useDefensiveStat": true
-      }
-    ],
-    "tags": [],
-    "type": "psychic"
-  },
   "psyshock": {
     "accuracy": 1,
     "category": "special",
@@ -10714,76 +8134,6 @@
     ],
     "type": "normal"
   },
-  "quick_guard": {
-    "category": "physical",
-    "id": "quick_guard",
-    "name": "はやてがえし",
-    "pp": 15,
-    "priority": 3,
-    "steps": [
-      {
-        "else": [
-          {
-            "message": "しかし うまく きまらなかった！",
-            "type": "log"
-          }
-        ],
-        "if": {
-          "conditions": [
-            {
-              "type": "target_selected_priority_positive"
-            },
-            {
-              "type": "target_has_not_acted_this_turn"
-            }
-          ],
-          "type": "all"
-        },
-        "then": [
-          {
-            "accuracy": 1,
-            "power": 65,
-            "type": "damage"
-          },
-          {
-            "chance": 1,
-            "statusId": "flinch",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "fighting"
-  },
-  "quick_turn": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "攻撃後、手持ちのポケモンと入れ替わる。",
-    "id": "quick_turn",
-    "name": "クイックターン",
-    "power": 60,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 60,
-        "type": "damage"
-      },
-      {
-        "type": "self_switch"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "water"
-  },
   "quiver_dance": {
     "accuracy": null,
     "category": "status",
@@ -10849,33 +8199,6 @@
     ],
     "tags": [],
     "type": "water"
-  },
-  "rampage": {
-    "category": "physical",
-    "id": "rampage",
-    "name": "あばれる",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "data": {
-          "confuseOnEnd": true,
-          "moveId": "rampage"
-        },
-        "duration": {
-          "max": 3,
-          "min": 2
-        },
-        "statusId": "lock_move",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "type": "normal"
   },
   "rapid_spin": {
     "accuracy": 1,
@@ -11054,29 +8377,6 @@
     ],
     "type": "normal"
   },
-  "revenge": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "revenge",
-    "name": "ふんどのこぶし",
-    "power": 50,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "maxPower": 350,
-        "power": 50,
-        "powerPerHitTaken": 50,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact",
-      "punch"
-    ],
-    "type": "ghost"
-  },
   "reversal": {
     "accuracy": 1,
     "category": "physical",
@@ -11165,32 +8465,6 @@
     "category": "special",
     "description": "時間が　ゆがむほどの　力を うちだして　相手を　攻撃する。 次の　ターンは　動けなくなる。",
     "id": "roar_of_time",
-    "name": "ときのほうこう",
-    "power": 150,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 150,
-        "type": "damage"
-      },
-      {
-        "duration": 1,
-        "statusId": "recharge",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "recharge"
-    ],
-    "type": "dragon"
-  },
-  "roaring_time": {
-    "accuracy": 0.9,
-    "category": "special",
-    "id": "roaring_time",
     "name": "ときのほうこう",
     "power": 150,
     "pp": 5,
@@ -11419,21 +8693,6 @@
     "tags": [],
     "type": "flying"
   },
-  "root_grow": {
-    "category": "status",
-    "id": "root_grow",
-    "name": "ねをはる",
-    "pp": 20,
-    "steps": [
-      {
-        "statusId": "ingrain",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "grass"
-  },
   "ruin_sting": {
     "accuracy": 1,
     "category": "special",
@@ -11479,31 +8738,6 @@
     ],
     "tags": [],
     "type": "dark"
-  },
-  "ryuseigun": {
-    "accuracy": 0.9,
-    "category": "special",
-    "id": "ryuseigun",
-    "name": "りゅうせいぐん",
-    "power": 130,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.9,
-        "power": 130,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "spa": -2
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "dragon"
   },
   "sacred_fire": {
     "accuracy": 0.95,
@@ -11554,30 +8788,6 @@
     ],
     "tags": [],
     "type": "normal"
-  },
-  "samui_gag": {
-    "accuracy": null,
-    "category": "status",
-    "id": "samui_gag",
-    "name": "さむいギャグ",
-    "power": null,
-    "pp": 30,
-    "priority": 0,
-    "steps": [
-      {
-        "data": {
-          "boost_ice_def": 1.5
-        },
-        "duration": 5,
-        "statusId": "snow",
-        "type": "apply_field_status"
-      },
-      {
-        "type": "self_switch"
-      }
-    ],
-    "tags": [],
-    "type": "ice"
   },
   "sand_attack": {
     "accuracy": 1,
@@ -11786,27 +8996,6 @@
     "tags": [],
     "type": "normal"
   },
-  "scissor_cross": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "通常攻撃。",
-    "id": "scissor_cross",
-    "name": "シザークロス",
-    "power": 80,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 80,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "bug"
-  },
   "scorching_sands": {
     "accuracy": 1,
     "category": "special",
@@ -11934,19 +9123,6 @@
     "tags": [],
     "type": "normal"
   },
-  "self_suggestion": {
-    "category": "status",
-    "id": "self_suggestion",
-    "name": "じこあんじ",
-    "pp": 10,
-    "steps": [
-      {
-        "type": "copy_stages"
-      }
-    ],
-    "tags": [],
-    "type": "normal"
-  },
   "shadow_ball": {
     "accuracy": 1,
     "category": "special",
@@ -12026,26 +9202,6 @@
     ],
     "type": "ghost"
   },
-  "shadow_ray": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "shadow_ray",
-    "name": "シャドーレイ",
-    "power": 100,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 100,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "ignore_ability"
-    ],
-    "type": "ghost"
-  },
   "shadow_sneak": {
     "accuracy": 1,
     "category": "physical",
@@ -12067,54 +9223,42 @@
     ],
     "type": "ghost"
   },
-  "shadow_stitch": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "shadow_stitch",
-    "name": "かげぬい",
+  "shaka_shaka_ho": {
+    "accuracy": 0.9,
+    "category": "special",
+    "description": "相手に与えたダメージの半分だけ自分のHPが回復する。また、20%の確率で相手をやけど状態にする。",
+    "id": "shaka_shaka_ho",
+    "name": "シャカシャカほう",
     "power": 80,
-    "pp": 10,
+    "pp": 15,
     "priority": 0,
     "steps": [
       {
-        "accuracy": 1,
+        "accuracy": 0.9,
         "power": 80,
         "type": "damage"
       },
       {
-        "immuneTypes": [
-          "ghost"
-        ],
-        "statusId": "trapped",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [],
-    "type": "ghost"
-  },
-  "sharpen": {
-    "category": "status",
-    "id": "sharpen",
-    "name": "つめとぎ",
-    "pp": 15,
-    "steps": [
-      {
-        "stages": {
-          "atk": 1
-        },
+        "ratio": 0.5,
         "target": "self",
-        "type": "modify_stage"
+        "type": "heal_last_damage"
       },
       {
-        "stages": {
-          "accuracy": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
+        "p": 0.2,
+        "then": [
+          {
+            "statusId": "burn",
+            "target": "target",
+            "type": "apply_status"
+          }
+        ],
+        "type": "chance"
       }
     ],
-    "type": "dark"
+    "tags": [
+      "drain"
+    ],
+    "type": "grass"
   },
   "shed_tail": {
     "accuracy": null,
@@ -12168,27 +9312,6 @@
     "tags": [],
     "type": "ice"
   },
-  "shell_fortify": {
-    "accuracy": null,
-    "category": "status",
-    "description": "自分の『ぼうぎょ』ランクを1段階上げる。",
-    "id": "shell_fortify",
-    "name": "からにこもる",
-    "power": null,
-    "pp": 40,
-    "priority": 0,
-    "steps": [
-      {
-        "stages": {
-          "def": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [],
-    "type": "water"
-  },
   "shell_smash": {
     "accuracy": null,
     "category": "status",
@@ -12235,25 +9358,6 @@
     ],
     "tags": [],
     "type": "steel"
-  },
-  "shiroi_kiri": {
-    "accuracy": null,
-    "category": "status",
-    "id": "shiroi_kiri",
-    "name": "しろいきり",
-    "power": null,
-    "pp": 30,
-    "priority": 0,
-    "steps": [
-      {
-        "duration": 5,
-        "side": true,
-        "statusId": "mist",
-        "type": "apply_field_status"
-      }
-    ],
-    "tags": [],
-    "type": "ice"
   },
   "shock_wave": {
     "accuracy": null,
@@ -12390,30 +9494,6 @@
     ],
     "type": "normal"
   },
-  "sleep": {
-    "category": "status",
-    "id": "sleep",
-    "name": "ねむる",
-    "pp": 5,
-    "steps": [
-      {
-        "target": "self",
-        "type": "cure_all_status"
-      },
-      {
-        "ratioMaxHp": -1,
-        "target": "self",
-        "type": "damage_ratio"
-      },
-      {
-        "duration": 2,
-        "statusId": "sleep",
-        "target": "self",
-        "type": "apply_status"
-      }
-    ],
-    "type": "psychic"
-  },
   "sleep_talk": {
     "accuracy": null,
     "category": "status",
@@ -12467,27 +9547,6 @@
       "bomb"
     ],
     "type": "poison"
-  },
-  "smart_horn": {
-    "accuracy": null,
-    "category": "physical",
-    "description": "自分の命中率、相手の回避率に関係なく必ず命中する。",
-    "id": "smart_horn",
-    "name": "スマートホーン",
-    "power": 70,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "power": 70,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact",
-      "always_hit"
-    ],
-    "type": "steel"
   },
   "smart_strike": {
     "accuracy": null,
@@ -12607,37 +9666,6 @@
     ],
     "tags": [],
     "type": "normal"
-  },
-  "snow_powder": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "snow_powder",
-    "name": "こなゆき",
-    "power": 40,
-    "pp": 25,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 40,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "freeze",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [
-      "powder"
-    ],
-    "type": "ice"
   },
   "snowscape": {
     "accuracy": null,
@@ -12799,19 +9827,6 @@
     ],
     "type": "water"
   },
-  "speed_star": {
-    "category": "special",
-    "id": "speed_star",
-    "name": "スピードスター",
-    "pp": 20,
-    "steps": [
-      {
-        "power": 60,
-        "type": "damage"
-      }
-    ],
-    "type": "normal"
-  },
   "spikes": {
     "accuracy": null,
     "category": "status",
@@ -12900,19 +9915,6 @@
     "tags": [
       "powder"
     ],
-    "type": "grass"
-  },
-  "steal_power": {
-    "category": "status",
-    "id": "steal_power",
-    "name": "ちからをすいとる",
-    "pp": 10,
-    "steps": [
-      {
-        "type": "strength_sap_effect"
-      }
-    ],
-    "tags": [],
     "type": "grass"
   },
   "stealth_rock": {
@@ -13510,27 +10512,6 @@
     "tags": [],
     "type": "normal"
   },
-  "swing": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "自分の　体を ぶんまわして　相手に ダメージを　与える。",
-    "id": "swing",
-    "name": "ぶんまわす",
-    "power": 60,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 60,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "dark"
-  },
   "switcheroo": {
     "accuracy": 1,
     "category": "status",
@@ -13547,22 +10528,6 @@
     ],
     "tags": [],
     "type": "dark"
-  },
-  "sword_dance": {
-    "category": "status",
-    "id": "sword_dance",
-    "name": "つるぎのまい",
-    "pp": 20,
-    "steps": [
-      {
-        "stages": {
-          "atk": 2
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "normal"
   },
   "swords_dance": {
     "accuracy": null,
@@ -13766,76 +10731,6 @@
     ],
     "type": "normal"
   },
-  "takuwaeru": {
-    "category": "status",
-    "id": "takuwaeru",
-    "name": "たくわえる",
-    "pp": 20,
-    "steps": [
-      {
-        "stages": {
-          "def": 1,
-          "spd": 1
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "normal"
-  },
-  "tatsumaki": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "tatsumaki",
-    "name": "たつまき",
-    "power": 40,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "accuracyIf": [
-          {
-            "accuracy": 1,
-            "if": {
-              "statusIds": [
-                "fly",
-                "bounce",
-                "sky_drop",
-                "semi_invulnerable_flying"
-              ],
-              "type": "target_has_any_status"
-            }
-          }
-        ],
-        "power": 40,
-        "powerMultiplier": 2,
-        "powerMultiplierIf": {
-          "statusIds": [
-            "fly",
-            "bounce",
-            "sky_drop",
-            "semi_invulnerable_flying"
-          ],
-          "type": "target_has_any_status"
-        },
-        "type": "damage"
-      },
-      {
-        "p": 0.2,
-        "then": [
-          {
-            "statusId": "flinch",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [],
-    "type": "dragon"
-  },
   "taunt": {
     "accuracy": 1,
     "category": "status",
@@ -13856,25 +10751,6 @@
     "tags": [],
     "type": "dark"
   },
-  "teammate": {
-    "accuracy": 1,
-    "category": "status",
-    "description": "相手の特性を自分と同じにする。",
-    "id": "teammate",
-    "name": "なかまづくり",
-    "power": null,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "copyUserAbility": true,
-        "target": "target",
-        "type": "set_ability"
-      }
-    ],
-    "tags": [],
-    "type": "normal"
-  },
   "teeter_dance": {
     "accuracy": 1,
     "category": "status",
@@ -13893,39 +10769,6 @@
     ],
     "tags": [],
     "type": "normal"
-  },
-  "telekinesis": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "telekinesis",
-    "name": "ねんりき",
-    "power": 50,
-    "pp": 25,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 50,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "duration": {
-              "max": 4,
-              "min": 1
-            },
-            "statusId": "confusion",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      }
-    ],
-    "tags": [],
-    "type": "psychic"
   },
   "teleport": {
     "accuracy": null,
@@ -14113,30 +10956,6 @@
       }
     ],
     "tags": [],
-    "type": "electric"
-  },
-  "thunder_dive": {
-    "accuracy": 0.95,
-    "category": "physical",
-    "id": "thunder_dive",
-    "name": "サンダーダイブ",
-    "power": 100,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 0.95,
-        "power": 100,
-        "type": "damage"
-      },
-      {
-        "ratioMaxHp": 0.5,
-        "type": "crash_if_no_damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
     "type": "electric"
   },
   "thunder_fang": {
@@ -14351,25 +11170,6 @@
     ],
     "type": "fire"
   },
-  "torchica": {
-    "accuracy": null,
-    "category": "status",
-    "id": "torchica",
-    "name": "トーチカ",
-    "power": null,
-    "pp": 10,
-    "priority": 4,
-    "steps": [
-      {
-        "statusId": "baneful_bunker",
-        "type": "protect"
-      }
-    ],
-    "tags": [
-      "protect"
-    ],
-    "type": "poison"
-  },
   "torment": {
     "accuracy": 1,
     "category": "status",
@@ -14559,50 +11359,6 @@
     ],
     "type": "fighting"
   },
-  "tsujigiri": {
-    "accuracy": 1,
-    "category": "physical",
-    "critRate": 1,
-    "id": "tsujigiri",
-    "name": "つじぎり",
-    "power": 70,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 70,
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "dark"
-  },
-  "tsuppari": {
-    "category": "physical",
-    "id": "tsuppari",
-    "name": "つっぱり",
-    "pp": 20,
-    "steps": [
-      {
-        "steps": [
-          {
-            "accuracy": 1,
-            "power": 15,
-            "type": "damage"
-          }
-        ],
-        "times": {
-          "max": 5,
-          "min": 2
-        },
-        "type": "repeat"
-      }
-    ],
-    "type": "fighting"
-  },
   "twister": {
     "accuracy": 1,
     "category": "special",
@@ -14680,27 +11436,6 @@
       "contact"
     ],
     "type": "bug"
-  },
-  "ultrasonic": {
-    "accuracy": 0.55,
-    "category": "status",
-    "description": "相手を1～4ターンの間『こんらん』状態にする。",
-    "id": "ultrasonic",
-    "name": "ちょうおんぱ",
-    "power": null,
-    "pp": 20,
-    "priority": 0,
-    "steps": [
-      {
-        "statusId": "confusion",
-        "target": "target",
-        "type": "apply_status"
-      }
-    ],
-    "tags": [
-      "sound"
-    ],
-    "type": "normal"
   },
   "upper_hand": {
     "accuracy": 1,
@@ -14788,80 +11523,6 @@
     ],
     "tags": [],
     "type": "fighting"
-  },
-  "vengeance": {
-    "accuracy": 1,
-    "category": "physical",
-    "description": "前のターンに味方がひんしになっていると、威力が2倍になる。",
-    "id": "vengeance",
-    "name": "かたきうち",
-    "power": 70,
-    "pp": 5,
-    "priority": 0,
-    "steps": [
-      {
-        "power": 70,
-        "powerMultiplier": 2,
-        "powerMultiplierIf": {
-          "type": "ally_fainted_last_turn"
-        },
-        "type": "damage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "normal"
-  },
-  "venom_shock": {
-    "accuracy": 1,
-    "category": "special",
-    "id": "venom_shock",
-    "name": "ベノムショック",
-    "power": 65,
-    "pp": 10,
-    "priority": 0,
-    "steps": [
-      {
-        "else": [
-          {
-            "else": [
-              {
-                "accuracy": 1,
-                "power": 65,
-                "type": "damage"
-              }
-            ],
-            "if": {
-              "statusId": "toxic",
-              "type": "target_has_status"
-            },
-            "then": [
-              {
-                "accuracy": 1,
-                "power": 130,
-                "type": "damage"
-              }
-            ],
-            "type": "conditional"
-          }
-        ],
-        "if": {
-          "statusId": "poison",
-          "type": "target_has_status"
-        },
-        "then": [
-          {
-            "accuracy": 1,
-            "power": 130,
-            "type": "damage"
-          }
-        ],
-        "type": "conditional"
-      }
-    ],
-    "tags": [],
-    "type": "poison"
   },
   "venoshock": {
     "accuracy": 1,
@@ -14995,40 +11656,6 @@
     ],
     "type": "electric"
   },
-  "volttackle": {
-    "category": "physical",
-    "id": "volttackle",
-    "name": "ボルテッカー",
-    "pp": 15,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 120,
-        "type": "damage"
-      },
-      {
-        "p": 0.1,
-        "then": [
-          {
-            "statusId": "paralysis",
-            "target": "target",
-            "type": "apply_status"
-          }
-        ],
-        "type": "chance"
-      },
-      {
-        "ratio": 0.3333333333,
-        "target": "self",
-        "type": "recoil_last_damage"
-      }
-    ],
-    "tags": [
-      "contact",
-      "recoil"
-    ],
-    "type": "electric"
-  },
   "water_pulse": {
     "accuracy": 1,
     "category": "special",
@@ -15113,47 +11740,6 @@
     ],
     "type": "water"
   },
-  "wave": {
-    "accuracy": 1,
-    "category": "special",
-    "description": "相手が『ダイビング』を使っている時でも命中し、ダメージが2倍になる。",
-    "id": "wave",
-    "name": "なみのり",
-    "power": 90,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "accuracyIf": [
-          {
-            "accuracy": 1,
-            "if": {
-              "statusIds": [
-                "dive",
-                "diving",
-                "semi_invulnerable_underwater"
-              ],
-              "type": "target_has_any_status"
-            }
-          }
-        ],
-        "power": 90,
-        "powerMultiplier": 2,
-        "powerMultiplierIf": {
-          "statusIds": [
-            "dive",
-            "diving",
-            "semi_invulnerable_underwater"
-          ],
-          "type": "target_has_any_status"
-        },
-        "type": "damage"
-      }
-    ],
-    "tags": [],
-    "type": "water"
-  },
   "weather_ball": {
     "accuracy": 1,
     "category": "special",
@@ -15206,49 +11792,6 @@
     ],
     "tags": [],
     "type": "water"
-  },
-  "wicked_plot": {
-    "category": "status",
-    "id": "wicked_plot",
-    "name": "わるだくみ",
-    "pp": 20,
-    "steps": [
-      {
-        "stages": {
-          "spa": 2
-        },
-        "target": "self",
-        "type": "modify_stage"
-      }
-    ],
-    "type": "dark"
-  },
-  "wide_breaker": {
-    "accuracy": 1,
-    "category": "physical",
-    "id": "wide_breaker",
-    "name": "ワイドブレイカー",
-    "power": 60,
-    "pp": 15,
-    "priority": 0,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 60,
-        "type": "damage"
-      },
-      {
-        "stages": {
-          "atk": -1
-        },
-        "target": "target",
-        "type": "modify_stage"
-      }
-    ],
-    "tags": [
-      "contact"
-    ],
-    "type": "dragon"
   },
   "wild_charge": {
     "accuracy": 1,
@@ -15392,29 +11935,6 @@
     ],
     "type": "grass"
   },
-  "wood_horn": {
-    "category": "physical",
-    "id": "wood_horn",
-    "name": "ウッドホーン",
-    "pp": 10,
-    "steps": [
-      {
-        "accuracy": 1,
-        "power": 75,
-        "type": "damage"
-      },
-      {
-        "ratio": 0.5,
-        "target": "self",
-        "type": "heal_last_damage"
-      }
-    ],
-    "tags": [
-      "contact",
-      "drain"
-    ],
-    "type": "grass"
-  },
   "work_up": {
     "accuracy": null,
     "category": "status",
@@ -15494,19 +12014,6 @@
       }
     ],
     "tags": [],
-    "type": "normal"
-  },
-  "yubi_o_furu": {
-    "category": "status",
-    "id": "yubi_o_furu",
-    "name": "ゆびをふる",
-    "pp": 10,
-    "steps": [
-      {
-        "pool": "all",
-        "type": "random_move"
-      }
-    ],
     "type": "normal"
   },
   "zap_cannon": {

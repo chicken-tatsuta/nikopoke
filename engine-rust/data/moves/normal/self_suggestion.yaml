@@ -1,8 +1,0 @@
-id: self_suggestion
-name: じこあんじ
-type: normal
-category: status
-pp: 10
-steps:
-- type: copy_stages
-tags: []

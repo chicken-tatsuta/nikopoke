@@ -6,6 +6,7 @@ export type GlobalBattleTeamPokemon = {
     speciesId: string;
     moves: string[];
     ability: string;
+    item?: string | null;
 };
 
 
@@ -50,6 +51,7 @@ function deckToGlobalTeam(deck: DeckPokemon[] | null | undefined): GlobalBattleT
         speciesId: pokemon.speciesId,
         moves: pokemon.moves.filter(Boolean),
         ability: pokemon.ability,
+        item: pokemon.item ?? null,
     }));
 }
 

@@ -1,8 +1,0 @@
-id: embargo
-name: いちゃもん
-type: dark
-category: status
-pp: 15
-steps:
-- type: disable_move
-  duration: null

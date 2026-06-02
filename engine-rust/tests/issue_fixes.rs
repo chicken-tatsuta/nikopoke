@@ -24,6 +24,7 @@ fn create_test_state() -> BattleState {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+            consumed_item: None,
 
             evs: EVStats::default(),
             ability: None,
@@ -56,6 +57,7 @@ fn create_test_state() -> BattleState {
             stages: StatStages::default(),
             statuses: Vec::new(),
             item: None,
+            consumed_item: None,
 
             evs: EVStats::default(),
             ability: None,

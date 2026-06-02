@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit3, FolderOpen, RotateCcw, Save, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { USERNAME_MAX_LENGTH, useAuth, type SavedDeck } from '../contexts/AuthContext';
-import { loadAllData } from '../lib/data';
+import { canonicalizeMoveId, loadAllData } from '../lib/data';
 import { getPokemonPortraitSrc } from '../lib/pokemonImages';
 import { supabase } from '../lib/supabase';
 import { getAbilityLabel } from './PokemonDetailPage';
@@ -13,15 +13,17 @@ export default function ProfilePage() {
     const { profile, updateProfile, refreshProfile, signOut } = useAuth();
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
+    const [moveIdMigrations, setMoveIdMigrations] = useState<Map<string, string>>(new Map());
     const [username, setUsername] = useState(profile?.username ?? '');
     const [savingName, setSavingName] = useState(false);
     const [resettingRating, setResettingRating] = useState(false);
     const [message, setMessage] = useState('');
 
     useEffect(() => {
-        loadAllData().then(({ species, moves }) => {
+        loadAllData().then(({ species, moves, moveIdMigrations }) => {
             setSpecies(species);
             setMoves(moves);
+            setMoveIdMigrations(moveIdMigrations);
         }).catch((error) => {
             console.error('[profile] Failed to load deck data:', error);
         });
@@ -35,7 +37,13 @@ export default function ProfilePage() {
     const losses = profile?.loss_count ?? 0;
     const total = wins + losses;
     const winRate = total > 0 ? Math.round((wins / total) * 1000) / 10 : 0;
-    const savedDecks = useMemo(() => profile?.saved_decks ?? [], [profile?.saved_decks]);
+    const savedDecks = useMemo(
+        () => (profile?.saved_decks ?? []).map((deck) => ({
+            ...deck,
+            deck: canonicalizeDeck(deck.deck, moves, moveIdMigrations),
+        })),
+        [moveIdMigrations, moves, profile?.saved_decks],
+    );
 
     const handleSaveName = async () => {
         const nextName = username.trim();
@@ -60,9 +68,10 @@ export default function ProfilePage() {
 
     const editDeck = async (deck: DeckPokemon[]) => {
         if (deck.length === 0) return;
-        localStorage.setItem('savedDeck', JSON.stringify(deck));
+        const canonicalDeck = canonicalizeDeck(deck, moves, moveIdMigrations);
+        localStorage.setItem('savedDeck', JSON.stringify(canonicalDeck));
         try {
-            await updateProfile({ current_deck: deck });
+            await updateProfile({ current_deck: canonicalDeck });
         } catch (error) {
             console.error('[profile] Failed to set current deck:', error);
         }
@@ -363,6 +372,20 @@ function DeckCard({
             </div>
         </article>
     );
+}
+
+function canonicalizeDeck(
+    deck: DeckPokemon[],
+    moves: MoveData,
+    moveIdMigrations: Map<string, string>,
+): DeckPokemon[] {
+    return deck.map((pokemon) => ({
+        ...pokemon,
+        moves: pokemon.moves
+            .map((moveId) => canonicalizeMoveId(moveId, moves, moveIdMigrations))
+            .filter((moveId, index, self) => self.indexOf(moveId) === index)
+            .slice(0, 4),
+    }));
 }
 
 function MiniDeckPokemon({ pokemon, species, moves }: { pokemon: DeckPokemon; species: SpeciesData[string] | undefined; moves: MoveData }) {

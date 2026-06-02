@@ -145,6 +145,7 @@ impl CreatureBuilder {
             moves: self.moves,
             ability: self.ability,
             item: self.item,
+            consumed_item: None,
             evs: EVStats::default(),
             hp: self.hp,
             max_hp: self.max_hp,

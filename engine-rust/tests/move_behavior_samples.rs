@@ -27,6 +27,7 @@ enum EventKind {
 #[derive(Default)]
 struct Requirements {
     attacker_types: HashSet<String>,
+    target_types: HashSet<String>,
     attacker_statuses: HashSet<String>,
     target_statuses: HashSet<String>,
     field_statuses: HashSet<String>,
@@ -92,6 +93,7 @@ fn create_creature(id: &str, name: &str, types: Vec<String>) -> CreatureState {
         stages: StatStages::default(),
         statuses: Vec::new(),
         item: None,
+        consumed_item: None,
 
         evs: EVStats::default(),
         ability: None,
@@ -116,7 +118,17 @@ fn build_state(requirements: &Requirements) -> BattleState {
         }
     }
     let mut attacker = create_creature("attacker", "Attacker", attacker_types);
-    let mut target = create_creature("target", "Target", vec!["normal".to_string()]);
+    let mut target_types = if requirements.target_types.is_empty() {
+        vec!["normal".to_string()]
+    } else {
+        Vec::new()
+    };
+    for ty in &requirements.target_types {
+        if !target_types.contains(ty) {
+            target_types.push(ty.clone());
+        }
+    }
+    let mut target = create_creature("target", "Target", target_types);
 
     for status_id in &requirements.attacker_statuses {
         attacker.statuses.push(Status {
@@ -421,6 +433,9 @@ fn sampled_move_effects_match_expected_events() {
             .unwrap_or_else(|| panic!("missing move data for {}", move_id));
 
         let mut requirements = Requirements::default();
+        if move_data.move_type.as_deref() == Some("ghost") {
+            requirements.target_types.insert("ghost".to_string());
+        }
         let mut expected = HashSet::new();
         collect_expectations(&move_data.steps, &mut requirements, &mut expected);
 

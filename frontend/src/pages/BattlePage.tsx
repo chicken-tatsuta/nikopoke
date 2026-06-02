@@ -41,7 +41,7 @@ import {
     subscribeOnlineSession,
     type OnlineRole,
 } from '../lib/p2p';
-import type { SpeciesData, MoveData, DeckPokemon } from '../types/pokemon';
+import type { SpeciesData, MoveData, DeckPokemon, ItemData } from '../types/pokemon';
 
 const OPPONENT_TEAM_PREVIEW_SLOTS = 6;
 
@@ -1175,6 +1175,51 @@ function parseAbilityPopup(
     };
 }
 
+function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function inferChoiceLockedMoveIdFromLogs(
+    creature: CreatureStateWire | null | undefined,
+    ownerName: string | null | undefined,
+    logs: string[] | undefined,
+    moves: MoveData,
+): string | null {
+    if (creature?.item !== 'choice_scarf' || !ownerName || !logs) return null;
+    const moveNameToId = new Map(
+        creature.moves
+            .map((moveId) => [moves[moveId]?.name, moveId] as const)
+            .filter((entry): entry is [string, string] => Boolean(entry[0])),
+    );
+    const ownerPattern = escapeRegExp(ownerName);
+    const lockedPattern = new RegExp(`^${ownerPattern}は こだわっていて (.+)しか 出せない！$`);
+    const usedPattern = new RegExp(`^${ownerPattern}の (.+)！$`);
+
+    for (const log of [...logs].reverse()) {
+        const lockedMatch = log.match(lockedPattern);
+        if (lockedMatch) {
+            const moveId = moveNameToId.get(lockedMatch[1]);
+            if (moveId) return moveId;
+        }
+        const usedMatch = log.match(usedPattern);
+        if (usedMatch) {
+            const moveId = moveNameToId.get(usedMatch[1]);
+            if (moveId) return moveId;
+        }
+    }
+
+    return null;
+}
+
+function getChoiceLockedMoveId(creature: CreatureStateWire | null | undefined): string | null {
+    if (creature?.item !== 'choice_scarf') return null;
+    const lockedMove = creature.volatileData?.choiceLockedMove;
+    if (typeof lockedMove === 'string') return lockedMove;
+    if (creature.volatileData?.lastMoveFailed === true) return null;
+    const lastMove = creature.volatileData?.lastMove;
+    return typeof lastMove === 'string' ? lastMove : null;
+}
+
 export default function BattlePage() {
     const navigate = useNavigate();
     const { user, profile } = useAuth();
@@ -1186,6 +1231,7 @@ export default function BattlePage() {
     );
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
+    const [items, setItems] = useState<ItemData>({});
     const [battleState, setBattleState] = useState<BattleStateWire | null>(null);
     const [loading, setLoading] = useState(true);
     const [waiting, setWaiting] = useState(false);    
@@ -1200,6 +1246,7 @@ export default function BattlePage() {
     const [playback, setPlayback] = useState<BattlePlaybackState>(IDLE_PLAYBACK_STATE);
     const [battlePopup, setBattlePopup] = useState<BattlePopup | null>(null);
     const [revealedOpponentSlots, setRevealedOpponentSlots] = useState<Set<number>>(() => new Set());
+    const [choiceMoveLocks, setChoiceMoveLocks] = useState<Record<string, string>>({});
     const [activeMoveTooltipId, setActiveMoveTooltipId] = useState<string | null>(null);
     const logsRef = useRef<HTMLDivElement>(null);
     const battleStateRef = useRef<BattleStateWire | null>(null);
@@ -1232,6 +1279,17 @@ export default function BattlePage() {
     }, []);
 
     useEffect(() => clearMoveLongPressTimer, [clearMoveLongPressTimer]);
+
+    const getVisibleChoiceLockedMoveId = useCallback(
+        (creature: CreatureStateWire | null | undefined, ownerName?: string | null): string | null => {
+            const engineLock = getChoiceLockedMoveId(creature);
+            if (engineLock) return engineLock;
+            if (creature?.item !== 'choice_scarf') return null;
+            return choiceMoveLocks[creature.id]
+                ?? inferChoiceLockedMoveIdFromLogs(creature, ownerName, battleState?.log, moves);
+        },
+        [battleState?.log, choiceMoveLocks, moves],
+    );
 
     useEffect(() => {
         battleStateRef.current = battleState;
@@ -1316,6 +1374,16 @@ export default function BattlePage() {
             await showBattlePopup(popup);
         }
     }, [showBattlePopup]);
+
+    const showInitialBattlePopups = useCallback((
+        state: BattleStateWire,
+        localId: string,
+        opponentId: string,
+    ) => {
+        localPlayerIdRef.current = localId;
+        opponentPlayerIdRef.current = opponentId;
+        void showPopupsFromLogs(state.log, state);
+    }, [showPopupsFromLogs]);
 
     const uploadOnlineBattleResult = useCallback(async (winnerSideForHost: 'player' | 'opponent') => {
         if (
@@ -1445,10 +1513,24 @@ export default function BattlePage() {
                 setBattleState(cloneBattleState(stagedState));
                 await wait(isForcedReplacement ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
 
+                let delayedSwitchHealPopupLogs: string[] = [];
                 if (nextLogCount > displayedLogCount) {
+                    const remainingLogs = newLogs.slice(displayedLogCount, nextLogCount);
+                    const shouldDelayHealPopups = switchInHpDelta !== null
+                        && switchInHpDelta > 0
+                        && remainingLogs.some((log) => parseAbilityPopup(
+                            log,
+                            stagedState,
+                            localPlayerIdRef.current,
+                            opponentPlayerIdRef.current,
+                        ));
                     stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
                     setBattleState(cloneBattleState(stagedState));
-                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
+                    if (shouldDelayHealPopups) {
+                        delayedSwitchHealPopupLogs = remainingLogs;
+                    } else {
+                        await showPopupsFromLogs(remainingLogs, stagedState);
+                    }
                     displayedLogCount = nextLogCount;
                 }
 
@@ -1473,7 +1555,11 @@ export default function BattlePage() {
                     });
                     copyFinalActiveCreature(stagedState, finalState, action.playerId);
                     setBattleState(cloneBattleState(stagedState));
-                    await wait(PLAYBACK_HIT_MS);
+                    if (delayedSwitchHealPopupLogs.length > 0) {
+                        await showPopupsFromLogs(delayedSwitchHealPopupLogs, stagedState);
+                    } else {
+                        await wait(PLAYBACK_HIT_MS);
+                    }
 
                     const faintedIds = finalFaintedCreatureIds(stagedState);
                     const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
@@ -1736,12 +1822,13 @@ export default function BattlePage() {
         let cancelled = false;
         const boot = async () => {
             await initEngine();
-            const { species: loadedSpecies, moves: loadedMoves } = await loadAllData();
+            const { species: loadedSpecies, moves: loadedMoves, items: loadedItems } = await loadAllData();
             if (cancelled) {
                 return;
             }
             setSpecies(loadedSpecies);
             setMoves(loadedMoves);
+            setItems(loadedItems);
             setLoading(false);
         };
 
@@ -1777,6 +1864,11 @@ export default function BattlePage() {
             if (event.type === 'battle_init') {
                 setRevealedOpponentSlots(new Set());
                 setBattleState(event.state);
+                showInitialBattlePopups(
+                    event.state,
+                    localPlayerIdRef.current,
+                    opponentPlayerIdRef.current,
+                );
                 setWaiting(false);
                 setStatusText('');
                 return;
@@ -1829,7 +1921,7 @@ export default function BattlePage() {
                 setWaiting(false);
             }
         });
-    }, [battleMode, finishBattle, navigate, playBattleResolution, resolveForcedSwitch, resolveHostTurn, uploadOnlineBattleResult]);
+    }, [battleMode, finishBattle, navigate, playBattleResolution, resolveForcedSwitch, resolveHostTurn, showInitialBattlePopups, uploadOnlineBattleResult]);
 
     useEffect(() => {
         if (loading || initializedRef.current) {
@@ -1879,6 +1971,7 @@ export default function BattlePage() {
                     setOpponentPlayerId('ai');
                     setRevealedOpponentSlots(new Set());
                     setBattleState(state);
+                    showInitialBattlePopups(state, 'player', 'ai');
                 })
                 .catch((error) => {
                     console.error('Failed to create AI battle state:', error);
@@ -1926,6 +2019,7 @@ export default function BattlePage() {
                     setRevealedOpponentSlots(new Set());
                     setBattleState(state);
                     sendBattleInit(state);
+                    showInitialBattlePopups(state, 'host', 'guest');
                 })
                 .catch((error) => {
                     console.error('Failed to create online battle state:', error);
@@ -1950,7 +2044,7 @@ export default function BattlePage() {
                 setStatusText('ホストが対戦を開始するのを待っています...');
             }
         }
-    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, species]);
+    }, [battleMode, loading, localUserName, navigate, onlineSnapshot.latestState, onlineSnapshot.localDeck, onlineSnapshot.remoteDeck, onlineSnapshot.remoteUserName, onlineSnapshot.role, resetBattlePersistenceState, showInitialBattlePopups, species]);
 
     useEffect(() => {
         if (battleMode !== 'ai' || waiting || !battleState) {
@@ -2087,6 +2181,14 @@ export default function BattlePage() {
 
     const handleSelectMove = async (moveId: string) => {
         if (!battleState || waiting || playbackRef.current) return;
+        const player = battleState.players.find((candidate) => candidate.id === localPlayerIdRef.current);
+        const activeCreature = player?.team[player.activeSlot];
+        const choiceLockedMoveId = getVisibleChoiceLockedMoveId(activeCreature, player?.name);
+        if (choiceLockedMoveId && choiceLockedMoveId !== moveId) {
+            const lockedMoveName = moves[choiceLockedMoveId]?.name ?? choiceLockedMoveId;
+            setStatusText(`${lockedMoveName}で こだわっています。`);
+            return;
+        }
         setWaiting(true);
         setCommandMode('fight');
 
@@ -2120,6 +2222,13 @@ export default function BattlePage() {
                     setWaiting(false);
                     return;
                 }
+            }
+
+            if (activeCreature?.item === 'choice_scarf' && !choiceLockedMoveId) {
+                setChoiceMoveLocks((current) => ({
+                    ...current,
+                    [activeCreature.id]: moveId,
+                }));
             }
 
             const playerAction: ActionWire = {
@@ -2165,6 +2274,15 @@ if (!aiAction) {
             if (player.team[index].hp > 0) return;
         } else if (player.team[index].hp <= 0) {
             return;
+        }
+        const activeCreature = player.team[player.activeSlot];
+        if (activeCreature) {
+            setChoiceMoveLocks((current) => {
+                if (!current[activeCreature.id]) return current;
+                const next = { ...current };
+                delete next[activeCreature.id];
+                return next;
+            });
         }
 
         setWaiting(true);
@@ -2285,6 +2403,7 @@ const opponentPreviewDeck = opponentPreviewDeckRef.current?.length
     : ai.team.map((mon) => ({
         speciesId: mon.speciesId,
         ability: mon.ability ?? '',
+        item: mon.item ?? null,
         moves: mon.moves,
         evs: mon.evs,
     } satisfies DeckPokemon));
@@ -2412,6 +2531,7 @@ const battleTerrain = getBattleTerrain(battleField);
                             key={aiPokemon.id}
                             creature={aiPokemon}
                             species={aiSpecies}
+                            items={items}
                             isPlayer={false}
                             isAttacking={playback.attackingPlayerId === opponentPlayerId}
                             isDamaged={playback.damagedPlayerId === opponentPlayerId}
@@ -2428,6 +2548,7 @@ const battleTerrain = getBattleTerrain(battleField);
                             key={playerPokemon.id}
                             creature={playerPokemon}
                             species={playerSpecies}
+                            items={items}
                             isPlayer={true}
                             isAttacking={playback.attackingPlayerId === localPlayerId}
                             isDamaged={playback.damagedPlayerId === localPlayerId}
@@ -2451,6 +2572,7 @@ const battleTerrain = getBattleTerrain(battleField);
                         key={aiPokemon.id}
                         creature={aiPokemon}
                         species={aiSpecies}
+                        items={items}
                         isPlayer={false}
                         isAttacking={playback.attackingPlayerId === opponentPlayerId}
                         isDamaged={playback.damagedPlayerId === opponentPlayerId}
@@ -2474,6 +2596,7 @@ const battleTerrain = getBattleTerrain(battleField);
                         key={playerPokemon.id}
                         creature={playerPokemon}
                         species={playerSpecies}
+                        items={items}
                         isPlayer={true}
                         isAttacking={playback.attackingPlayerId === localPlayerId}
                         isDamaged={playback.damagedPlayerId === localPlayerId}
@@ -2528,11 +2651,23 @@ const battleTerrain = getBattleTerrain(battleField);
 </div>
                     {commandMode === 'fight' ? (
                         <div>
+                            {(() => {
+                                const lockedMoveId = getVisibleChoiceLockedMoveId(playerPokemon, player.name);
+                                if (!lockedMoveId) return null;
+                                return (
+                                    <div className="mb-2 rounded-lg border border-[#111111] bg-[#F5EEE4] px-3 py-2 text-xs font-bold text-[#111111]">
+                                        こだわり中：{moves[lockedMoveId]?.name ?? lockedMoveId}
+                                    </div>
+                                );
+                            })()}
                             <div className="battle-move-grid mb-2 grid grid-cols-2 gap-2">
                                 {playerPokemon.moves.map((moveId) => {
                                     const move = moves[moveId];
+                                    const choiceLockedMoveId = getVisibleChoiceLockedMoveId(playerPokemon, player.name);
+                                    const isChoiceBlocked = Boolean(choiceLockedMoveId && choiceLockedMoveId !== moveId);
                                     const rawPp = playerPokemon.movePp;
-                                    const pp = (rawPp instanceof Map ? rawPp.get(moveId) : (rawPp as Record<string, number | undefined>)?.[moveId]) ?? move.pp ?? 10;
+                                    const pp = (rawPp instanceof Map ? rawPp.get(moveId) : (rawPp as Record<string, number | undefined>)?.[moveId]) ?? move?.pp ?? 10;
+                                    const moveDisabled = interactionLocked || pp === 0 || isChoiceBlocked;
 
                                     if (!move) return null;
 
@@ -2600,10 +2735,10 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                                     setActiveMoveTooltipId(null);
                                                     handleSelectMove(moveId);
                                                 }}
-                                                disabled={interactionLocked || pp === 0}
+                                                disabled={moveDisabled}
                                                 className={cn(
                                                     'battle-move-card min-h-[86px] w-full rounded-xl border p-2 text-left transition-all sm:min-h-0 sm:p-2.5',
-                                                    interactionLocked || pp === 0
+                                                    moveDisabled
                                                         ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-3)] opacity-50'
                                                         : 'border-[var(--border)] bg-[var(--surface-3)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-4)]',
                                                 )}
@@ -2614,12 +2749,17 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
     </span>
 
     <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1">
-        {effectivenessLabel && (
-            <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:px-2 ${getEffectivenessClass(effectiveness)}`}
-            >
+                                        {effectivenessLabel && (
+                                            <span
+                                                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:px-2 ${getEffectivenessClass(effectiveness)}`}
+                                            >
                 {effectivenessLabel}
-                {formatEffectivenessMultiplier(effectiveness)}
+                                                {formatEffectivenessMultiplier(effectiveness)}
+                                            </span>
+                                        )}
+        {choiceLockedMoveId === moveId && (
+            <span className="rounded-full bg-[#111111] px-1.5 py-0.5 text-[10px] font-semibold text-white sm:px-2">
+                こだわり
             </span>
         )}
 
@@ -2821,6 +2961,8 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     const statusLabel = shownStatuses.length > 0
                         ? shownStatuses.map((status) => getStatusLabel(status.id)).join(' / ')
                         : 'なし';
+                    const itemId = mon.item ?? null;
+                    const itemName = itemId ? (items[itemId]?.name ?? itemId) : null;
 
                     if (!monSpecies) return null;
 
@@ -2865,6 +3007,12 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                                 <div className="text-[10px] font-bold tracking-[0.14em] text-[#555555]">特性</div>
                                                 <div className="mt-1 break-words text-base font-black leading-snug tracking-[0.06em] text-[#111111]">
                                                     {mon.ability ? getAbilityLabel(mon.ability) : 'なし'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 rounded-md border border-[#111111] bg-white p-3">
+                                                <div className="text-[10px] font-bold tracking-[0.14em] text-[#555555]">持ち物</div>
+                                                <div className="mt-1 break-words text-base font-black leading-snug tracking-[0.06em] text-[#111111]">
+                                                    {itemName ?? 'なし'}
                                                 </div>
                                             </div>
                                         </div>
@@ -3230,6 +3378,7 @@ function BattlePopupToast({ popup }: { popup: BattlePopup | null }) {
 function PokemonStatus({
     creature,
     species,
+    items,
     isPlayer,
     isAttacking = false,
     isDamaged = false,
@@ -3239,6 +3388,7 @@ function PokemonStatus({
 }: {
     creature: CreatureStateWire;
     species: SpeciesData[string] | undefined;
+    items: ItemData;
     isPlayer: boolean;
     isAttacking?: boolean;
     isDamaged?: boolean;
@@ -3255,6 +3405,9 @@ function PokemonStatus({
     const typeColor = getTypeColor(effectType);
     const statusFlashColor = statusFlashType ? STATUS_FLASH_COLORS[statusFlashType] : undefined;
     const [showAllStages, setShowAllStages] = useState(false);
+    const itemId = creature.item ?? null;
+    const itemName = itemId ? (items[itemId]?.name ?? itemId) : null;
+    const showItemLine = isPlayer && Boolean(itemName || creature.consumedItem);
 
     return (
         <div className={cn('min-w-0 flex-1', isPlayer ? 'text-right' : 'text-left')}>
@@ -3309,6 +3462,12 @@ function PokemonStatus({
                         </div>
                     </div>
                 </div>
+
+                {showItemLine && (
+                    <div className={cn('mt-2 text-[11px] text-[var(--text-muted)] sm:text-xs', isPlayer ? 'text-right' : 'text-left')}>
+                        持ち物：{itemName ?? 'なし'}
+                    </div>
+                )}
 
                 {/* HP Bar */}
                 <div className="mt-3">

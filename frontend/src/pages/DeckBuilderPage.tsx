@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, X, ArrowLeft, Swords, Sliders, FolderOpen, Save } from 'lucide-react';
-import { loadAllData, getTypeColor } from '../lib/data';
+import { Check, X, ArrowLeft, Swords, Sliders, FolderOpen, Save, Package } from 'lucide-react';
+import { canonicalizeMoveId, loadAllData, getTypeColor } from '../lib/data';
 import { clearOnlineSession } from '../lib/p2p';
-import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats, BaseStats } from '../types/pokemon';
+import type { SpeciesData, MoveData, Learnset, Species, DeckPokemon, EVStats, BaseStats, ItemData, Item } from '../types/pokemon';
 import { getPokemonPreset, resolvePresetMoveIds } from '../lib/pokemonPresets';
 import { useAuth, type SavedDeck } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -75,7 +75,9 @@ export default function DeckBuilderPage() {
 
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
+    const [items, setItems] = useState<ItemData>({});
     const [learnsets, setLearnsets] = useState<Learnset>({});
+    const [moveIdMigrations, setMoveIdMigrations] = useState<Map<string, string>>(new Map());
     const [loading, setLoading] = useState(true);
     const [deckInitialized, setDeckInitialized] = useState(false);
     const [localSavedDecks, setLocalSavedDecks] = useState<SavedDeck[]>([]);
@@ -85,15 +87,19 @@ export default function DeckBuilderPage() {
     const [editingMoves, setEditingMoves] = useState<string[]>([]);
     const [editingEVIndex, setEditingEVIndex] = useState<number | null>(null);
     const [editingEVs, setEditingEVs] = useState<EVStats>(EMPTY_EVS);
+    const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+    const [editingItemId, setEditingItemId] = useState<string>('');
     const [selectedPresetName, setSelectedPresetName] = useState('');
     const editorPaneRef = useRef<HTMLDivElement | null>(null);
-    const isEditing = editingEVIndex !== null || editingIndex !== null;
+    const isEditing = editingEVIndex !== null || editingIndex !== null || editingItemIndex !== null;
 
     useEffect(() => {
-        loadAllData().then(({ species, moves, learnsets }) => {
+        loadAllData().then(({ species, moves, items, learnsets, moveIdMigrations }) => {
             setSpecies(species);
             setMoves(moves);
+            setItems(items);
             setLearnsets(learnsets);
+            setMoveIdMigrations(moveIdMigrations);
             setLoading(false);
         });
     }, []);
@@ -104,7 +110,7 @@ export default function DeckBuilderPage() {
         }
 
         const sourceDeck = supabase && user ? profile?.current_deck : readLocalDeck();
-        const validPokemon = sanitizeDeck(sourceDeck, species, moves, learnsets);
+        const validPokemon = sanitizeDeck(sourceDeck, species, moves, items, learnsets, moveIdMigrations);
 
         if (validPokemon.length > 0) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -117,7 +123,7 @@ export default function DeckBuilderPage() {
         }
 
         setDeckInitialized(true);
-    }, [authLoading, deckInitialized, learnsets, loading, moves, profile?.current_deck, species, user]);
+    }, [authLoading, deckInitialized, items, learnsets, loading, moveIdMigrations, moves, profile?.current_deck, species, user]);
 
     const speciesList = Object.values(species);
 
@@ -127,22 +133,32 @@ export default function DeckBuilderPage() {
     
         const preset = getPokemonPreset(mon.id);
         const monLearnset = learnsets[mon.id] || [];
-        const presetMoves = resolvePresetMoveIds(preset, moves, monLearnset);
+        const presetMoves = resolvePresetMoveIds(preset, moves, monLearnset, moveIdMigrations);
+        const presetAbility = preset?.abilityId && mon.abilities.includes(preset.abilityId)
+            ? preset.abilityId
+            : (mon.abilities[0] || 'none');
+        const presetItem = preset?.itemId && items[preset.itemId] && !selectedPokemon.some((pokemon) => pokemon.item === preset.itemId)
+            ? preset.itemId
+            : null;
     
         const newPokemon: DeckPokemon = {
             speciesId: mon.id,
             moves: presetMoves,
-            ability: mon.abilities[0] || 'none',
+            ability: presetAbility,
+            item: presetItem,
             evs: normalizeEvs(preset?.evs),
         };
     
         setSelectedPokemon([...selectedPokemon, newPokemon]);
     };
 
-    const savedDecks = useMemo(
-        () => (supabase && user ? (profile?.saved_decks ?? []) : localSavedDecks),
-        [localSavedDecks, profile?.saved_decks, user],
-    );
+    const savedDecks = useMemo(() => {
+        const rawSavedDecks = supabase && user ? (profile?.saved_decks ?? []) : localSavedDecks;
+        return rawSavedDecks.map((preset) => ({
+            ...preset,
+            deck: sanitizeDeck(preset.deck, species, moves, items, learnsets, moveIdMigrations),
+        }));
+    }, [items, learnsets, localSavedDecks, moveIdMigrations, moves, profile?.saved_decks, species, user]);
     const activePresetName = savedDecks.some((preset) => preset.name === selectedPresetName)
         ? selectedPresetName
         : (savedDecks[0]?.name ?? '');
@@ -150,14 +166,15 @@ export default function DeckBuilderPage() {
     // Save deck to the profile when possible, with localStorage kept as the offline fallback/cache.
     useEffect(() => {
         if (!loading && deckInitialized && selectedPokemon.length > 0) {
-            localStorage.setItem('savedDeck', JSON.stringify(selectedPokemon));
+            const canonicalDeck = sanitizeDeck(selectedPokemon, species, moves, items, learnsets, moveIdMigrations);
+            localStorage.setItem('savedDeck', JSON.stringify(canonicalDeck));
             if (supabase && user) {
-                void updateProfile({ current_deck: selectedPokemon }).catch((error) => {
+                void updateProfile({ current_deck: canonicalDeck }).catch((error) => {
                     console.error('Failed to save deck:', error);
                 });
             }
         }
-    }, [deckInitialized, loading, selectedPokemon, updateProfile, user]);
+    }, [deckInitialized, items, learnsets, loading, moveIdMigrations, moves, selectedPokemon, species, updateProfile, user]);
 
     useEffect(() => {
         if (!isEditing) {
@@ -191,16 +208,30 @@ export default function DeckBuilderPage() {
         if (editingEVIndex === index) {
             setEditingEVIndex(null);
         }
+        if (editingItemIndex === index) {
+            setEditingItemIndex(null);
+        }
     };
 
     const handleEditMoves = (index: number) => {
+        setEditingEVIndex(null);
+        setEditingItemIndex(null);
         setEditingIndex(index);
         setEditingMoves([...selectedPokemon[index].moves]);
     };
 
     const handleEditEVs = (index: number) => {
+        setEditingIndex(null);
+        setEditingItemIndex(null);
         setEditingEVIndex(index);
         setEditingEVs(normalizeEvs(selectedPokemon[index].evs));
+    };
+
+    const handleEditItem = (index: number) => {
+        setEditingIndex(null);
+        setEditingEVIndex(null);
+        setEditingItemIndex(index);
+        setEditingItemId(selectedPokemon[index].item ?? '');
     };
 
     const handleAbilityChange = (index: number, ability: string) => {
@@ -233,11 +264,23 @@ export default function DeckBuilderPage() {
         setEditingEVIndex(null);
     };
 
+    const handleSaveItem = () => {
+        if (editingItemIndex === null) return;
+        if (editingItemId && selectedPokemon.some((pokemon, index) => index !== editingItemIndex && pokemon.item === editingItemId)) {
+            window.alert('同じ持ち物はチーム内で重複できません。');
+            return;
+        }
+        const updated = [...selectedPokemon];
+        updated[editingItemIndex] = { ...updated[editingItemIndex], item: editingItemId || null };
+        setSelectedPokemon(updated);
+        setEditingItemIndex(null);
+    };
+
     const handleStartBattle = () => {
         if (selectedPokemon.length < DECK_SIZE) return;
-        const sanitizedDeck = selectedPokemon
-            .map((pokemon) => sanitizeDeckPokemon(pokemon, species, moves, learnsets))
-            .filter((pokemon): pokemon is DeckPokemon => pokemon !== null);
+        const sanitizedDeck = enforceUniqueItems(selectedPokemon
+            .map((pokemon) => sanitizeDeckPokemon(pokemon, species, moves, items, learnsets, moveIdMigrations))
+            .filter((pokemon): pokemon is DeckPokemon => pokemon !== null));
 
         if (sanitizedDeck.length < DECK_SIZE || sanitizedDeck.some((pokemon) => pokemon.moves.length === 0)) {
             window.alert('デッキに古い技データが残っています。技を確認して保存し直してください。');
@@ -257,13 +300,24 @@ export default function DeckBuilderPage() {
     };
 
     const handleLoadPreset = (deck: DeckPokemon[]) => {
-        const validPokemon = sanitizeDeck(deck, species, moves, learnsets);
+        const validPokemon = sanitizeDeck(deck, species, moves, items, learnsets, moveIdMigrations);
         if (validPokemon.length === 0) {
             window.alert('このプリセットは読み込めませんでした。');
             return;
         }
         setSelectedPokemon(validPokemon.slice(0, DECK_SIZE));
     };
+
+    const unavailableItemIdsForEditor = useMemo(() => {
+        if (editingItemIndex === null) {
+            return new Set<string>();
+        }
+        return new Set(
+            selectedPokemon
+                .filter((pokemon, index) => index !== editingItemIndex && Boolean(pokemon.item))
+                .map((pokemon) => pokemon.item as string),
+        );
+    }, [editingItemIndex, selectedPokemon]);
 
     const handleLoadSelectedPreset = () => {
         const preset = savedDecks.find((preset) => preset.name === activePresetName);
@@ -387,9 +441,11 @@ export default function DeckBuilderPage() {
                                                 pokemon={selectedPokemon[idx]}
                                                 species={species[selectedPokemon[idx].speciesId]}
                                                 moves={moves}
+                                                items={items}
                                                 onRemove={() => handleRemovePokemon(idx)}
                                                 onEditMoves={() => handleEditMoves(idx)}
                                                 onEditEVs={() => handleEditEVs(idx)}
+                                                onEditItem={() => handleEditItem(idx)}
                                                 onAbilityChange={(ability) => handleAbilityChange(idx, ability)}
                                             />
                                         ) : (
@@ -428,7 +484,18 @@ export default function DeckBuilderPage() {
 
                     {/* Pokemon / Move Selection */}
                     <div ref={editorPaneRef} className={`${isEditing ? 'order-1 lg:order-none' : ''} min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-2`}>
-                        {editingEVIndex !== null ? (
+                        {editingItemIndex !== null ? (
+                            <ItemSelector
+                                species={species[selectedPokemon[editingItemIndex].speciesId]}
+                                items={items}
+                                selectedItemId={editingItemId}
+                                unavailableItemIds={unavailableItemIdsForEditor}
+                                onSelectItem={setEditingItemId}
+                                onReset={() => setEditingItemId('')}
+                                onSave={handleSaveItem}
+                                onCancel={() => setEditingItemIndex(null)}
+                            />
+                        ) : editingEVIndex !== null ? (
                             <EVEditor
                                 species={species[selectedPokemon[editingEVIndex].speciesId]}
                                 evs={editingEVs}
@@ -533,21 +600,39 @@ function sanitizeDeck(
     deck: DeckPokemon[] | null | undefined,
     species: SpeciesData,
     moves: MoveData,
+    items: ItemData,
     learnsets: Learnset,
+    moveIdMigrations: Map<string, string>,
 ): DeckPokemon[] {
     if (!deck) return [];
 
-    return deck
-        .map((pokemon) => sanitizeDeckPokemon(pokemon, species, moves, learnsets))
+    return enforceUniqueItems(deck
+        .map((pokemon) => sanitizeDeckPokemon(pokemon, species, moves, items, learnsets, moveIdMigrations))
         .filter((pokemon): pokemon is DeckPokemon => pokemon !== null)
-        .slice(0, DECK_SIZE);
+        .slice(0, DECK_SIZE));
+}
+
+function enforceUniqueItems(deck: DeckPokemon[]): DeckPokemon[] {
+    const usedItemIds = new Set<string>();
+    return deck.map((pokemon) => {
+        if (!pokemon.item) {
+            return pokemon;
+        }
+        if (usedItemIds.has(pokemon.item)) {
+            return { ...pokemon, item: null };
+        }
+        usedItemIds.add(pokemon.item);
+        return pokemon;
+    });
 }
 
 function sanitizeDeckPokemon(
     pokemon: DeckPokemon,
     species: SpeciesData,
     moves: MoveData,
+    items: ItemData,
     learnsets: Learnset,
+    moveIdMigrations: Map<string, string>,
 ): DeckPokemon | null {
     const mon = species[pokemon.speciesId];
     if (!mon) {
@@ -555,6 +640,7 @@ function sanitizeDeckPokemon(
     }
 
     const sanitizedMoves = pokemon.moves
+        .map((moveId) => canonicalizeMoveId(moveId, moves, moveIdMigrations))
         .filter((moveId, index, self) => self.indexOf(moveId) === index)
         .filter((moveId) => moves[moveId])
         .slice(0, 4);
@@ -566,6 +652,7 @@ function sanitizeDeckPokemon(
     return {
         ...pokemon,
         ability: mon.abilities.includes(pokemon.ability) ? pokemon.ability : (mon.abilities[0] || 'none'),
+        item: pokemon.item && items[pokemon.item] ? pokemon.item : null,
         evs: normalizeEvs(pokemon.evs),
         moves: sanitizedMoves.length > 0 ? sanitizedMoves : fallbackMoves,
     };
@@ -605,21 +692,26 @@ function SelectedPokemonCard({
     pokemon,
     species,
     moves,
+    items,
     onRemove,
     onEditMoves,
     onEditEVs,
+    onEditItem,
     onAbilityChange,
 }: {
     pokemon: DeckPokemon;
     species: Species;
     moves: MoveData;
+    items: ItemData;
     onRemove: () => void;
     onEditMoves: () => void;
     onEditEVs: () => void;
+    onEditItem: () => void;
     onAbilityChange: (ability: string) => void;
 }) {
     const totalEvs = evTotal(pokemon.evs);
     const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
+    const itemName = pokemon.item ? (items[pokemon.item]?.name ?? pokemon.item) : 'なし';
 
     return (
         <div className="group relative flex h-full min-w-0 flex-col">
@@ -667,6 +759,10 @@ function SelectedPokemonCard({
                     ))}
                 </select>
             </div>
+            <div className="mb-3 rounded-lg bg-[var(--surface-3)] px-2.5 py-2">
+                <div className="text-[10px] font-semibold text-[var(--text-muted)]">持ち物</div>
+                <div className="mt-0.5 truncate text-xs font-medium text-[var(--text-primary)]">{itemName}</div>
+            </div>
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {pokemon.moves.map((moveId) => {
                     const move = moves[moveId];
@@ -686,19 +782,27 @@ function SelectedPokemonCard({
                     EV: {totalEvs}/{EV_TOTAL_MAX}
                 </div>
             )}
-            <div className="mt-auto flex gap-2 pt-3">
+            <div className="mt-auto grid grid-cols-3 gap-2 pt-3">
                 <button
                     onClick={onEditMoves}
-                    className="flex-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
+                    className="flex items-center justify-center gap-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
                 >
-                    技を編集
+                    <Swords className="size-3" />
+                    技
+                </button>
+                <button
+                    onClick={onEditItem}
+                    className="flex items-center justify-center gap-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
+                >
+                    <Package className="size-3" />
+                    道具
                 </button>
                 <button
                     onClick={onEditEVs}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
+                    className="flex items-center justify-center gap-1 rounded-lg bg-[var(--surface-3)] px-2 py-2 text-xs font-medium text-[var(--accent)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--accent-hover)]"
                 >
                     <Sliders className="size-3" />
-                    EVを編集
+                    EV
                 </button>
             </div>
         </div>
@@ -846,6 +950,204 @@ function MoveSelector({
             </div>
         </div>
     );
+}
+
+function ItemSelector({
+    species,
+    items,
+    selectedItemId,
+    unavailableItemIds,
+    onSelectItem,
+    onReset,
+    onSave,
+    onCancel,
+}: {
+    species: Species;
+    items: ItemData;
+    selectedItemId: string;
+    unavailableItemIds: Set<string>;
+    onSelectItem: (itemId: string) => void;
+    onReset: () => void;
+    onSave: () => void;
+    onCancel: () => void;
+}) {
+    const itemList = Object.values(items);
+    const [activeTab, setActiveTab] = useState<'atk' | 'def' | 'res' | 'sup'>('atk');
+    const filteredItems = itemList
+        .filter((item) => {
+            if (activeTab === 'atk') return item.kind === 'boost' || item.kind === 'attack';
+            if (activeTab === 'def') return item.kind === 'defense';
+            if (activeTab === 'res') return item.kind === 'resist';
+            return item.kind === 'support';
+        })
+        .sort((a, b) => {
+            if (activeTab !== 'atk') return 0;
+            if (a.kind === b.kind) return 0;
+            if (a.kind === 'attack') return -1;
+            if (b.kind === 'attack') return 1;
+            return 0;
+        });
+    const tabs: Array<{ id: 'atk' | 'def' | 'res' | 'sup'; label: string }> = [
+        { id: 'atk', label: 'ATK' },
+        { id: 'def', label: 'DEF' },
+        { id: 'res', label: 'RES' },
+        { id: 'sup', label: 'SUP' },
+    ];
+
+    return (
+        <div>
+            <div className="sticky top-[73px] z-30 -mx-1 mb-5 border-b border-[var(--border)] bg-[var(--surface-1)] px-1 py-3 shadow-[0_10px_0_var(--surface-1)] lg:top-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <h2 className="text-base font-semibold leading-tight text-[var(--text-primary)]">
+                        {species.name}の持ち物を選択
+                    </h2>
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+                        <button
+                            onClick={onReset}
+                            disabled={!selectedItemId}
+                            className="min-h-11 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-3)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                        >
+                            なし
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            className="min-h-11 rounded-lg bg-[var(--surface-3)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-4)] sm:px-4"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            onClick={onSave}
+                            className="min-h-11 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] sm:px-4"
+                        >
+                            保存
+                        </button>
+                    </div>
+                </div>
+                <div className="mt-3 grid w-full grid-cols-4 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-3)] p-1">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`min-w-0 rounded-md px-3 py-2 text-center text-sm font-black tracking-[0.08em] transition-colors ${
+                                activeTab === tab.id
+                                    ? 'bg-white text-[#111111] shadow-sm'
+                                    : 'text-[var(--text-muted)] hover:bg-white/60 hover:text-[var(--text-primary)]'
+                            }`}
+                            aria-pressed={activeTab === tab.id}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {activeTab === 'atk' && (
+                    <ItemCard
+                        id=""
+                        name="なし"
+                        tag="NONE"
+                        selected={!selectedItemId}
+                        onClick={() => onSelectItem('')}
+                    />
+                )}
+                {filteredItems.map((item) => {
+                    const tag = getItemKindTag(item.kind);
+                    const unavailable = unavailableItemIds.has(item.id);
+                    return (
+                        <ItemCard
+                            key={item.id}
+                            id={item.id}
+                            name={item.name}
+                            tag={tag}
+                            type={item.type}
+                            selected={selectedItemId === item.id}
+                            disabled={unavailable}
+                            onClick={() => onSelectItem(item.id)}
+                        />
+                    );
+                })}
+                {filteredItems.length === 0 && activeTab !== 'atk' && (
+                    <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-center text-sm text-[var(--text-muted)] sm:col-span-2">
+                        このカテゴリの持ち物はまだありません
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ItemCard({
+    id,
+    name,
+    tag,
+    type,
+    selected,
+    disabled = false,
+    onClick,
+}: {
+    id: string;
+    name: string;
+    tag: string;
+    type?: string;
+    selected: boolean;
+    disabled?: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`relative min-h-28 overflow-hidden rounded-lg border p-3 text-left transition-all ${
+                selected
+                    ? 'border-[#111111] bg-white shadow-[0_0_0_2px_rgba(17,17,17,0.08)]'
+                    : disabled
+                    ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-2)] opacity-45'
+                    : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
+            }`}
+            aria-pressed={selected}
+            aria-disabled={disabled}
+        >
+            <div className="absolute right-3 top-3 rounded-md bg-[#F5EEE4] px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-[#111111]">
+                {tag}
+            </div>
+            {type && (
+                <div
+                    className="absolute left-3 top-3 size-2.5 rounded-full"
+                    style={{ backgroundColor: getTypeColor(type) }}
+                />
+            )}
+            <div className="flex min-h-20 items-center justify-center px-4 pt-6">
+                <div className="max-w-full break-words text-center text-lg font-black leading-tight text-[var(--text-primary)] sm:text-xl">
+                    {name}
+                </div>
+            </div>
+            {selected && (
+                <div className="absolute bottom-3 right-3 rounded-md bg-[#111111] px-2 py-0.5 text-[10px] font-bold text-white">
+                    選択中
+                </div>
+            )}
+            {disabled && !selected && (
+                <div className="absolute bottom-3 right-3 rounded-md bg-[var(--surface-4)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)]">
+                    使用中
+                </div>
+            )}
+            {id && (
+                <div className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.08em] text-[var(--text-muted)]">
+                    {id}
+                </div>
+            )}
+        </button>
+    );
+}
+
+function getItemKindTag(kind: Item['kind']): string {
+    if (kind === 'boost' || kind === 'attack') return 'ATK';
+    if (kind === 'resist') return 'RES';
+    if (kind === 'defense') return 'DEF';
+    return 'SUP';
 }
 
 function EVEditor({

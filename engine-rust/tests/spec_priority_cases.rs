@@ -1663,7 +1663,9 @@ fn p0_spec_upper_hand_hits_priority_move_before_target_acts() {
     );
     assert_active_hp(&next, "p1", 100);
     assert!(
-        next.log.iter().any(|line| line.contains("ひるんで 動けない")),
+        next.log
+            .iter()
+            .any(|line| line.contains("ひるんで 動けない")),
         "upper hand should flinch the target after a successful hit"
     );
 }

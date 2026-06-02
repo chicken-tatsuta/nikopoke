@@ -42,6 +42,7 @@ pub fn ability_label(ability: &str) -> &str {
         "intimidate" => "いかく",
         "download" => "ダウンロード",
         "drought" => "ひでり",
+        "drizzle" => "あめふらし",
         "moody" => "ムラっけ",
         "libero" => "リベロ",
         "receiver" => "レシーバー",
@@ -51,6 +52,15 @@ pub fn ability_label(ability: &str) -> &str {
         "aroma_veil" => "アロマベール",
         "lightning_rod" => "ひらいしん",
         "static" => "せいでんき",
+        "popping_habanero" => "とびだすハバネロ",
+        "inner_focus" => "せいしんりょく",
+        "steely_spirit" => "はがねのせいしん",
+        "disguise" => "ばけのかわ",
+        "rattled" => "びびり",
+        "hospitality" => "おもてなし",
+        "frisk" => "おみとおし",
+        "early_bird" => "はやおき",
+        "sniper" => "スナイパー",
         "soundproof" => "ぼうおん",
         "stamina" => "じきゅうりょく",
         "cotton_down" => "わたげ",
@@ -77,6 +87,16 @@ pub fn slow_start_log(creature_name: &str) -> BattleEvent {
     }
 }
 
+fn has_active_steely_spirit(state: &BattleState) -> bool {
+    state.players.iter().any(|player| {
+        player
+            .team
+            .get(player.active_slot)
+            .and_then(|creature| creature.ability.as_deref())
+            == Some("steely_spirit")
+    })
+}
+
 pub fn run_ability_value_hook(
     state: &BattleState,
     player_id: &str,
@@ -87,7 +107,16 @@ pub fn run_ability_value_hook(
     let Some(active) = get_active_creature(state, player_id) else {
         return value;
     };
-    let Some(ability) = active.ability.as_deref() else {
+    let ability = active.ability.as_deref();
+
+    if hook == "onModifyPower"
+        && ctx.move_data.and_then(|m| m.move_type.as_deref()) == Some("steel")
+        && (ability == Some("steelworker") || has_active_steely_spirit(state))
+    {
+        return value * 1.5;
+    }
+
+    let Some(ability) = ability else {
         return value;
     };
 
@@ -132,13 +161,6 @@ pub fn run_ability_value_hook(
         }
         ("technician", "onModifyPower") => {
             if value <= 60.0 {
-                value * 1.5
-            } else {
-                value
-            }
-        }
-        ("steelworker", "onModifyPower") => {
-            if ctx.move_data.and_then(|m| m.move_type.as_deref()) == Some("steel") {
                 value * 1.5
             } else {
                 value
@@ -253,7 +275,9 @@ pub fn run_ability_check_hook(
             matches!(ctx.status_id, Some("poison") | Some("toxic"))
         }
         ("insomnia", "onCheckStatusImmunity") => ctx.status_id == Some("sleep"),
+        ("inner_focus", "onCheckStatusImmunity") => ctx.status_id == Some("flinch"),
         ("own_tempo", "onCheckStatusImmunity") => ctx.status_id == Some("confusion"),
+        ("inner_focus", "onImmunity") => ctx.r#type == Some("intimidate"),
         ("own_tempo", "onImmunity") => ctx.r#type == Some("intimidate"),
         ("clear_body", "onImmunity") => ctx.r#type == Some("intimidate"),
         ("white_smoke", "onImmunity") => ctx.r#type == Some("intimidate"),
@@ -423,6 +447,83 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
+        ("drizzle", "onSwitchIn") => {
+            if active
+                .ability_data
+                .get("drizzleUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                return AbilityHookResult::default();
+            }
+            let mut next = mark_ability_used(state, player_id, "drizzleUsed");
+            next = set_weather(&next, WeatherKind::Rain, Some(5));
+            AbilityHookResult {
+                state: Some(next),
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Log {
+                        message: "雨が 降りはじめた！".to_string(),
+                        meta: Map::new(),
+                    },
+                ],
+                prevent_action: false,
+                override_action: None,
+            }
+        }
+        ("frisk", "onSwitchIn") => {
+            if active
+                .ability_data
+                .get("friskUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                return AbilityHookResult::default();
+            }
+            let target_player = state.players.iter().find(|p| p.id != player_id);
+            let Some(target_player) = target_player else {
+                return AbilityHookResult::default();
+            };
+            let Some(target) = get_active_creature(state, &target_player.id) else {
+                return AbilityHookResult::default();
+            };
+            let next = mark_ability_used(state, player_id, "friskUsed");
+            let item_message = match target.item.as_deref() {
+                Some(item) => format!("{}の 持ち物は {} だった！", target.name, item),
+                None => format!("{}は 持ち物を 持っていない！", target.name),
+            };
+            AbilityHookResult {
+                state: Some(next),
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Log {
+                        message: item_message,
+                        meta: Map::new(),
+                    },
+                ],
+                prevent_action: false,
+                override_action: None,
+            }
+        }
+        ("hospitality", "onSwitchIn") => {
+            if active.hp >= active.max_hp {
+                return AbilityHookResult::default();
+            }
+            let heal = (active.max_hp / 4).max(1).min(active.max_hp - active.hp);
+            AbilityHookResult {
+                state: None,
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Damage {
+                        target_id: player_id.to_string(),
+                        amount: -heal,
+                        meta: Map::new(),
+                    },
+                ],
+                prevent_action: false,
+                override_action: None,
+            }
+        }
         ("slow_start", "onSwitchIn") => AbilityHookResult {
             state: None,
             events: vec![
@@ -569,6 +670,7 @@ pub fn apply_ability_event_modifiers(
     rng: &mut dyn FnMut() -> f64,
 ) -> Vec<BattleEvent> {
     let mut output = Vec::new();
+    let mut blocked_drain_sources: Vec<(String, String)> = Vec::new();
     for event in events {
         let mut current_events = vec![event.clone()];
         if let Some(target_id) = event_target_id(event) {
@@ -589,11 +691,24 @@ pub fn apply_ability_event_modifiers(
                             current_events = replacement;
                         }
                     }
+                    if ability == "disguise" {
+                        if let Some(replacement) = try_disguise(event, state) {
+                            if let (Some(move_id), Some(source_id)) =
+                                (event_meta_move_id(event), event_meta_source(event))
+                            {
+                                blocked_drain_sources.push((move_id, source_id));
+                            }
+                            current_events = replacement;
+                        }
+                    }
                 }
             }
         }
 
         for processed in current_events {
+            if is_blocked_drain_recovery(&processed, &blocked_drain_sources) {
+                continue;
+            }
             if let Some(target_id) = event_target_id(&processed) {
                 if let Some(target) = get_active_creature(state, &target_id) {
                     if target.ability.as_deref() == Some("soundproof") {
@@ -637,6 +752,12 @@ pub fn apply_ability_event_modifiers(
                             "static" => {
                                 after_static(&processed, &player.id, &active.name, move_db, rng)
                             }
+                            "popping_habanero" => {
+                                after_popping_habanero(&processed, &player.id, &active.name)
+                            }
+                            "rattled" => {
+                                after_rattled(&processed, &player.id, &active.name, move_db)
+                            }
                             _ => Vec::new(),
                         };
                         output.extend(reactions);
@@ -646,6 +767,30 @@ pub fn apply_ability_event_modifiers(
         }
     }
     output
+}
+
+fn is_blocked_drain_recovery(event: &BattleEvent, blocked_sources: &[(String, String)]) -> bool {
+    let BattleEvent::Damage {
+        target_id, amount, ..
+    } = event
+    else {
+        return false;
+    };
+    if *amount >= 0 {
+        return false;
+    }
+    let Some(move_id) = event_meta_move_id(event) else {
+        return false;
+    };
+    let Some(source_id) = event_meta_source(event) else {
+        return false;
+    };
+    target_id == &source_id
+        && blocked_sources
+            .iter()
+            .any(|(blocked_move, blocked_source)| {
+                blocked_move == &move_id && blocked_source == &source_id
+            })
 }
 
 pub fn get_weather(state: &BattleState) -> Option<WeatherKind> {
@@ -927,6 +1072,44 @@ fn try_lightning_rod(
     ])
 }
 
+fn try_disguise(event: &BattleEvent, state: &BattleState) -> Option<Vec<BattleEvent>> {
+    let target_id = event_target_id(event)?;
+    let target = get_active_creature(state, &target_id)?;
+    if target
+        .volatile_data
+        .get("disguiseUsed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
+        return None;
+    }
+    let BattleEvent::Damage { amount, .. } = event else {
+        return None;
+    };
+    if *amount <= 0 || !is_attack_damage_event(event, &target_id) {
+        return None;
+    }
+    let disguise_damage = (target.max_hp / 8).max(1);
+
+    Some(vec![
+        ability_activation_log(&target.name, "disguise"),
+        BattleEvent::Log {
+            message: format!("{}の ばけのかわが はがれた！", target.name),
+            meta: Map::new(),
+        },
+        BattleEvent::Damage {
+            target_id: target_id.clone(),
+            amount: disguise_damage,
+            meta: Map::new(),
+        },
+        BattleEvent::SetVolatile {
+            target_id,
+            key: "disguiseUsed".to_string(),
+            value: Value::Bool(true),
+        },
+    ])
+}
+
 fn after_stamina(event: &BattleEvent, player_id: &str, creature_name: &str) -> Vec<BattleEvent> {
     match event {
         BattleEvent::Damage {
@@ -1043,6 +1226,96 @@ fn after_static(
             duration: None,
             stack: false,
             data: HashMap::new(),
+            meta: Map::new(),
+        },
+    ]
+}
+
+fn after_popping_habanero(
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+) -> Vec<BattleEvent> {
+    let BattleEvent::Damage {
+        target_id, amount, ..
+    } = event
+    else {
+        return Vec::new();
+    };
+    if target_id != player_id || *amount <= 0 {
+        return Vec::new();
+    }
+    if !is_attack_damage_event(event, player_id) {
+        return Vec::new();
+    }
+    let Some(source_id) = event_meta_source(event) else {
+        return Vec::new();
+    };
+    if source_id == player_id {
+        return Vec::new();
+    }
+
+    vec![
+        BattleEvent::Log {
+            message: format!(
+                "{}の 特性『{}』！",
+                creature_name,
+                ability_label("popping_habanero")
+            ),
+            meta: Map::new(),
+        },
+        BattleEvent::ApplyStatus {
+            target_id: source_id,
+            status_id: "burn".to_string(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    ]
+}
+
+fn after_rattled(
+    event: &BattleEvent,
+    player_id: &str,
+    creature_name: &str,
+    move_db: &HashMap<String, MoveData>,
+) -> Vec<BattleEvent> {
+    let BattleEvent::Damage {
+        target_id, amount, ..
+    } = event
+    else {
+        return Vec::new();
+    };
+    if target_id != player_id || *amount <= 0 || !is_attack_damage_event(event, player_id) {
+        return Vec::new();
+    }
+    let Some(move_id) = event_meta_move_id(event) else {
+        return Vec::new();
+    };
+    let Some(move_type) = move_db
+        .get(&move_id)
+        .and_then(|move_data| move_data.move_type.as_deref())
+    else {
+        return Vec::new();
+    };
+    if !matches!(move_type, "bug" | "dark" | "ghost") {
+        return Vec::new();
+    }
+
+    let mut stages = HashMap::new();
+    stages.insert("spe".to_string(), 1);
+    vec![
+        BattleEvent::Log {
+            message: format!("{}の 特性『{}』！", creature_name, ability_label("rattled")),
+            meta: Map::new(),
+        },
+        BattleEvent::ModifyStage {
+            target_id: player_id.to_string(),
+            stages,
+            clamp: true,
+            fail_if_no_change: false,
+            show_event: true,
             meta: Map::new(),
         },
     ]

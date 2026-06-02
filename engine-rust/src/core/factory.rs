@@ -163,6 +163,7 @@ pub fn create_creature(
         moves,
         ability: Some(ability),
         item: options.item,
+        consumed_item: None,
         evs,
         hp: max_hp,
         max_hp,

@@ -27,6 +27,20 @@ static LEARNSETS_DB: Lazy<LearnsetDatabase> =
     Lazy::new(|| LearnsetDatabase::load_default().unwrap_or_default());
 static MOVE_DB: Lazy<MoveDatabase> =
     Lazy::new(|| MoveDatabase::load_default().unwrap_or_else(|_| MoveDatabase::minimal()));
+static MOVE_ID_MIGRATIONS: Lazy<HashMap<String, String>> = Lazy::new(|| {
+    const MIGRATIONS_JSON: &str = include_str!("../data/move_id_migration_report.json");
+    serde_json::from_str::<Vec<MoveIdMigration>>(MIGRATIONS_JSON)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|migration| (migration.old_id, migration.new_id))
+        .collect()
+});
+
+#[derive(Clone, Debug, Deserialize)]
+struct MoveIdMigration {
+    old_id: String,
+    new_id: String,
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,6 +125,8 @@ struct CreatureStateWire {
     moves: Vec<String>,
     ability: Option<String>,
     item: Option<String>,
+    #[serde(default)]
+    consumed_item: Option<String>,
     #[serde(default)]
     evs: EVStatsWire,
     hp: i32,
@@ -231,22 +247,38 @@ fn default_moves(species_id: &str) -> Vec<String> {
         .collect()
 }
 
+fn canonical_move_id_for_db(move_id: &str) -> String {
+    if MOVE_DB.get(move_id).is_some() {
+        return move_id.to_string();
+    }
+
+    if let Some(new_id) = MOVE_ID_MIGRATIONS.get(move_id) {
+        if MOVE_DB.get(new_id.as_str()).is_some() {
+            return new_id.clone();
+        }
+    }
+
+    move_id.to_string()
+}
+
 fn normalize_requested_moves(species_id: &str, requested_moves: &[String]) -> Vec<String> {
     let learnset = LEARNSETS_DB.get(species_id);
 
     let mut selected = Vec::new();
 
     for move_id in requested_moves {
+        let move_id = canonical_move_id_for_db(move_id);
+
         if selected.len() >= 4 {
             break;
         }
 
-        if selected.iter().any(|selected_id| selected_id == move_id) {
+        if selected.iter().any(|selected_id| selected_id == &move_id) {
             continue;
         }
 
         if MOVE_DB.get(move_id.as_str()).is_some() {
-            selected.push(move_id.clone());
+            selected.push(move_id);
         }
     }
 
@@ -323,6 +355,7 @@ impl From<CreatureState> for CreatureStateWire {
             moves: creature.moves,
             ability: creature.ability,
             item: creature.item,
+            consumed_item: creature.consumed_item,
             evs: EVStatsWire::from(creature.evs),
             hp: creature.hp,
             max_hp: creature.max_hp,
@@ -347,21 +380,33 @@ impl From<CreatureState> for CreatureStateWire {
 
 impl From<CreatureStateWire> for CreatureState {
     fn from(creature: CreatureStateWire) -> Self {
+        let moves = creature
+            .moves
+            .into_iter()
+            .map(|move_id| canonical_move_id_for_db(move_id.as_str()))
+            .collect();
+        let mut move_pp = HashMap::new();
+        for (move_id, pp) in creature.move_pp {
+            let canonical_id = canonical_move_id_for_db(move_id.as_str());
+            move_pp.entry(canonical_id).or_insert(pp);
+        }
+
         Self {
             id: creature.id,
             species_id: creature.species_id,
             name: creature.name,
             level: creature.level,
             types: creature.types,
-            moves: creature.moves,
+            moves,
             ability: creature.ability,
             item: creature.item,
+            consumed_item: creature.consumed_item,
             evs: EVStats::from(creature.evs),
             hp: creature.hp,
             max_hp: creature.max_hp,
             stages: creature.stages,
             statuses: creature.statuses.into_iter().map(Status::from).collect(),
-            move_pp: creature.move_pp,
+            move_pp,
             ability_data: creature.ability_data,
             volatile_data: creature.volatile_data,
             attack: creature.attack,
@@ -452,7 +497,9 @@ impl TryFrom<ActionWire> for Action {
         Ok(Self {
             player_id: action.player_id,
             action_type: action_type_from_js(&action.action_type)?,
-            move_id: action.move_id,
+            move_id: action
+                .move_id
+                .map(|move_id| canonical_move_id_for_db(move_id.as_str())),
             target_id: action.target_id,
             slot: action.slot,
             priority: action.priority,

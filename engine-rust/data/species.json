@@ -79,7 +79,7 @@
     "name": "ふうと",
     "type": [
       "fire",
-      "normal"
+      "grass"
     ],
     "weight_kg": 92
   },
@@ -246,8 +246,7 @@
     "id": "morimori",
     "name": "もりもり",
     "type": [
-      "ground",
-      "normal"
+      "ground"
     ],
     "weight_kg": 133
   },
@@ -272,10 +271,32 @@
     ],
     "weight_kg": 33
   },
+  "otyamichi": {
+    "abilities": [
+      "hospitality",
+      "frisk"
+    ],
+    "baseStats": {
+      "atk": 70,
+      "def": 75,
+      "hp": 80,
+      "spa": 135,
+      "spd": 50,
+      "spe": 110
+    },
+    "id": "otyamichi",
+    "name": "おちゃのみち",
+    "type": [
+      "grass",
+      "flying"
+    ],
+    "weight_kg": 52
+  },
   "reosan": {
     "abilities": [
       "pure_power",
-      "super_luck"
+      "super_luck",
+      "drizzle"
     ],
     "baseStats": {
       "atk": 37,
@@ -313,6 +334,27 @@
       "steel"
     ],
     "weight_kg": 82
+  },
+  "shiraishi": {
+    "abilities": [
+      "disguise",
+      "rattled"
+    ],
+    "baseStats": {
+      "atk": 76,
+      "def": 69,
+      "hp": 133,
+      "spa": 92,
+      "spd": 69,
+      "spe": 81
+    },
+    "id": "shiraishi",
+    "name": "しらいし",
+    "type": [
+      "ground",
+      "fairy"
+    ],
+    "weight_kg": 62
   },
   "takaho": {
     "abilities": [
@@ -359,7 +401,8 @@
   "tomoki": {
     "abilities": [
       "download",
-      "aroma_veil"
+      "aroma_veil",
+      "popping_habanero"
     ],
     "baseStats": {
       "atk": 105,
@@ -380,7 +423,7 @@
   "touma": {
     "abilities": [
       "unburden",
-      "static"
+      "lightning_rod"
     ],
     "baseStats": {
       "atk": 120,
@@ -395,6 +438,27 @@
     "type": [
       "dark",
       "fighting"
+    ],
+    "weight_kg": 78
+  },
+  "toumac": {
+    "abilities": [
+      "early_bird",
+      "sniper"
+    ],
+    "baseStats": {
+      "atk": 125,
+      "def": 70,
+      "hp": 95,
+      "spa": 61,
+      "spd": 50,
+      "spe": 119
+    },
+    "id": "toumac",
+    "name": "とうまっく",
+    "type": [
+      "dark",
+      "ghost"
     ],
     "weight_kg": 78
   },
@@ -418,5 +482,26 @@
       "ghost"
     ],
     "weight_kg": 22
+  },
+  "zosueda": {
+    "abilities": [
+      "insomnia",
+      "steely_spirit"
+    ],
+    "baseStats": {
+      "atk": 95,
+      "def": 87,
+      "hp": 90,
+      "spa": 55,
+      "spd": 130,
+      "spe": 103
+    },
+    "id": "zosueda",
+    "name": "ぞすえだ",
+    "type": [
+      "steel",
+      "fire"
+    ],
+    "weight_kg": 95
   }
 }
