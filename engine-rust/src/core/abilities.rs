@@ -43,6 +43,7 @@ pub fn ability_label(ability: &str) -> &str {
         "download" => "ダウンロード",
         "drought" => "ひでり",
         "drizzle" => "あめふらし",
+        "sand_stream" => "すなおこし",
         "moody" => "ムラっけ",
         "libero" => "リベロ",
         "receiver" => "レシーバー",
@@ -77,6 +78,59 @@ fn ability_activation_log(creature_name: &str, ability: &str) -> BattleEvent {
     BattleEvent::Log {
         message: format!("{}の 特性『{}』！", creature_name, ability_label(ability)),
         meta: Map::new(),
+    }
+}
+
+fn item_label(item_id: &str) -> String {
+    match item_id {
+        "lum_berry" => return "ラムのみ".to_string(),
+        "sitrus_berry" => return "オボンのみ".to_string(),
+        "weakness_policy" => return "じゃくてんほけん".to_string(),
+        "leftovers" => return "たべのこし".to_string(),
+        "choice_scarf" => return "こだわりスカーフ".to_string(),
+        "focus_sash" => return "きあいのタスキ".to_string(),
+        "big_root" => return "おおきなねっこ".to_string(),
+        "blunder_policy" => return "からぶりほけん".to_string(),
+        "eject_pack" => return "だっしゅつパック".to_string(),
+        "air_balloon" => return "ふうせん".to_string(),
+        "kee_berry" => return "アッキのみ".to_string(),
+        "throat_spray" => return "のどスプレー".to_string(),
+        "flame_orb" => return "かえんだま".to_string(),
+        "scope_lens" => return "ピントレンズ".to_string(),
+        _ => {}
+    }
+    let Some((kind, item_type)) = item_id.split_once('_') else {
+        return item_id.to_string();
+    };
+    let kind_label = match kind {
+        "boost" => "ブースト",
+        "resist" => "レジスト",
+        _ => return item_id.to_string(),
+    };
+    format!("{}（{}）", kind_label, type_label(item_type))
+}
+
+fn type_label(type_id: &str) -> &str {
+    match type_id {
+        "normal" => "ノーマル",
+        "fire" => "ほのお",
+        "water" => "みず",
+        "electric" => "でんき",
+        "grass" => "くさ",
+        "ice" => "こおり",
+        "fighting" => "かくとう",
+        "poison" => "どく",
+        "ground" => "じめん",
+        "flying" => "ひこう",
+        "psychic" => "エスパー",
+        "bug" => "むし",
+        "rock" => "いわ",
+        "ghost" => "ゴースト",
+        "dragon" => "ドラゴン",
+        "dark" => "あく",
+        "steel" => "はがね",
+        "fairy" => "フェアリー",
+        other => other,
     }
 }
 
@@ -471,6 +525,30 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
+        ("sand_stream", "onSwitchIn") => {
+            if active
+                .ability_data
+                .get("sandStreamUsed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                return AbilityHookResult::default();
+            }
+            let mut next = mark_ability_used(state, player_id, "sandStreamUsed");
+            next = set_weather(&next, WeatherKind::Sandstorm, Some(5));
+            AbilityHookResult {
+                state: Some(next),
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Log {
+                        message: "砂あらしが 吹きはじめた！".to_string(),
+                        meta: Map::new(),
+                    },
+                ],
+                prevent_action: false,
+                override_action: None,
+            }
+        }
         ("frisk", "onSwitchIn") => {
             if active
                 .ability_data
@@ -489,7 +567,12 @@ pub fn run_ability_hooks(
             };
             let next = mark_ability_used(state, player_id, "friskUsed");
             let item_message = match target.item.as_deref() {
-                Some(item) => format!("{}の 持ち物は {} だった！", target.name, item),
+                Some(item) => format!(
+                    "{}は {}の {}を おみとおしだ！",
+                    active.name,
+                    target.name,
+                    item_label(item)
+                ),
                 None => format!("{}は 持ち物を 持っていない！", target.name),
             };
             AbilityHookResult {

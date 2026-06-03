@@ -324,6 +324,7 @@ const ABILITY_LABELS: Record<string, string> = {
     prankster: 'いたずらごころ',
     pure_power: 'ヨガパワー',
     receiver: 'レシーバー',
+    sand_stream: 'すなおこし',
     shadow_tag: 'かげふみ',
     simple: 'たんじゅん',
     slow_start: 'スロースタート',

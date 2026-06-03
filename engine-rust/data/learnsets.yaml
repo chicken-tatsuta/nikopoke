@@ -997,21 +997,7 @@ morimitu:
   - struggle
   - uproar
   - shed_tail
-  - flame_wheel
-  - pyro_ball
-  - flame_charge
-  - flare_blitz
-  - blaze_kick
-  - fire_fang
-  - fire_punch
-  - temper_flare
   - overheat
-  - flamethrower
-  - fire_blast
-  - heat_wave
-  - eruption
-  - fire_spin
-  - burn_up
   - dive
   - surf
   - charge
@@ -1035,21 +1021,7 @@ morimitu:
   - bone_rush
   - mud_slap
   - mud_shot
-  - tailwind
-  - roost
-  - acrobatics
-  - god_bird
-  - fly
-  - dual_wingbeat
   - peck
-  - wing_attack
-  - aerial_ace
-  - drill_peck
-  - brave_bird
-  - air_cutter
-  - air_slash
-  - bleakwind_storm
-  - hurricane
   - teleport
   - rest
   - power_split
@@ -1076,6 +1048,34 @@ morimitu:
   - moonlight
   - play_rough
   - moonblast
+  - aqua_cutter
+  - aqua_jet
+  - aqua_ring
+  - aqua_step
+  - aqua_tail
+  - breaking_swipe
+  - bubble_beam
+  - chilling_water
+  - draco_meteor
+  - dragon_breath
+  - dragon_claw
+  - dragon_dance
+  - dragon_pulse
+  - dragon_rush
+  - dragon_tail
+  - flip_turn
+  - hydro_pump
+  - jet_punch
+  - liquidation
+  - mud_bomb
+  - muddy_water
+  - outrage
+  - scale_shot
+  - snipe_shot
+  - twister
+  - water_pulse
+  - water_spout
+  - waterfall
 morimori:
   - yawn
   - encore

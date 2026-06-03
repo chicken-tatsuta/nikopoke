@@ -1048,6 +1048,7 @@ function ItemSelector({
                         id=""
                         name="なし"
                         tag="NONE"
+                        description="持ち物を持たせない。"
                         selected={!selectedItemId}
                         onClick={() => onSelectItem('')}
                     />
@@ -1062,6 +1063,7 @@ function ItemSelector({
                             name={item.name}
                             tag={tag}
                             type={item.type}
+                            description={item.description}
                             selected={selectedItemId === item.id}
                             disabled={unavailable}
                             onClick={() => onSelectItem(item.id)}
@@ -1083,6 +1085,7 @@ function ItemCard({
     name,
     tag,
     type,
+    description,
     selected,
     disabled = false,
     onClick,
@@ -1091,55 +1094,70 @@ function ItemCard({
     name: string;
     tag: string;
     type?: string;
+    description?: string;
     selected: boolean;
     disabled?: boolean;
     onClick: () => void;
 }) {
+    const tooltipId = `item-tooltip-${id || 'none'}`;
+
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={disabled}
-            className={`relative min-h-28 overflow-hidden rounded-lg border p-3 text-left transition-all ${
-                selected
-                    ? 'border-[#111111] bg-white shadow-[0_0_0_2px_rgba(17,17,17,0.08)]'
-                    : disabled
-                    ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-2)] opacity-45'
-                    : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
-            }`}
-            aria-pressed={selected}
-            aria-disabled={disabled}
-        >
-            <div className="absolute right-3 top-3 rounded-md bg-[#F5EEE4] px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-[#111111]">
-                {tag}
-            </div>
-            {type && (
+        <div className="group relative">
+            <button
+                type="button"
+                onClick={onClick}
+                disabled={disabled}
+                className={`relative min-h-28 w-full overflow-hidden rounded-lg border p-3 text-left transition-all ${
+                    selected
+                        ? 'border-[#111111] bg-white shadow-[0_0_0_2px_rgba(17,17,17,0.08)]'
+                        : disabled
+                        ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-2)] opacity-45'
+                        : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-3)]'
+                }`}
+                aria-pressed={selected}
+                aria-disabled={disabled}
+                aria-describedby={description ? tooltipId : undefined}
+            >
+                <div className="absolute right-3 top-3 rounded-md bg-[#F5EEE4] px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-[#111111]">
+                    {tag}
+                </div>
+                {type && (
+                    <div
+                        className="absolute left-3 top-3 size-2.5 rounded-full"
+                        style={{ backgroundColor: getTypeColor(type) }}
+                    />
+                )}
+                <div className="flex min-h-20 items-center justify-center px-4 pt-6">
+                    <div className="max-w-full break-words text-center text-lg font-black leading-tight text-[var(--text-primary)] sm:text-xl">
+                        {name}
+                    </div>
+                </div>
+                {selected && (
+                    <div className="absolute bottom-3 right-3 rounded-md bg-[#111111] px-2 py-0.5 text-[10px] font-bold text-white">
+                        選択中
+                    </div>
+                )}
+                {disabled && !selected && (
+                    <div className="absolute bottom-3 right-3 rounded-md bg-[var(--surface-4)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)]">
+                        使用中
+                    </div>
+                )}
+                {id && (
+                    <div className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.08em] text-[var(--text-muted)]">
+                        {id}
+                    </div>
+                )}
+            </button>
+            {description && (
                 <div
-                    className="absolute left-3 top-3 size-2.5 rounded-full"
-                    style={{ backgroundColor: getTypeColor(type) }}
-                />
-            )}
-            <div className="flex min-h-20 items-center justify-center px-4 pt-6">
-                <div className="max-w-full break-words text-center text-lg font-black leading-tight text-[var(--text-primary)] sm:text-xl">
-                    {name}
-                </div>
-            </div>
-            {selected && (
-                <div className="absolute bottom-3 right-3 rounded-md bg-[#111111] px-2 py-0.5 text-[10px] font-bold text-white">
-                    選択中
+                    id={tooltipId}
+                    role="tooltip"
+                    className="pointer-events-none absolute inset-x-3 top-3 z-20 rounded-lg border border-[#111111] bg-white/95 px-3 py-2 text-xs font-semibold leading-relaxed text-[#111111] opacity-0 shadow-[0_8px_18px_rgba(17,17,17,0.16)] transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                    {description}
                 </div>
             )}
-            {disabled && !selected && (
-                <div className="absolute bottom-3 right-3 rounded-md bg-[var(--surface-4)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)]">
-                    使用中
-                </div>
-            )}
-            {id && (
-                <div className="absolute bottom-3 left-3 text-[10px] font-bold tracking-[0.08em] text-[var(--text-muted)]">
-                    {id}
-                </div>
-            )}
-        </button>
+        </div>
     );
 }
 

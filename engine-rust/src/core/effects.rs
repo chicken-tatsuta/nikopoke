@@ -152,6 +152,7 @@ fn is_blocked_after_missed_damage(effect: &Effect) -> bool {
             | "modify_stage"
             | "force_switch"
             | "self_switch"
+            | "remove_item"
             | "heal_last_damage"
             | "recoil_last_damage"
     )
@@ -218,6 +219,7 @@ fn apply_effect(
         "repeat" => apply_repeat(state, effect, ctx),
         "conditional" => apply_conditional(state, effect, ctx),
         "log" => apply_log(effect, ctx),
+        "target_item_attack_log" => apply_target_item_attack_log(state, ctx),
         "apply_field_status" => apply_field_status(state, effect, ctx),
         "remove_field_status" => apply_remove_field_status(effect, ctx),
         "random_move" => apply_random_move(effect, ctx),
@@ -2003,6 +2005,29 @@ fn apply_log(effect: &Effect, ctx: &mut EffectContext<'_>) -> Vec<BattleEvent> {
     Vec::new()
 }
 
+fn apply_target_item_attack_log(
+    state: &BattleState,
+    ctx: &mut EffectContext<'_>,
+) -> Vec<BattleEvent> {
+    let Some(target) = get_active_creature(state, &ctx.target_player_id) else {
+        return Vec::new();
+    };
+    let Some(item_id) = get_item_id(target) else {
+        return Vec::new();
+    };
+    vec![BattleEvent::Log {
+        message: format!(
+            "{}に {}が おそいかかる！",
+            target.name,
+            item_label(&item_id)
+        ),
+        meta: meta_with_move_source(
+            ctx.move_data.map(|m| m.id.as_str()),
+            Some(&ctx.attacker_player_id),
+        ),
+    }]
+}
+
 fn apply_field_status(
     state: &BattleState,
     effect: &Effect,
@@ -2178,31 +2203,69 @@ fn apply_remove_item(
     effect: &Effect,
     ctx: &mut EffectContext<'_>,
 ) -> Vec<BattleEvent> {
+    if effect
+        .data
+        .get("requireDamage")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+        && ctx.last_damage.unwrap_or(0) <= 0
+    {
+        return Vec::new();
+    }
     let target_id = resolve_target(effect.data.get("target"), ctx);
     let Some(target) = get_active_creature(state, &target_id) else {
         return Vec::new();
     };
     let had_item = has_item(target);
-    vec![
-        BattleEvent::Log {
-            message: if had_item {
-                format!("{}の 持っていた道具が なくなった！", target.name)
-            } else {
-                format!("{}は 道具を持っていない！", target.name)
-            },
-            meta: Map::new(),
+    let item_name = get_item_id(target).map(|item_id| item_label(&item_id));
+    let attacker_name = get_active_creature(state, &ctx.attacker_player_id)
+        .map(|creature| creature.name.clone())
+        .unwrap_or_else(|| ctx.attacker_player_id.clone());
+    let mut events = vec![BattleEvent::Log {
+        message: if had_item
+            && ctx
+                .move_data
+                .is_some_and(|move_data| move_data.id == "knock_off")
+        {
+            format!(
+                "{}は {}の {}を はたきおとした！",
+                attacker_name,
+                target.name,
+                item_name.unwrap_or_else(|| "持ち物".to_string())
+            )
+        } else if had_item {
+            format!(
+                "{}の {}が なくなった！",
+                target.name,
+                item_name.unwrap_or_else(|| "持ち物".to_string())
+            )
+        } else {
+            format!("{}は 道具を持っていない！", target.name)
         },
-        BattleEvent::RemoveStatus {
+        meta: Map::new(),
+    }];
+    if had_item {
+        events.push(BattleEvent::SetItem {
+            target_id,
+            item_id: None,
+            meta: meta_with_move_source(
+                ctx.move_data.map(|m| m.id.as_str()),
+                Some(&ctx.attacker_player_id),
+            ),
+        });
+    } else {
+        events.push(BattleEvent::RemoveStatus {
             target_id: target_id.clone(),
             status_id: "item".to_string(),
             meta: Map::new(),
-        },
-        BattleEvent::RemoveStatus {
+        });
+        events.push(BattleEvent::RemoveStatus {
             target_id,
             status_id: "berry".to_string(),
             meta: Map::new(),
-        },
-    ]
+        });
+    }
+    events
 }
 
 fn apply_consume_item(
@@ -2546,12 +2609,7 @@ fn apply_fling_effect(state: &BattleState, ctx: &mut EffectContext<'_>) -> Vec<B
             ),
         }];
     };
-    let power = match item_id.as_str() {
-        "iron_ball" => 130,
-        "hard_stone" => 100,
-        "poison_barb" | "sharp_beak" | "black_belt" => 70,
-        _ => 30,
-    };
+    let power = 50;
     let mut damage_effect = Effect {
         effect_type: "damage".to_string(),
         data: Map::new(),
@@ -2563,6 +2621,33 @@ fn apply_fling_effect(state: &BattleState, ctx: &mut EffectContext<'_>) -> Vec<B
         .data
         .insert("accuracy".to_string(), Value::Number(1.into()));
     let mut events = apply_damage(state, &damage_effect, ctx);
+    if !damage_step_connected(&events) {
+        return events;
+    }
+    events.push(BattleEvent::Log {
+        message: format!(
+            "{}は {}を なげつけた！",
+            attacker.name,
+            item_label(&item_id)
+        ),
+        meta: meta_with_move_source(
+            ctx.move_data.map(|m| m.id.as_str()),
+            Some(&ctx.attacker_player_id),
+        ),
+    });
+    if item_id == "flame_orb" {
+        let mut burn_effect = Effect {
+            effect_type: "apply_status".to_string(),
+            data: Map::new(),
+        };
+        burn_effect
+            .data
+            .insert("target".to_string(), Value::String("target".to_string()));
+        burn_effect
+            .data
+            .insert("statusId".to_string(), Value::String("burn".to_string()));
+        events.extend(apply_status(state, &burn_effect, ctx));
+    }
     events.push(BattleEvent::SetItem {
         target_id: ctx.attacker_player_id.clone(),
         item_id: None,
@@ -4030,6 +4115,13 @@ fn calc_damage(
 
     let mut modifier = 1.0;
     let mut consumed_item: Option<String> = None;
+    if ctx
+        .move_data
+        .is_some_and(|move_data| move_data.id == "knock_off")
+        && target.item.is_some()
+    {
+        modifier *= 1.5;
+    }
     if let Some(move_type) = ctx.move_data.and_then(|m| m.move_type.as_deref()) {
         if item_type(attacker.item.as_deref(), "boost") == Some(move_type) {
             modifier *= 1.2;

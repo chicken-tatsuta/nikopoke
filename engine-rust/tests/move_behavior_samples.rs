@@ -21,6 +21,7 @@ enum EventKind {
     RemoveStatus,
     ReplaceStatus,
     ResetStages,
+    SetItem,
     Switch,
 }
 
@@ -207,6 +208,7 @@ fn event_kind(event: &BattleEvent) -> Option<EventKind> {
         BattleEvent::RemoveStatus { .. } => Some(EventKind::RemoveStatus),
         BattleEvent::ReplaceStatus { .. } => Some(EventKind::ReplaceStatus),
         BattleEvent::ResetStages { .. } => Some(EventKind::ResetStages),
+        BattleEvent::SetItem { .. } => Some(EventKind::SetItem),
         BattleEvent::Switch { .. } => Some(EventKind::Switch),
         _ => None,
     }
@@ -242,7 +244,8 @@ fn expected_event_kind(effect: &Effect) -> Option<EventKind> {
             .get("statusId")
             .and_then(|v| v.as_str())
             .map(|_| EventKind::RemoveFieldStatus),
-        "remove_item" | "consume_item" => Some(EventKind::RemoveStatus),
+        "consume_item" => Some(EventKind::RemoveStatus),
+        "remove_item" => Some(EventKind::SetItem),
         "remove_status" => effect
             .data
             .get("statusId")

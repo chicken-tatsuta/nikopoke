@@ -87,6 +87,7 @@ ikkun:
   abilities:
     - thick_fat
     - merciless
+    - sand_stream
   baseStats:
     atk: 80
     def: 52
@@ -174,16 +175,16 @@ morimitu:
     - contrary
   baseStats:
     atk: 70
-    def: 70
-    hp: 95
+    def: 90
+    hp: 115
     spa: 110
     spd: 95
     spe: 80
   id: morimitu
   name: もりみつ
   type:
-    - fire
-    - flying
+    - water
+    - dragon
   weight_kg: 42
 morimori:
   abilities:
@@ -397,8 +398,8 @@ zosueda:
   baseStats:
     atk: 95
     def: 87
-    hp: 90
-    spa: 55
+    hp: 70
+    spa: 35
     spd: 130
     spe: 103
   id: zosueda

@@ -1046,7 +1046,7 @@ fn frisk_reveals_opposing_item_on_switch_in() {
     );
 
     assert!(result.events.iter().any(
-        |event| matches!(event, BattleEvent::Log { message, .. } if message.contains("leftovers"))
+        |event| matches!(event, BattleEvent::Log { message, .. } if message.contains("Alphaは Betaの たべのこしを おみとおしだ！"))
     ));
 }
 
@@ -1075,6 +1075,34 @@ fn drizzle_sets_rain_on_switch_in() {
         .any(|effect| effect.id == "rain" && effect.remaining_turns == Some(5)));
     assert!(result.events.iter().any(
         |event| matches!(event, BattleEvent::Log { message, .. } if message.contains("雨が 降りはじめた"))
+    ));
+}
+
+#[test]
+fn sand_stream_sets_sandstorm_on_switch_in() {
+    let active = make_creature("c1", "Ikkun", Some("sand_stream"), vec![]);
+    let state = make_state(active, make_creature("c2", "Beta", None, vec![]));
+    let mut rng = || 0.0;
+
+    let result = engine_rust::core::abilities::run_ability_hooks(
+        &state,
+        "p1",
+        "onSwitchIn",
+        engine_rust::core::abilities::AbilityHookContext {
+            rng: &mut rng,
+            action: None,
+            move_data: None,
+        },
+    );
+    let next = result.state.expect("sand stream should update state");
+
+    assert!(next
+        .field
+        .global
+        .iter()
+        .any(|effect| effect.id == "sandstorm" && effect.remaining_turns == Some(5)));
+    assert!(result.events.iter().any(
+        |event| matches!(event, BattleEvent::Log { message, .. } if message.contains("砂あらしが 吹きはじめた"))
     ));
 }
 

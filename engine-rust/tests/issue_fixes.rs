@@ -2,7 +2,7 @@ use engine_rust::core::abilities::{run_ability_hooks, AbilityHookContext};
 use engine_rust::core::effects::{apply_effects, apply_events, EffectContext};
 use engine_rust::core::events::{apply_event, BattleEvent};
 use engine_rust::core::state::{
-    BattleState, CreatureState, EVStats, FieldEffect, FieldState, PlayerState, StatStages,
+    BattleState, CreatureState, EVStats, FieldEffect, FieldState, PlayerState, StatStages, Status,
 };
 use engine_rust::data::moves::{Effect, MoveData, MoveDatabase};
 use engine_rust::data::type_chart::TypeChart;
@@ -215,6 +215,303 @@ fn synthesis_heals_two_thirds_under_sun_and_one_quarter_in_rain() {
             .expect("synthesis should emit healing as negative damage");
         assert_eq!(heal_amount, expected_amount, "weather: {weather_id}");
     }
+}
+
+#[test]
+fn knock_off_deals_more_damage_to_held_item_and_removes_it() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("knock_off").unwrap();
+    let mut state = create_test_state();
+    state.players[0].team[0].attack = 100;
+    state.players[1].team[0].defense = 100;
+
+    let baseline_damage = first_damage_amount_for_move(&state, move_data);
+
+    state.players[1].team[0].item = Some("choice_scarf".to_string());
+    let item_damage = first_damage_amount_for_move(&state, move_data);
+    assert!(
+        item_damage > baseline_damage,
+        "knock off should deal more damage when the target has an item"
+    );
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+
+    assert_eq!(next_state.players[1].team[0].item, None);
+    assert!(
+        next_state
+            .log
+            .iter()
+            .any(|line| line.contains("Mon1は Mon2の こだわりスカーフを はたきおとした！")),
+        "knock off should log item removal"
+    );
+}
+
+#[test]
+fn knock_off_does_not_remove_item_when_damage_step_misses() {
+    let mut state = create_test_state();
+    state.players[1].team[0].item = Some("choice_scarf".to_string());
+    let move_data = MoveData {
+        id: "knock_off".to_string(),
+        name: Some("はたきおとす".to_string()),
+        move_type: Some("dark".to_string()),
+        category: Some("physical".to_string()),
+        pp: Some(20),
+        power: Some(65),
+        accuracy: Some(0.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![
+            Effect {
+                effect_type: "damage".to_string(),
+                data: serde_json::json!({ "power": 65, "accuracy": 0.0 })
+                    .as_object()
+                    .cloned()
+                    .unwrap(),
+            },
+            Effect {
+                effect_type: "remove_item".to_string(),
+                data: serde_json::json!({ "target": "target", "requireDamage": true })
+                    .as_object()
+                    .cloned()
+                    .unwrap(),
+            },
+        ],
+        tags: vec!["contact".to_string()],
+        crit_rate: None,
+    };
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(&move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+
+    assert_eq!(
+        next_state.players[1].team[0].item.as_deref(),
+        Some("choice_scarf")
+    );
+}
+
+#[test]
+fn fling_uses_fixed_power_50_and_consumes_user_item() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("fling").unwrap();
+    let mut state = create_test_state();
+    state.players[0].team[0].item = Some("choice_scarf".to_string());
+    state.players[0].team[0].attack = 100;
+    state.players[1].team[0].defense = 100;
+
+    let reference_move = MoveData {
+        id: "fling_reference".to_string(),
+        name: None,
+        move_type: move_data.move_type.clone(),
+        category: move_data.category.clone(),
+        pp: move_data.pp,
+        power: Some(50),
+        accuracy: Some(1.0),
+        priority: Some(0),
+        description: None,
+        steps: vec![Effect {
+            effect_type: "damage".to_string(),
+            data: serde_json::json!({ "power": 50, "accuracy": 1.0 })
+                .as_object()
+                .cloned()
+                .unwrap(),
+        }],
+        tags: Vec::new(),
+        crit_rate: None,
+    };
+
+    assert_eq!(
+        first_damage_amount_for_move(&state, move_data),
+        first_damage_amount_for_move(&state, &reference_move)
+    );
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+
+    assert_eq!(next_state.players[0].team[0].item, None);
+    assert!(next_state
+        .log
+        .iter()
+        .any(|line| line.contains("Mon1は こだわりスカーフを なげつけた！")));
+}
+
+#[test]
+fn fling_with_flame_orb_burns_target() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("fling").unwrap();
+    let mut state = create_test_state();
+    state.players[0].team[0].item = Some("flame_orb".to_string());
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+
+    assert_eq!(next_state.players[0].team[0].item, None);
+    assert!(next_state.players[1].team[0]
+        .statuses
+        .iter()
+        .any(|status| status.id == "burn"));
+}
+
+#[test]
+fn fling_does_not_consume_item_when_protected() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("fling").unwrap();
+    let mut state = create_test_state();
+    state.players[0].team[0].item = Some("flame_orb".to_string());
+    state.players[1].team[0].statuses.push(Status {
+        id: "protect".to_string(),
+        remaining_turns: Some(1),
+        data: HashMap::new(),
+    });
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+
+    assert_eq!(
+        next_state.players[0].team[0].item.as_deref(),
+        Some("flame_orb")
+    );
+    assert!(!next_state.players[1].team[0]
+        .statuses
+        .iter()
+        .any(|status| status.id == "burn"));
+}
+
+#[test]
+fn poltergeist_logs_target_item_without_removing_it() {
+    let move_db = MoveDatabase::load_default().unwrap();
+    let move_data = move_db.get("poltergeist").unwrap();
+    let mut state = create_test_state();
+    state.players[1].team[0].types = vec!["psychic".to_string()];
+    state.players[1].team[0].item = Some("choice_scarf".to_string());
+
+    let mut rng = || 0.5;
+    let type_chart = TypeChart::new();
+    let mut ctx = EffectContext {
+        attacker_player_id: "p1".to_string(),
+        target_player_id: "p2".to_string(),
+        move_data: Some(move_data),
+        rng: &mut rng,
+        turn: 1,
+        type_chart: &type_chart,
+        bypass_protect: false,
+        ignore_immunity: false,
+        bypass_substitute: false,
+        ignore_substitute: false,
+        ignore_ability: false,
+        is_sound: false,
+        last_damage: None,
+        move_blocked_by_protect: false,
+        switch_slot: None,
+    };
+    let events = apply_effects(&state, &move_data.steps, &mut ctx);
+    let next_state = apply_events(&state, &events);
+
+    assert!(next_state
+        .log
+        .iter()
+        .any(|line| line.contains("Mon2に こだわりスカーフが おそいかかる！")));
+    assert_eq!(
+        next_state.players[1].team[0].item.as_deref(),
+        Some("choice_scarf")
+    );
 }
 
 #[test]

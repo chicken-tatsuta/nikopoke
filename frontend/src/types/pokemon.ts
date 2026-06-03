@@ -57,6 +57,7 @@ export interface Item {
     name: string;
     kind: "boost" | "resist" | "attack" | "defense" | "support";
     type?: string;
+    description?: string;
 }
 
 export interface ItemData {

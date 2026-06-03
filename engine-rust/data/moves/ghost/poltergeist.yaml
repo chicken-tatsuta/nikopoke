@@ -12,6 +12,7 @@ steps:
   if:
     type: target_has_item
   then:
+  - type: target_item_attack_log
   - type: damage
     power: 110
     accuracy: 0.9

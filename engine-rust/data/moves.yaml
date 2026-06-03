@@ -4277,6 +4277,9 @@ knock_off:
     - accuracy: 1
       power: 65
       type: damage
+    - requireDamage: true
+      target: target
+      type: remove_item
   tags:
     - contact
   type: dark
@@ -5556,6 +5559,7 @@ poltergeist:
       if:
         type: target_has_item
       then:
+        - type: target_item_attack_log
         - accuracy: 0.9
           power: 110
           type: damage
