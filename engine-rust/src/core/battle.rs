@@ -382,6 +382,9 @@ impl BattleEngine {
                 for event in switch_result.events {
                     next = apply_event(&next, &event);
                 }
+                for event in item_switch_in_events(&next, &action.player_id) {
+                    next = apply_event(&next, &event);
+                }
                 next = apply_switch_in_field_effects(next, &action.player_id, &self.type_chart);
                 continue;
             }
@@ -1049,7 +1052,23 @@ fn apply_switch_in_effects(
     for event in switch_result.events {
         state = apply_event(&state, &event);
     }
+    for event in item_switch_in_events(&state, player_id) {
+        state = apply_event(&state, &event);
+    }
     apply_switch_in_field_effects(state, player_id, type_chart)
+}
+
+fn item_switch_in_events(state: &BattleState, player_id: &str) -> Vec<BattleEvent> {
+    let Some(active) = get_active_creature(state, player_id) else {
+        return Vec::new();
+    };
+    match active.item.as_deref() {
+        Some("air_balloon") => vec![BattleEvent::Log {
+            message: format!("{}は ふうせんで 浮いている！", active.name),
+            meta: Map::new(),
+        }],
+        _ => Vec::new(),
+    }
 }
 
 fn apply_item_event_modifiers(
@@ -1298,6 +1317,12 @@ fn item_activation_with_consume(
 }
 
 fn item_activation_log(active: &CreatureState, item_id: &str) -> BattleEvent {
+    if item_id == "air_balloon" {
+        return BattleEvent::Log {
+            message: format!("{}の ふうせんは 割れてしまった！", active.name),
+            meta: Map::new(),
+        };
+    }
     BattleEvent::Log {
         message: format!("{}の {}が 発動した！", active.name, item_label(item_id)),
         meta: Map::new(),

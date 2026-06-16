@@ -1107,6 +1107,62 @@ fn sand_stream_sets_sandstorm_on_switch_in() {
 }
 
 #[test]
+fn air_balloon_logs_on_switch_in() {
+    let mut active = make_creature("c1", "Alpha", None, vec![]);
+    active.item = Some("air_balloon".to_string());
+    let state = make_state(active, make_creature("c2", "Beta", None, vec![]));
+    let engine = BattleEngine::default();
+    let mut rng = || 0.0;
+
+    let next = engine.apply_initial_switch_in_effects(&state, &mut rng);
+
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Alphaは ふうせんで 浮いている！")));
+}
+
+#[test]
+fn air_balloon_logs_when_broken_by_attack() {
+    let mut move_db = MoveDatabase::new();
+    move_db.insert(damage_move("hit", "normal", 40));
+    move_db.insert(damage_move("wait", "normal", 0));
+
+    let attacker = make_creature("c1", "Alpha", None, vec!["hit".to_string()]);
+    let mut target = make_creature("c2", "Beta", None, vec!["wait".to_string()]);
+    target.item = Some("air_balloon".to_string());
+    let state = make_state(attacker, target);
+    let actions = vec![
+        Action {
+            player_id: "p1".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("hit".to_string()),
+            target_id: Some("p2".to_string()),
+            slot: None,
+            priority: None,
+        },
+        Action {
+            player_id: "p2".to_string(),
+            action_type: ActionType::Move,
+            move_id: Some("wait".to_string()),
+            target_id: Some("p1".to_string()),
+            slot: None,
+            priority: None,
+        },
+    ];
+    let engine = BattleEngine::new(move_db, TypeChart::new());
+    let mut rng = || 0.0;
+
+    let next = engine.step_battle(&state, &actions, &mut rng, BattleOptions::default());
+
+    assert_eq!(next.players[1].team[0].item, None);
+    assert!(next
+        .log
+        .iter()
+        .any(|line| line.contains("Betaの ふうせんは 割れてしまった！")));
+}
+
+#[test]
 fn hospitality_heals_self_on_switch_in() {
     let mut active = make_creature("c1", "Alpha", Some("hospitality"), vec![]);
     active.hp = 40;
