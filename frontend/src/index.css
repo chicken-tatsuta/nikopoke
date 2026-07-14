@@ -76,6 +76,73 @@ body {
   transform: translateY(-1px);
 }
 
+/* Pokedex detail: use the short, wide viewport of a landscape phone. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .pokemon-detail-header > div {
+    padding-block: 0.75rem;
+  }
+
+  .pokemon-detail-main {
+    max-width: none;
+    padding: 0.75rem;
+  }
+
+  .pokemon-detail-main > * + * {
+    margin-top: 1rem;
+  }
+
+  .pokemon-detail-overview {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .pokemon-detail-description {
+    display: block;
+  }
+
+  .pokemon-detail-description > div {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: clamp(1.25rem, 2.5vw, 1.75rem);
+    font-size: clamp(1.125rem, 2.4vw, 1.375rem);
+    line-height: 1.7;
+  }
+
+  .pokemon-detail-report > div:first-child {
+    margin-bottom: 0.5rem;
+  }
+
+  .pokemon-detail-report > div:first-child h2 {
+    font-size: 1.125rem;
+  }
+
+  .pokemon-detail-report > div:nth-child(2) {
+    margin-bottom: 0.75rem;
+  }
+
+  .pokemon-report-swipe-hint {
+    display: none;
+  }
+
+  .pokemon-report-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-inline: 0;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .pokemon-report-card {
+    width: auto;
+    max-width: none;
+    min-height: 300px;
+    padding: 1rem;
+  }
+}
+
 @keyframes battle-lunge-player {
   0% { transform: translateX(0) scale(1); }
   45% { transform: translateX(18px) translateY(-4px) scale(1.03); }

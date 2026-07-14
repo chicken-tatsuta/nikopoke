@@ -91,22 +91,21 @@ export default function PokemonDetailPage() {
 
     return (
         <PageShell>
-            <header className="bg-white border-b border-[var(--border)]">
+            <header className="pokemon-detail-header bg-white border-b border-[var(--border)]">
                 <div className="max-w-7xl mx-auto px-6 py-5">
                     <BackLink />
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 space-y-8">
-                <section className="grid grid-cols-[minmax(0,1.08fr)_minmax(148px,0.92fr)] lg:grid-cols-[minmax(0,1fr)_420px] gap-2.5 sm:gap-5 lg:gap-6">
+            <main className="pokemon-detail-main max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 space-y-8">
+                <section className="pokemon-detail-overview grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2.5 sm:gap-5 lg:gap-6">
                     <PokemonHero species={species} rank={rank} />
-                    <BaseStatsPanel species={species} />
-                    <div className="col-span-2 lg:hidden">
+                    <div className="pokemon-detail-description">
                         <PokemonDescription description={species.description} />
                     </div>
                 </section>
 
-                <section>
+                <section className="pokemon-detail-report">
     <div className="mb-4 flex items-center gap-3">
         <span className="h-7 w-3.5 rounded-l-full border border-r-0 border-[#111111] bg-[#F5EEE4]" />
         <h2 className="text-xl font-bold tracking-[0.12em]">
@@ -128,7 +127,14 @@ export default function PokemonDetailPage() {
         </div>
     )}
 
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
+    <p className="pokemon-report-swipe-hint mb-2 text-right text-[11px] font-semibold text-[var(--text-muted)] md:hidden">
+        横にスワイプ →
+    </p>
+
+    <div
+        aria-label="個体レポートのカテゴリー"
+        className="pokemon-report-grid -mx-3 flex snap-x snap-mandatory items-stretch gap-3 overflow-x-auto px-3 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-2 md:gap-6 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4"
+    >
     <UsageCard
     title="わざ"
     icon="MV"
@@ -210,9 +216,6 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                         </div>
                     </div>
 
-                    <div className="hidden lg:block">
-                        <PokemonDescription description={species.description} />
-                    </div>
                 </div>
             </div>
         </div>
@@ -227,43 +230,9 @@ function PokemonDescription({ description }: { description?: string }) {
     );
 }
 
-function BaseStatsPanel({ species }: { species: Species }) {
-    const stats = species.baseStats;
-    const total = stats.hp + stats.atk + stats.def + stats.spa + stats.spd + stats.spe;
-
-    return (
-        <div className="min-w-0 bg-white border border-[var(--border)] rounded-xl p-3 sm:p-5">
-            <h2 className="text-base font-bold mb-3 tracking-[0.12em] sm:mb-4 sm:text-lg">種族値</h2>
-            <div className="space-y-3 sm:space-y-3.5">
-                <BaseStatBar label="HP" value={stats.hp} max={180} />
-                <BaseStatBar label="こうげき" value={stats.atk} max={180} />
-                <BaseStatBar label="ぼうぎょ" value={stats.def} max={180} />
-                <BaseStatBar label="とくこう" value={stats.spa} max={180} />
-                <BaseStatBar label="とくぼう" value={stats.spd} max={180} />
-                <BaseStatBar label="すばやさ" value={stats.spe} max={180} />
-                <BaseStatBar label="合計" value={total} max={720} />
-            </div>
-        </div>
-    );
-}
-
-function BaseStatBar({ label, value, max }: { label: string; value: number; max: number }) {
-    const percentage = Math.min(100, (value / max) * 100);
-
-    return (
-        <div className="grid grid-cols-[48px_minmax(20px,1fr)_30px] items-center gap-1.5 text-[11px] sm:grid-cols-[76px_1fr_44px] sm:gap-3 sm:text-sm">
-            <span className="text-[var(--text-muted)]">{label}</span>
-            <div className="h-1.5 bg-[var(--surface-4)] overflow-hidden">
-                <div className="h-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} />
-            </div>
-            <span className="text-right tabular-nums font-semibold">{value}</span>
-        </div>
-    );
-}
-
 function UsageCard({ title, icon, items }: { title: string; icon: string; items: UsageItem[] }) {
     return (
-        <article className="h-full min-h-[320px] bg-white border border-[var(--border)] rounded-lg p-5 flex flex-col">
+        <article className="pokemon-report-card h-full min-h-[320px] w-[78vw] max-w-[340px] flex-none snap-start bg-white border border-[var(--border)] rounded-lg p-5 flex flex-col md:w-auto md:max-w-none">
             <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-3 mb-5">
                 <h3 className="text-lg font-bold text-[var(--text-primary)] tracking-[0.12em]">{title}</h3>
                 <span className="rounded border border-[var(--border)] bg-[#F5EEE4] px-2 py-1 text-[10px] font-bold leading-none">{icon}</span>
