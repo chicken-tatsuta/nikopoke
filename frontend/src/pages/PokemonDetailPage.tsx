@@ -97,10 +97,13 @@ export default function PokemonDetailPage() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-                <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-6">
+            <main className="max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 space-y-8">
+                <section className="grid grid-cols-[minmax(0,1.08fr)_minmax(148px,0.92fr)] lg:grid-cols-[minmax(0,1fr)_420px] gap-2.5 sm:gap-5 lg:gap-6">
                     <PokemonHero species={species} rank={rank} />
                     <BaseStatsPanel species={species} />
+                    <div className="col-span-2 lg:hidden">
+                        <PokemonDescription description={species.description} />
+                    </div>
                 </section>
 
                 <section>
@@ -161,20 +164,32 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
     const portraitSrc = getPokemonPortraitSrc(species.id, species.name);
 
     return (
-        <div className="bg-white border border-[var(--border)] rounded-lg p-5">
-            <div className="flex items-start gap-5">
-                <div className="size-32 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
+        <div className="min-w-0 overflow-hidden bg-white border border-[var(--border)] rounded-xl p-0 lg:p-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:gap-6">
+                <div className="relative w-full aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-3)] lg:size-48 lg:aspect-square lg:rounded-lg lg:border lg:border-[var(--border)]">
                     <img
                         src={portraitSrc}
                         alt={species.name}
                         className="size-full object-cover"
                     />
+
+                    <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-3 pb-3 pt-10 lg:hidden">
+                        <h1 className="min-w-0 truncate text-xl font-black tracking-[0.08em] text-white drop-shadow-sm sm:text-2xl">
+                            {species.name}
+                        </h1>
+                        {rank > 0 && (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/70 bg-white/90 px-1.5 py-1 text-xs font-bold text-[#111111]">
+                                <BarChart3 className="size-3.5" />
+                                {rank}位
+                            </span>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex-1 min-w-0 space-y-4">
+                <div className="flex-1 min-w-0 p-3 lg:p-0 lg:space-y-5">
                     <div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <h1 className="text-3xl font-bold tracking-[0.1em]">{species.name}</h1>
+                        <div className="hidden lg:flex flex-wrap items-center gap-3">
+                            <h1 className="text-4xl font-bold tracking-[0.1em]">{species.name}</h1>
                             {rank > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--accent-muted)] px-2.5 py-1 text-sm font-semibold text-[var(--accent)]">
                                     <BarChart3 className="size-4" />
@@ -183,11 +198,11 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                             )}
                         </div>
 
-                        <div className="flex flex-wrap gap-2 mt-3">
+                        <div className="flex flex-wrap gap-1.5 lg:mt-3 lg:gap-2">
                             {species.type.map((type) => (
                                 <span
                                     key={type}
-                                    className="px-3 py-1 text-sm font-bold text-[#111111] rounded-md border border-[#111111] bg-white"
+                                    className="px-2 py-1 text-[11px] font-bold text-[#111111] rounded-md border border-[#111111] bg-white sm:px-3 sm:text-sm"
                                 >
                                     {TYPE_LABELS[type] ?? type}
                                 </span>
@@ -195,11 +210,19 @@ function PokemonHero({ species, rank }: { species: Species; rank: number }) {
                         </div>
                     </div>
 
-                    <div className="whitespace-pre-line rounded-md bg-[var(--surface-3)] border border-dashed border-[var(--border)] p-4 text-sm text-[var(--text-secondary)] leading-relaxed">
-                        {species.description || '説明文はまだありません。'}
+                    <div className="hidden lg:block">
+                        <PokemonDescription description={species.description} />
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function PokemonDescription({ description }: { description?: string }) {
+    return (
+        <div className="whitespace-pre-line rounded-lg bg-[var(--surface-3)] border border-dashed border-[var(--border)] p-4 text-sm text-[var(--text-secondary)] leading-relaxed sm:p-5">
+            {description || '説明文はまだありません。'}
         </div>
     );
 }
@@ -209,9 +232,9 @@ function BaseStatsPanel({ species }: { species: Species }) {
     const total = stats.hp + stats.atk + stats.def + stats.spa + stats.spd + stats.spe;
 
     return (
-        <div className="bg-white border border-[var(--border)] rounded-lg p-5">
-            <h2 className="text-lg font-bold mb-4 tracking-[0.12em]">種族値</h2>
-            <div className="space-y-3">
+        <div className="min-w-0 bg-white border border-[var(--border)] rounded-xl p-3 sm:p-5">
+            <h2 className="text-base font-bold mb-3 tracking-[0.12em] sm:mb-4 sm:text-lg">種族値</h2>
+            <div className="space-y-3 sm:space-y-3.5">
                 <BaseStatBar label="HP" value={stats.hp} max={180} />
                 <BaseStatBar label="こうげき" value={stats.atk} max={180} />
                 <BaseStatBar label="ぼうぎょ" value={stats.def} max={180} />
@@ -228,7 +251,7 @@ function BaseStatBar({ label, value, max }: { label: string; value: number; max:
     const percentage = Math.min(100, (value / max) * 100);
 
     return (
-        <div className="grid grid-cols-[76px_1fr_44px] items-center gap-3 text-sm">
+        <div className="grid grid-cols-[48px_minmax(20px,1fr)_30px] items-center gap-1.5 text-[11px] sm:grid-cols-[76px_1fr_44px] sm:gap-3 sm:text-sm">
             <span className="text-[var(--text-muted)]">{label}</span>
             <div className="h-1.5 bg-[var(--surface-4)] overflow-hidden">
                 <div className="h-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} />
