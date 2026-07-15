@@ -1768,9 +1768,13 @@ export default function BattlePage() {
     const resolveHostTurn = useCallback(async (localAction: ActionWire, remoteAction: ActionWire) => {
         const currentState = battleStateRef.current;
         if (!currentState || resolvingTurnRef.current) {
+            if (resolvingTurnRef.current) {
+                console.warn('[battle] resolveHostTurn skipped: already resolving');
+            }
             return;
         }
         resolvingTurnRef.current = true;
+        console.log('[battle] resolveHostTurn', { localAction: localAction.type, remoteAction: remoteAction.type, turn: currentState.turn });
         try {
             const actions = [localAction, remoteAction];
             const nextState = await stepBattle(currentState, actions);
@@ -1784,8 +1788,9 @@ export default function BattlePage() {
                 setStatusText('');
             }
         } catch (error) {
-            console.error('Online battle step error:', error);
-            setStatusText('ターンの解決に失敗しました。');
+            console.error('[battle] Online battle step error:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            setStatusText('ターンの解決に失敗しました。' + message);
             setWaiting(false);
         } finally {
             resolvingTurnRef.current = false;
@@ -1795,10 +1800,16 @@ export default function BattlePage() {
     const resolveForcedSwitch = useCallback(async (action: ActionWire, broadcast: boolean) => {
         const currentState = battleStateRef.current;
         if (!currentState || action.type !== 'switch' || typeof action.slot !== 'number') {
+            console.warn('[battle] resolveForcedSwitch skipped: invalid state', {
+                hasState: !!currentState,
+                actionType: action.type,
+                actionSlot: action.slot,
+            });
             return;
         }
 
         try {
+            console.log('[battle] resolveForcedSwitch', { playerId: action.playerId, slot: action.slot, broadcast });
             const nextState = replaceFaintedPokemon(currentState, action.playerId, action.slot);
             pendingLocalActionRef.current = null;
             pendingRemoteActionRef.current = null;
@@ -1812,7 +1823,7 @@ export default function BattlePage() {
                 setStatusText('');
             }
         } catch (error) {
-            console.error('Forced switch error:', error);
+            console.error('[battle] Forced switch error:', error);
             setStatusText('ニキダンの出し直しに失敗しました。');
             setWaiting(false);
         }
@@ -1859,9 +1870,13 @@ export default function BattlePage() {
         return subscribeOnlineSession((event) => {
             if (event.type === 'snapshot') {
                 setOnlineSnapshot(event.snapshot);
+                if (event.snapshot.status === 'error') {
+                    console.warn('[battle] P2P error snapshot:', event.snapshot.error);
+                }
                 return;
             }
             if (event.type === 'battle_init') {
+                console.log('[battle] battle_init received, turn:', event.state.turn);
                 setRevealedOpponentSlots(new Set());
                 setBattleState(event.state);
                 showInitialBattlePopups(
@@ -1874,11 +1889,13 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'battle_update') {
+                console.log('[battle] battle_update received, turn:', event.state.turn, 'actions:', event.actions.length);
                 void (async () => {
                     const currentState = battleStateRef.current;
                     if (currentState) {
                         await playBattleResolution(currentState, event.state, event.actions);
                     } else {
+                        console.warn('[battle] battle_update received but no current state, setting directly');
                         setBattleState(event.state);
                     }
                     const finished = await finishBattle(event.state);
@@ -1890,17 +1907,20 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'remote_action' && onlineRoleRef.current === 'host') {
+                console.log('[battle] remote_action received:', event.action.type, 'from:', event.actorId);
                 const currentState = battleStateRef.current;
                 if (
                     currentState &&
                     event.action.type === 'switch' &&
                     needsForcedSwitch(currentState, event.action.playerId)
                 ) {
+                    console.log('[battle] resolving forced switch from remote action');
                     void resolveForcedSwitch(event.action, true);
                     return;
                 }
                 const localAction = pendingLocalActionRef.current;
                 if (localAction) {
+                    console.log('[battle] both actions ready, resolving host turn');
                     void resolveHostTurn(localAction, event.action);
                     return;
                 }
@@ -1909,14 +1929,17 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'peer_left') {
+                console.warn('[battle] peer disconnected');
                 setStatusText('相手との接続が切れました。自動で再接続を試みます...');
                 return;
             }
             if (event.type === 'reconnected') {
+                console.log('[battle] peer reconnected');
                 setStatusText('再接続できました。');
                 return;
             }
             if (event.type === 'error') {
+                console.error('[battle] P2P error:', event.message);
                 setStatusText(event.message);
                 setWaiting(false);
             }
@@ -2022,7 +2045,7 @@ export default function BattlePage() {
                     showInitialBattlePopups(state, 'host', 'guest');
                 })
                 .catch((error) => {
-                    console.error('Failed to create online battle state:', error);
+                    console.error('[battle] Failed to create online battle state:', error);
                     const message = error instanceof Error ? error.message : String(error);
                     setStatusText(`オンライン対戦の初期化に失敗しました: ${message}`);
                 });
@@ -2160,6 +2183,8 @@ export default function BattlePage() {
     };
 
     const submitOnlineAction = async (action: ActionWire) => {
+        console.log('[battle] submitOnlineAction', { role: onlineSnapshot.role, actionType: action.type });
+
         if (onlineSnapshot.role === 'guest') {
             sendPlayerAction(action);
             setWaiting(true);
@@ -2169,6 +2194,7 @@ export default function BattlePage() {
 
         const remoteAction = pendingRemoteActionRef.current;
         if (remoteAction) {
+            console.log('[battle] both actions available, resolving turn');
             setWaiting(true);
             await resolveHostTurn(action, remoteAction);
             return;

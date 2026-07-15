@@ -82,6 +82,14 @@ const PEER_CONNECT_RETRY_COUNT = 5;
 const PEER_CONNECT_RETRY_DELAY_MS = 1200;
 const CREATE_ROOM_CODE_RETRY_COUNT = 12;
 
+function debugLog(...args: unknown[]): void {
+    console.log('[p2p][debug]', ...args);
+}
+
+function debugWarn(...args: unknown[]): void {
+    console.warn('[p2p][debug]', ...args);
+}
+
 function delay(ms: number): Promise<void> {
     return new Promise((resolve) => {
         window.setTimeout(resolve, ms);
@@ -159,25 +167,30 @@ let lastPongTs = 0;
 function startKeepalive(): void {
     stopKeepalive();
     lastPongTs = Date.now();
+    debugLog('keepalive started, interval:', KEEPALIVE_INTERVAL_MS, 'timeout:', KEEPALIVE_TIMEOUT_MS);
     keepaliveTimer = setInterval(() => {
         if (!session.connection?.open) {
+            debugLog('keepalive skipped, connection not open');
             return;
         }
-        if (Date.now() - lastPongTs > KEEPALIVE_TIMEOUT_MS) {
-            console.warn('[p2p] keepalive timeout, closing connection');
+        const elapsed = Date.now() - lastPongTs;
+        if (elapsed > KEEPALIVE_TIMEOUT_MS) {
+            console.warn('[p2p] keepalive timeout, lastPong:', lastPongTs, 'elapsed:', elapsed, 'ms');
             session.connection?.close();
             return;
         }
         try {
             session.connection.send({ type: 'ping', ts: Date.now() } satisfies OnlineMessage);
-        } catch {
-            // will be caught by connection.on('close')
+            debugLog('keepalive ping sent, elapsed since last pong:', elapsed, 'ms');
+        } catch (sendError) {
+            console.warn('[p2p] keepalive send failed:', sendError);
         }
     }, KEEPALIVE_INTERVAL_MS);
 }
 
 function stopKeepalive(): void {
     if (keepaliveTimer !== null) {
+        debugLog('keepalive stopped');
         clearInterval(keepaliveTimer);
         keepaliveTimer = null;
     }
@@ -192,6 +205,9 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleReconnect(): void {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || session.role === null) {
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.warn('[p2p] max reconnect attempts reached');
+        }
         return;
     }
 
@@ -361,13 +377,15 @@ function setError(message: string): void {
 
 function sendMessage(message: OnlineMessage): boolean {
     if (!session.connection || !session.connection.open) {
+        debugWarn('sendMessage failed: connection not open', { type: message.type, status: session.status });
         return false;
     }
     try {
         session.connection.send(toPlainData(message));
+        debugLog('message sent:', message.type, 'status:', session.status);
         return true;
     } catch (error) {
-        console.error('[p2p] send error:', error);
+        console.error('[p2p] send error:', error, 'message type:', message.type, 'status:', session.status);
         return false;
     }
 }
@@ -390,10 +408,13 @@ function sendHello(): void {
 
 function handleIncomingMessage(raw: unknown): void {
     if (!raw || typeof raw !== 'object' || !('type' in raw)) {
+        debugWarn('received invalid message format:', raw);
         return;
     }
 
     const message = raw as OnlineMessage;
+
+    debugLog('message received:', message.type, 'status:', session.status);
 
     if (message.type === 'ping') {
         sendMessage({ type: 'pong', ts: message.ts });
@@ -401,11 +422,13 @@ function handleIncomingMessage(raw: unknown): void {
     }
     if (message.type === 'pong') {
         lastPongTs = Date.now();
+        debugLog('pong received, latency:', Date.now() - message.ts, 'ms');
         return;
     }
 
     switch (message.type) {
         case 'hello':
+            debugLog('hello received from peer:', message.peerId);
             session.remotePeerId = message.peerId;
             session.remoteUserId = message.userId ?? null;
             session.remoteUserName = message.userName ?? null;
@@ -416,16 +439,19 @@ function handleIncomingMessage(raw: unknown): void {
             emitSnapshot();
             return;
         case 'start_battle':
+            debugLog('start_battle received, status:', session.status);
             session.status = 'in_battle';
             emitSnapshot();
             emit({ type: 'start_battle' });
             return;
         case 'team_selected':
+            debugLog('team_selected received, deck size:', message.deck.length);
             session.remoteSelectedDeck = cloneDeck(message.deck);
             emitSnapshot();
             emit({ type: 'team_selected', deck: cloneDeck(message.deck) });
             return;
         case 'battle_init':
+            debugLog('battle_init received, turn:', message.state.turn);
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);
             session.latestActions = null;
@@ -433,9 +459,11 @@ function handleIncomingMessage(raw: unknown): void {
             emit({ type: 'battle_init', state: toPlainData(message.state) });
             return;
         case 'action_submit':
+            debugLog('action_submit received from:', message.actorId, 'type:', message.action.type);
             emit({ type: 'remote_action', actorId: message.actorId, action: message.action });
             return;
         case 'battle_update':
+            debugLog('battle_update received, turn:', message.state.turn, 'actions:', message.actions.length);
             session.status = 'in_battle';
             session.latestState = toPlainData(message.state);
             session.latestActions = toPlainData([...message.actions]);
@@ -446,11 +474,13 @@ function handleIncomingMessage(raw: unknown): void {
                 actions: toPlainData([...message.actions]),
             });
             return;
+        default:
+            debugWarn('unknown message type:', (message as { type: string }).type);
     }
 }
 
 function attachConnection(connection: DataConnection): void {
-    console.log('[p2p] attach connection', connection.peer);
+    console.log('[p2p] attach connection', connection.peer, 'status:', session.status, 'role:', session.role);
 
     cancelReconnect();
 
@@ -459,7 +489,7 @@ function attachConnection(connection: DataConnection): void {
     emitSnapshot();
 
     connection.on('open', () => {
-        console.log('[p2p] connection open', connection.peer);
+        console.log('[p2p] connection open', connection.peer, 'status:', session.status);
 
         session.connection = connection;
         session.remotePeerId = connection.peer;
@@ -475,16 +505,18 @@ function attachConnection(connection: DataConnection): void {
     });
 
     connection.on('close', () => {
-        console.warn('[p2p] connection closed', connection.peer);
+        console.warn('[p2p] connection closed', connection.peer, 'status:', session.status);
 
         stopKeepalive();
 
         if (session.connection !== connection) {
+            debugLog('connection close ignored: not current connection');
             return;
         }
         session.connection = null;
 
         if (session.status === 'joining') {
+            debugLog('connection closed during joining');
             emitSnapshot();
             return;
         }
@@ -502,37 +534,47 @@ function attachConnection(connection: DataConnection): void {
     });
 
     connection.on('error', (error) => {
-        console.error('[p2p] connection error', error);
+        console.error('[p2p] connection error', error, 'status:', session.status);
         if (session.status === 'joining' && isRetryablePeerError(error)) {
+            debugLog('connection error during joining, will retry');
             return;
         }
         if (session.connection === connection) {
             setError(error.message);
+        } else {
+            debugLog('connection error ignored: not current connection');
         }
     });
 }
 
 function setupPeerCommon(peer: Peer): void {
     peer.on('open', (peerId) => {
-        console.log('[p2p] peer open', peerId);
+        console.log('[p2p] peer open', peerId, 'role:', session.role, 'status:', session.status);
     });
 
     peer.on('error', (error) => {
-        console.error('[p2p] peer error', error);
+        console.error('[p2p] peer error', error, 'role:', session.role, 'status:', session.status);
         if (session.status === 'joining' && isRetryablePeerError(error)) {
+            debugLog('peer error during joining, will retry');
+            return;
+        }
+        if (session.status === 'error' || session.status === 'reconnecting') {
+            debugLog('peer error ignored: already in', session.status);
             return;
         }
         setError(error.message);
     });
 
     peer.on('disconnected', () => {
-        console.warn('[p2p] peer disconnected');
+        console.warn('[p2p] peer disconnected', 'role:', session.role, 'status:', session.status);
 
         if (session.peer !== peer || peer.destroyed || session.status === 'error' || session.status === 'reconnecting') {
+            debugLog('peer disconnected ignored: stale/destroyed/already handling');
             return;
         }
 
         if (!session.connection?.open) {
+            debugLog('no open connection, transitioning status');
             session.status = session.role === 'host'
                 ? 'hosting'
                 : session.role === 'guest'
@@ -540,19 +582,23 @@ function setupPeerCommon(peer: Peer): void {
                   : 'disconnected';
             emitSnapshot();
             scheduleReconnect();
+        } else {
+            debugLog('connection still open, attempting peer.reconnect()');
         }
 
         try {
             peer.reconnect();
         } catch (error) {
             const message = error instanceof Error ? error.message : 'PeerJS の再接続に失敗しました。';
+            console.error('[p2p] peer reconnect failed:', error);
             setError(message);
         }
     });
 
     peer.on('close', () => {
-        console.warn('[p2p] peer closed');
+        console.warn('[p2p] peer closed', 'role:', session.role, 'status:', session.status);
         if (session.peer !== peer || session.connection?.open || session.status === 'error') {
+            debugLog('peer close ignored: not current/still connected/already error');
             return;
         }
         session.status = 'disconnected';
@@ -624,12 +670,14 @@ export function getOnlineSessionSnapshot(): OnlineSessionSnapshot {
 }
 
 export function clearOnlineSession(): void {
+    console.log('[p2p] clearOnlineSession, current role:', session.role, 'status:', session.status);
     stopKeepalive();
     cancelReconnect();
-    try { session.connection?.close(); } catch { /* ignore */ }
-    try { session.peer?.destroy(); } catch { /* ignore */ }
+    try { session.connection?.close(); } catch (e) { debugLog('connection close error:', e); }
+    try { session.peer?.destroy(); } catch (e) { debugLog('peer destroy error:', e); }
     session = createInitialState();
     emitSnapshot();
+    debugLog('session cleared');
 }
 
 export async function createHostSession(
@@ -638,6 +686,7 @@ export async function createHostSession(
     userName?: string | null,
     requestedRoomCode?: string,
 ): Promise<string> {
+    console.log('[p2p] createHostSession', { requestedRoomCode, userName, deckSize: deck.length });
     clearOnlineSession();
 
     const fixedRoomCode = requestedRoomCode ? normalizeRoomCode(requestedRoomCode) : null;
@@ -654,6 +703,7 @@ export async function createHostSession(
     emitSnapshot();
 
     const iceServers = await buildIceServers();
+    debugLog('iceServers count:', iceServers.length);
     const peerOptions = buildPeerOptions(iceServers);
 
     const attempts = fixedRoomCode ? 1 : CREATE_ROOM_CODE_RETRY_COUNT;
@@ -667,8 +717,8 @@ export async function createHostSession(
         session.error = null;
         emitSnapshot();
 
-        // Use a random UUID as the actual PeerID to avoid collisions.
         const peerId = crypto.randomUUID();
+        debugLog('creating host peer:', peerId, 'roomCode:', roomCode, 'attempt:', attempt);
 
         const peer = new Peer(peerId, peerOptions);
         session.peer = peer;
@@ -678,10 +728,12 @@ export async function createHostSession(
         try {
             return await new Promise<string>((resolve, reject) => {
                 peer.on('open', async () => {
+                    debugLog('host peer open:', peerId);
                     try {
-                        // Register the code → peerId mapping (no-op if Supabase not configured).
                         await registerRoomCode(roomCode, peerId);
+                        debugLog('room code registered:', roomCode);
                     } catch (error) {
+                        console.error('[p2p] room registration failed:', error);
                         peer.destroy();
                         const message = error instanceof Error ? error.message : 'ルーム登録に失敗しました。';
                         reject(new Error(message));
@@ -689,14 +741,16 @@ export async function createHostSession(
                     }
 
                     session.localPeerId = peerId;
-                    session.hostPeerId = roomCode; // share the user-friendly code, not the UUID.
+                    session.hostPeerId = roomCode;
                     session.error = null;
                     emitSnapshot();
-                    resolve(roomCode); // return the user-friendly code.
+                    resolve(roomCode);
                 });
 
                 peer.on('connection', (connection) => {
+                    debugLog('incoming connection from:', connection.peer);
                     if (session.connection && session.connection.open) {
+                        debugLog('rejecting duplicate connection from:', connection.peer);
                         connection.on('open', () => connection.close());
                         return;
                     }
@@ -704,6 +758,7 @@ export async function createHostSession(
                 });
 
                 peer.on('error', (error) => {
+                    console.error('[p2p] host peer error during creation:', error);
                     reject(error);
                 });
             });
@@ -730,6 +785,7 @@ export async function joinHostSession(
     userId?: string | null,
     userName?: string | null,
 ): Promise<void> {
+    console.log('[p2p] joinHostSession', { hostPeerId, userName, deckSize: deck.length });
     clearOnlineSession();
 
     const roomCode = normalizeRoomCode(hostPeerId);
@@ -745,9 +801,9 @@ export async function joinHostSession(
     emitSnapshot();
 
     const iceServers = await buildIceServers();
+    debugLog('iceServers count:', iceServers.length);
     const peerOptions = buildPeerOptions(iceServers);
 
-    // Resolve the room code to an actual PeerID via Supabase.
     const lookedUpPeerId = await lookupRoomCodeWithRetry(roomCode);
     if (lookedUpPeerId) {
         console.log('[p2p] room code resolved', { roomCode, peerId: lookedUpPeerId });
@@ -767,6 +823,7 @@ export async function joinHostSession(
         const rejectOnce = (error: Error): void => {
             if (resolved) return;
             resolved = true;
+            debugLog('joinHostSession rejecting:', error.message);
             cancelReconnect();
             window.clearTimeout(timeoutId);
             setError(error.message);
@@ -774,6 +831,7 @@ export async function joinHostSession(
         };
 
         const timeoutId = window.setTimeout(() => {
+            console.warn('[p2p] join timeout reached:', JOIN_TIMEOUT_MS, 'ms');
             rejectOnce(
                 new Error('接続がタイムアウトしました。部屋IDが正しいか、ホスト側の画面が開いたままか確認してください。'),
             );
@@ -782,7 +840,7 @@ export async function joinHostSession(
         const peer = new Peer(peerOptions);
         session.peer = peer;
         emitSnapshot();
-            setupPeerCommon(peer);
+        setupPeerCommon(peer);
 
         peer.on('open', (peerId) => {
             console.log('[p2p] guest peer open', peerId);
@@ -791,6 +849,7 @@ export async function joinHostSession(
 
             const connect = () => {
                 if (resolved || peer.destroyed) {
+                    debugLog('connect skipped: resolved or peer destroyed');
                     return;
                 }
                 connectionAttempt += 1;
@@ -830,6 +889,7 @@ export async function joinHostSession(
 
                 connection.on('open', () => {
                     if (resolved) return;
+                    debugLog('connection open to host');
                     attemptFinished = true;
                     resolved = true;
                     window.clearTimeout(timeoutId);
@@ -846,6 +906,7 @@ export async function joinHostSession(
 
                 connection.on('close', () => {
                     if (!resolved && session.status === 'joining') {
+                        debugLog('connection closed before open, retrying');
                         retryConnection(new Error('接続が開く前に切断されました。'));
                     }
                 });
@@ -882,6 +943,7 @@ export async function joinHostSession(
 export function startOnlineBattle(): void {
     if (session.role !== 'host') throw new Error('ホストのみ対戦を開始できます。');
     if (!session.connection?.open || !session.remoteDeck) throw new Error('相手の接続完了後に対戦を開始してください。');
+    console.log('[p2p] startOnlineBattle', { role: session.role, remoteDeckSize: session.remoteDeck.length });
     session.status = 'in_battle';
     session.latestActions = null;
     emitSnapshot();
@@ -889,14 +951,22 @@ export function startOnlineBattle(): void {
 }
 
 export function sendTeamSelected(deck: DeckPokemon[]): void {
-    if (!session.role) throw new Error('オンラインセッションが初期化されていません。');
-    if (deck.length !== 3) throw new Error('選出は3匹である必要があります。');
+    if (!session.role) {
+        console.error('[p2p] sendTeamSelected failed: session not initialized');
+        throw new Error('オンラインセッションが初期化されていません。');
+    }
+    if (deck.length !== 3) {
+        console.error('[p2p] sendTeamSelected failed: invalid deck size', deck.length);
+        throw new Error('選出は3匹である必要があります。');
+    }
+    console.log('[p2p] sendTeamSelected', { role: session.role, deckSize: deck.length });
     session.localSelectedDeck = cloneDeck(deck);
     emitSnapshot();
     sendMessage({ type: 'team_selected', deck: cloneDeck(deck) });
 }
 
 export function sendBattleInit(state: BattleStateWire): void {
+    console.log('[p2p] sendBattleInit', { role: session.role, turn: state.turn });
     session.status = 'in_battle';
     const plainState = toPlainData(state);
     session.latestState = plainState;
@@ -908,6 +978,7 @@ export function sendBattleInit(state: BattleStateWire): void {
 export function sendBattleUpdate(state: BattleStateWire, actions: ActionWire[]): void {
     const plainState = toPlainData(state);
     const plainActions = toPlainData([...actions]);
+    console.log('[p2p] sendBattleUpdate', { turn: state.turn, actions: actions.length });
     session.status = 'in_battle';
     session.latestState = plainState;
     session.latestActions = plainActions;
@@ -916,7 +987,11 @@ export function sendBattleUpdate(state: BattleStateWire, actions: ActionWire[]):
 }
 
 export function sendPlayerAction(action: ActionWire): void {
-    if (!session.role) throw new Error('オンラインセッションが初期化されていません。');
+    if (!session.role) {
+        console.error('[p2p] sendPlayerAction failed: session not initialized');
+        throw new Error('オンラインセッションが初期化されていません。');
+    }
+    console.log('[p2p] sendPlayerAction', { role: session.role, type: action.type });
     sendMessage({ type: 'action_submit', actorId: session.role, action });
 }
 
