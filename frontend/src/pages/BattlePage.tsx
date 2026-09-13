@@ -2453,9 +2453,17 @@ const battleStatusLabel = playback.isPlaying
 const battleField = (battleState as BattleStateWithField).field;
 const battleWeatherId = getBattleWeatherId(battleField);
 const battleTerrain = getBattleTerrain(battleField);
+const isFireImpact = playback.effectType === 'fire'
+    && Boolean(playback.attackingPlayerId)
+    && Boolean(playback.damagedPlayerId);
+const isFireAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
 
     return (
-        <div className="flex min-h-dvh flex-col bg-[var(--surface-1)]">
+        <div className={cn(
+            'flex min-h-dvh flex-col bg-[var(--surface-1)]',
+            isFireImpact && 'battle-fire-screen-shake',
+        )}>
+            {isFireImpact && <FireMoveEffect fromPlayer={isFireAttackFromPlayer} />}
             <header className="border-b border-[var(--border)] bg-[var(--surface-2)]">
                 <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-4">
                     <div className="flex items-center gap-3">
@@ -3370,6 +3378,37 @@ function BattlePopupToast({ popup }: { popup: BattlePopup | null }) {
                 </div>
                 <div className="mt-0.5 text-lg font-bold leading-tight">{popup.title}</div>
                 <div className="mt-1 text-sm text-[#333333]">{popup.text}</div>
+            </div>
+        </div>
+    );
+}
+
+function FireMoveEffect({ fromPlayer }: { fromPlayer: boolean }) {
+    return (
+        <div
+            className={cn(
+                'battle-fire-effect',
+                fromPlayer ? 'battle-fire-from-player' : 'battle-fire-from-opponent',
+            )}
+            aria-hidden="true"
+        >
+            <div className="battle-fire-flash" />
+            <div className="battle-fire-speed-lines" />
+            <div className="battle-fire-projectile">
+                <span className="battle-fire-projectile-core" />
+            </div>
+            <div className="battle-fire-impact">
+                <span className="battle-fire-impact-core" />
+                <span className="battle-fire-impact-ring" />
+                <span className="battle-fire-impact-ring battle-fire-impact-ring-delayed" />
+                <span className="battle-fire-spark battle-fire-spark-1" />
+                <span className="battle-fire-spark battle-fire-spark-2" />
+                <span className="battle-fire-spark battle-fire-spark-3" />
+                <span className="battle-fire-spark battle-fire-spark-4" />
+                <span className="battle-fire-spark battle-fire-spark-5" />
+                <span className="battle-fire-spark battle-fire-spark-6" />
+                <span className="battle-fire-spark battle-fire-spark-7" />
+                <span className="battle-fire-spark battle-fire-spark-8" />
             </div>
         </div>
     );
