@@ -584,6 +584,7 @@ type BattlePlaybackState = {
     attackingPlayerId?: string;
     damagedPlayerId?: string;
     effectType?: string;
+    showMoveEffect?: boolean;
     statusFlashPlayerId?: string;
     statusFlashType?: BattleStatusFlashType;
     faintedCreatureIds: string[];
@@ -1589,6 +1590,7 @@ export default function BattlePage() {
                 attackingPlayerId: action.playerId,
                 damagedPlayerId: visualImpactPlayerId,
                 effectType: moveType,
+                showMoveEffect: move?.category === 'physical' || move?.category === 'special',
                 statusFlashPlayerId: statusFlash?.playerId,
                 statusFlashType: statusFlash?.statusType,
                 faintedCreatureIds: [],
@@ -2453,17 +2455,23 @@ const battleStatusLabel = playback.isPlaying
 const battleField = (battleState as BattleStateWithField).field;
 const battleWeatherId = getBattleWeatherId(battleField);
 const battleTerrain = getBattleTerrain(battleField);
-const isFireImpact = playback.effectType === 'fire'
+const isTypeMoveImpact = playback.effectType !== undefined
+    && playback.showMoveEffect === true
     && Boolean(playback.attackingPlayerId)
     && Boolean(playback.damagedPlayerId);
-const isFireAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
+const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
 
     return (
         <div className={cn(
             'flex min-h-dvh flex-col bg-[var(--surface-1)]',
-            isFireImpact && 'battle-fire-screen-shake',
+            isTypeMoveImpact && 'battle-fire-screen-shake',
         )}>
-            {isFireImpact && <FireMoveEffect fromPlayer={isFireAttackFromPlayer} />}
+            {isTypeMoveImpact && (
+                <MoveTypeEffect
+                    effectType={playback.effectType!}
+                    fromPlayer={isTypeAttackFromPlayer}
+                />
+            )}
             <header className="border-b border-[var(--border)] bg-[var(--surface-2)]">
                 <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-4">
                     <div className="flex items-center gap-3">
@@ -3383,11 +3391,12 @@ function BattlePopupToast({ popup }: { popup: BattlePopup | null }) {
     );
 }
 
-function FireMoveEffect({ fromPlayer }: { fromPlayer: boolean }) {
+function MoveTypeEffect({ effectType, fromPlayer }: { effectType: string; fromPlayer: boolean }) {
     return (
         <div
             className={cn(
                 'battle-fire-effect',
+                `battle-effect-${effectType}`,
                 fromPlayer ? 'battle-fire-from-player' : 'battle-fire-from-opponent',
             )}
             aria-hidden="true"
@@ -3396,6 +3405,7 @@ function FireMoveEffect({ fromPlayer }: { fromPlayer: boolean }) {
             <div className="battle-fire-speed-lines" />
             <div className="battle-fire-projectile">
                 <span className="battle-fire-projectile-core" />
+                <span className="battle-type-emblem" />
             </div>
             <div className="battle-fire-impact">
                 <span className="battle-fire-impact-core" />

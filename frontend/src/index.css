@@ -325,6 +325,12 @@ body {
   --fire-player-y: 70vh;
   --fire-opponent-x: 70vw;
   --fire-opponent-y: 26vh;
+  --effect-rgb: 255, 69, 0;
+  --effect-light: #fffbd1;
+  --effect-bright: #ffd24a;
+  --effect-mid: #ff6a00;
+  --effect-deep: #be1800;
+  --effect-dark: #740800;
   position: fixed;
   inset: 0;
   z-index: 100;
@@ -337,8 +343,8 @@ body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 48%, rgba(255, 246, 178, 0.72), transparent 38%),
-    linear-gradient(135deg, rgba(255, 69, 0, 0.32), rgba(96, 12, 0, 0.48));
+    radial-gradient(circle at 50% 48%, rgba(var(--effect-rgb), 0.32), transparent 38%),
+    linear-gradient(135deg, rgba(var(--effect-rgb), 0.28), rgba(var(--effect-rgb), 0.48));
   mix-blend-mode: multiply;
   animation: battle-fire-flash 1300ms ease-out forwards;
 }
@@ -349,7 +355,7 @@ body {
   background: repeating-conic-gradient(
     from 12deg at 50% 50%,
     transparent 0deg 8deg,
-    rgba(255, 130, 40, 0.22) 8.5deg 9deg,
+    rgba(var(--effect-rgb), 0.22) 8.5deg 9deg,
     transparent 9.5deg 17deg
   );
   mask-image: radial-gradient(circle, transparent 0 16%, #000 38%, transparent 72%);
@@ -362,9 +368,9 @@ body {
   height: 3.4rem;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 72% 50%, #fffbd1 0 10%, #ffd24a 22%, #ff6a00 48%, rgba(190, 24, 0, 0.2) 70%, transparent 72%),
-    linear-gradient(90deg, transparent, rgba(255, 70, 0, 0.8));
-  filter: drop-shadow(0 0 12px #ff8a00) drop-shadow(0 0 28px rgba(255, 55, 0, 0.88));
+    radial-gradient(circle at 72% 50%, var(--effect-light) 0 10%, var(--effect-bright) 22%, var(--effect-mid) 48%, rgba(var(--effect-rgb), 0.2) 70%, transparent 72%),
+    linear-gradient(90deg, transparent, rgba(var(--effect-rgb), 0.8));
+  filter: drop-shadow(0 0 12px var(--effect-mid)) drop-shadow(0 0 28px rgba(var(--effect-rgb), 0.88));
   transform-origin: center;
 }
 
@@ -377,7 +383,7 @@ body {
   width: 8rem;
   height: 1.35rem;
   border-radius: 50%;
-  background: linear-gradient(90deg, transparent, rgba(255, 69, 0, 0.82), #ffd54a);
+  background: linear-gradient(90deg, transparent, rgba(var(--effect-rgb), 0.82), var(--effect-bright));
   transform: translateY(-50%) skewX(-24deg);
   filter: blur(3px);
 }
@@ -394,7 +400,7 @@ body {
   inset: 25% 13% 25% 51%;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 0 10px #fffbd1;
+  box-shadow: 0 0 10px var(--effect-light);
 }
 
 .battle-fire-from-player .battle-fire-projectile {
@@ -439,8 +445,8 @@ body {
   margin: -5.5rem;
   border-radius: 50%;
   background:
-    radial-gradient(circle, #fff 0 6%, #fff5a8 14%, #ffb000 30%, #f04400 54%, rgba(116, 8, 0, 0.66) 68%, transparent 72%);
-  filter: drop-shadow(0 0 24px #ff6a00) drop-shadow(0 0 58px rgba(255, 32, 0, 0.82));
+    radial-gradient(circle, #fff 0 6%, var(--effect-light) 14%, var(--effect-bright) 30%, var(--effect-mid) 54%, var(--effect-dark) 68%, transparent 72%);
+  filter: drop-shadow(0 0 24px var(--effect-mid)) drop-shadow(0 0 58px rgba(var(--effect-rgb), 0.82));
   animation: battle-fire-impact-core 1300ms ease-out forwards;
 }
 
@@ -448,9 +454,9 @@ body {
   width: 5rem;
   height: 5rem;
   margin: -2.5rem;
-  border: 0.4rem solid rgba(255, 200, 65, 0.92);
+  border: 0.4rem solid var(--effect-bright);
   border-radius: 50%;
-  box-shadow: 0 0 18px #ff4d00, inset 0 0 18px #ff4d00;
+  box-shadow: 0 0 18px var(--effect-mid), inset 0 0 18px var(--effect-mid);
   animation: battle-fire-impact-ring 1100ms ease-out forwards;
 }
 
@@ -465,8 +471,8 @@ body {
   margin-left: -1.4rem;
   margin-top: -0.21rem;
   border-radius: 999px;
-  background: linear-gradient(90deg, #fff9b0, #ff6a00 55%, transparent);
-  box-shadow: 0 0 8px #ff6a00;
+  background: linear-gradient(90deg, var(--effect-light), var(--effect-mid) 55%, transparent);
+  box-shadow: 0 0 8px var(--effect-mid);
   transform-origin: center;
   animation: battle-fire-spark 1150ms ease-out forwards;
 }
@@ -479,6 +485,347 @@ body {
 .battle-fire-spark-6 { --spark-angle: 225deg; --spark-distance: 10rem; }
 .battle-fire-spark-7 { --spark-angle: 270deg; --spark-distance: 12rem; }
 .battle-fire-spark-8 { --spark-angle: 315deg; --spark-distance: 9rem; }
+
+/* Type palettes keep one readable motion language while giving every type its own material. */
+.battle-effect-normal {
+  --effect-rgb: 139, 141, 148;
+  --effect-light: #ffffff;
+  --effect-bright: #d9dadd;
+  --effect-mid: #8b8d94;
+  --effect-deep: #616269;
+  --effect-dark: #34353a;
+}
+
+.battle-effect-water {
+  --effect-rgb: 35, 134, 192;
+  --effect-light: #e2fbff;
+  --effect-bright: #72dcff;
+  --effect-mid: #2386c0;
+  --effect-deep: #145a91;
+  --effect-dark: #082d4e;
+}
+
+.battle-effect-grass {
+  --effect-rgb: 61, 151, 79;
+  --effect-light: #edffd8;
+  --effect-bright: #9ee85f;
+  --effect-mid: #3d974f;
+  --effect-deep: #216d39;
+  --effect-dark: #0c3d22;
+}
+
+.battle-effect-electric {
+  --effect-rgb: 244, 186, 24;
+  --effect-light: #fffde0;
+  --effect-bright: #fff05a;
+  --effect-mid: #f4ba18;
+  --effect-deep: #b66d00;
+  --effect-dark: #633500;
+}
+
+.battle-effect-ice {
+  --effect-rgb: 78, 184, 205;
+  --effect-light: #f2ffff;
+  --effect-bright: #a9f2ff;
+  --effect-mid: #4eb8cd;
+  --effect-deep: #287eaa;
+  --effect-dark: #123b63;
+}
+
+.battle-effect-fighting {
+  --effect-rgb: 188, 61, 54;
+  --effect-light: #fff2d8;
+  --effect-bright: #ff9a5a;
+  --effect-mid: #bc3d36;
+  --effect-deep: #81221f;
+  --effect-dark: #3f1010;
+}
+
+.battle-effect-poison {
+  --effect-rgb: 151, 65, 174;
+  --effect-light: #ffe5ff;
+  --effect-bright: #da7df1;
+  --effect-mid: #9741ae;
+  --effect-deep: #652176;
+  --effect-dark: #35103f;
+}
+
+.battle-effect-ground {
+  --effect-rgb: 181, 129, 69;
+  --effect-light: #fff2cf;
+  --effect-bright: #ddb26d;
+  --effect-mid: #b58145;
+  --effect-deep: #79502b;
+  --effect-dark: #3f2918;
+}
+
+.battle-effect-flying {
+  --effect-rgb: 105, 148, 211;
+  --effect-light: #f7fbff;
+  --effect-bright: #b8dbff;
+  --effect-mid: #6994d3;
+  --effect-deep: #4565a1;
+  --effect-dark: #25375f;
+}
+
+.battle-effect-psychic {
+  --effect-rgb: 224, 68, 133;
+  --effect-light: #fff0ff;
+  --effect-bright: #ff91d2;
+  --effect-mid: #e04485;
+  --effect-deep: #952459;
+  --effect-dark: #4e1135;
+}
+
+.battle-effect-bug {
+  --effect-rgb: 126, 153, 34;
+  --effect-light: #f4ffd7;
+  --effect-bright: #c5e653;
+  --effect-mid: #7e9922;
+  --effect-deep: #526512;
+  --effect-dark: #293408;
+}
+
+.battle-effect-rock {
+  --effect-rgb: 151, 124, 67;
+  --effect-light: #fff4d0;
+  --effect-bright: #cfb56c;
+  --effect-mid: #977c43;
+  --effect-deep: #66502a;
+  --effect-dark: #352a18;
+}
+
+.battle-effect-ghost {
+  --effect-rgb: 92, 74, 142;
+  --effect-light: #f3eaff;
+  --effect-bright: #ac91e5;
+  --effect-mid: #5c4a8e;
+  --effect-deep: #392d63;
+  --effect-dark: #1d1738;
+}
+
+.battle-effect-dragon {
+  --effect-rgb: 86, 65, 201;
+  --effect-light: #f6edff;
+  --effect-bright: #a58aff;
+  --effect-mid: #5641c9;
+  --effect-deep: #39278f;
+  --effect-dark: #1d1550;
+}
+
+.battle-effect-dark {
+  --effect-rgb: 61, 48, 62;
+  --effect-light: #eee2f3;
+  --effect-bright: #9a789e;
+  --effect-mid: #3d303e;
+  --effect-deep: #251d28;
+  --effect-dark: #08060b;
+}
+
+.battle-effect-steel {
+  --effect-rgb: 106, 139, 151;
+  --effect-light: #ffffff;
+  --effect-bright: #d2edf3;
+  --effect-mid: #6a8b97;
+  --effect-deep: #405d68;
+  --effect-dark: #21323a;
+}
+
+.battle-effect-fairy {
+  --effect-rgb: 220, 105, 164;
+  --effect-light: #fff5ff;
+  --effect-bright: #ffb8e1;
+  --effect-mid: #dc69a4;
+  --effect-deep: #98406f;
+  --effect-dark: #54213f;
+}
+
+.battle-type-emblem {
+  position: absolute;
+  z-index: 2;
+  left: 62%;
+  top: 50%;
+  width: 1.45rem;
+  height: 1.45rem;
+  opacity: 0.92;
+  transform: translate(-50%, -50%);
+}
+
+.battle-effect-normal .battle-type-emblem,
+.battle-effect-psychic .battle-type-emblem {
+  border: 0.25rem solid var(--effect-light);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.2rem var(--effect-mid), 0 0 12px var(--effect-light);
+}
+
+.battle-effect-water .battle-type-emblem,
+.battle-effect-poison .battle-type-emblem,
+.battle-effect-ghost .battle-type-emblem {
+  border-radius: 52% 48% 62% 38%;
+  background: var(--effect-light);
+  box-shadow: -0.85rem -0.35rem 0 -0.42rem var(--effect-bright), 0.75rem 0.55rem 0 -0.5rem var(--effect-light);
+}
+
+.battle-effect-electric .battle-type-emblem {
+  width: 1.8rem;
+  height: 2.2rem;
+  background: var(--effect-light);
+  clip-path: polygon(55% 0, 100% 0, 65% 40%, 92% 40%, 25% 100%, 43% 55%, 10% 55%);
+}
+
+.battle-effect-grass .battle-type-emblem,
+.battle-effect-bug .battle-type-emblem {
+  border-radius: 100% 0 100% 0;
+  background: var(--effect-light);
+  transform: translate(-50%, -50%) rotate(36deg);
+  box-shadow: 0 0 10px var(--effect-bright);
+}
+
+.battle-effect-ice .battle-type-emblem,
+.battle-effect-steel .battle-type-emblem,
+.battle-effect-rock .battle-type-emblem {
+  background: var(--effect-light);
+  clip-path: polygon(50% 0, 100% 30%, 82% 100%, 20% 88%, 0 34%);
+}
+
+.battle-effect-fighting .battle-type-emblem,
+.battle-effect-ground .battle-type-emblem {
+  border: 0.22rem solid var(--effect-light);
+  border-radius: 24% 44% 34% 18%;
+  background: var(--effect-mid);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.battle-effect-flying .battle-type-emblem,
+.battle-effect-dark .battle-type-emblem {
+  border: 0.3rem solid var(--effect-light);
+  border-left-color: transparent;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-35deg);
+}
+
+.battle-effect-dragon .battle-type-emblem {
+  width: 1.7rem;
+  height: 1.9rem;
+  background: var(--effect-light);
+  clip-path: polygon(50% 0, 88% 30%, 70% 100%, 48% 70%, 20% 100%, 8% 32%);
+}
+
+.battle-effect-fairy .battle-type-emblem {
+  width: 1.8rem;
+  height: 1.8rem;
+  background: var(--effect-light);
+  clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 38%);
+  filter: drop-shadow(0 0 8px var(--effect-light));
+}
+
+.battle-effect-water .battle-fire-spark,
+.battle-effect-poison .battle-fire-spark,
+.battle-effect-ghost .battle-fire-spark {
+  width: 1rem;
+  height: 1rem;
+  margin: -0.5rem;
+  border: 0.18rem solid var(--effect-light);
+  border-radius: 50%;
+  background: rgba(var(--effect-rgb), 0.36);
+}
+
+.battle-effect-electric .battle-fire-spark {
+  width: 3.5rem;
+  height: 1.4rem;
+  margin-left: -1.75rem;
+  margin-top: -0.7rem;
+  border-radius: 0;
+  background: var(--effect-bright);
+  clip-path: polygon(0 35%, 38% 35%, 53% 0, 68% 45%, 100% 45%, 58% 100%, 45% 62%, 0 62%);
+}
+
+.battle-effect-grass .battle-fire-spark,
+.battle-effect-bug .battle-fire-spark {
+  width: 1.6rem;
+  height: 0.8rem;
+  margin-left: -0.8rem;
+  margin-top: -0.4rem;
+  border-radius: 100% 0 100% 0;
+  background: linear-gradient(90deg, var(--effect-light), var(--effect-mid));
+}
+
+.battle-effect-ice .battle-fire-spark,
+.battle-effect-steel .battle-fire-spark {
+  width: 1.1rem;
+  height: 2.6rem;
+  margin-left: -0.55rem;
+  margin-top: -1.3rem;
+  border-radius: 0;
+  background: linear-gradient(var(--effect-light), var(--effect-mid));
+  clip-path: polygon(50% 0, 100% 78%, 50% 100%, 0 78%);
+}
+
+.battle-effect-fighting .battle-fire-spark,
+.battle-effect-normal .battle-fire-spark {
+  width: 3.6rem;
+  height: 0.75rem;
+  margin-left: -1.8rem;
+  margin-top: -0.375rem;
+  background: linear-gradient(90deg, var(--effect-light), var(--effect-mid) 70%, transparent);
+}
+
+.battle-effect-ground .battle-fire-spark,
+.battle-effect-rock .battle-fire-spark {
+  width: 1.45rem;
+  height: 1.45rem;
+  margin: -0.725rem;
+  border-radius: 0;
+  background: linear-gradient(135deg, var(--effect-light), var(--effect-deep));
+  clip-path: polygon(50% 0, 100% 28%, 82% 100%, 13% 82%, 0 30%);
+}
+
+.battle-effect-flying .battle-fire-spark {
+  width: 4.5rem;
+  height: 0.3rem;
+  margin-left: -2.25rem;
+  margin-top: -0.15rem;
+  background: linear-gradient(90deg, var(--effect-light), transparent);
+  filter: blur(1px);
+}
+
+.battle-effect-psychic .battle-fire-spark {
+  width: 1.7rem;
+  height: 1.7rem;
+  margin: -0.85rem;
+  border: 0.25rem solid var(--effect-bright);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.battle-effect-dragon .battle-fire-spark {
+  width: 2rem;
+  height: 1.2rem;
+  margin-left: -1rem;
+  margin-top: -0.6rem;
+  border-radius: 0;
+  background: linear-gradient(90deg, var(--effect-light), var(--effect-mid));
+  clip-path: polygon(0 50%, 45% 0, 100% 50%, 45% 100%);
+}
+
+.battle-effect-dark .battle-fire-spark {
+  width: 3.8rem;
+  height: 0.5rem;
+  margin-left: -1.9rem;
+  margin-top: -0.25rem;
+  border-radius: 0;
+  background: linear-gradient(90deg, var(--effect-light), var(--effect-dark) 62%, transparent);
+  transform: skewX(-28deg);
+}
+
+.battle-effect-fairy .battle-fire-spark {
+  width: 1.45rem;
+  height: 1.45rem;
+  margin: -0.725rem;
+  border-radius: 0;
+  background: var(--effect-light);
+  clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 38%);
+}
 
 @media (min-width: 1024px) {
   .battle-fire-effect {
