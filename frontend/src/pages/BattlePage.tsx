@@ -17,7 +17,6 @@ import {
     stepBattle,
     getFirstAvailableSwitchSlot,
     getBestMoveMinimax,
-    getBestMoveVegaIterative,
     isBattleOver,
     getWinner,
     needsForcedSwitch,
@@ -610,7 +609,6 @@ const PLAYBACK_STEP_MS = 800;
 const PLAYBACK_HIT_MS = 1300;
 const PLAYBACK_FAINT_MS = 2000;
 const VEGA_ITERATIVE_MAX_DEPTH = 5;
-const VEGA_ITERATIVE_NODE_BUDGET = 60_000;
 const VEGA_PONDERING_NODE_BUDGET = 180_000;
 const VEGA_PRECOMPUTE_MAX_WAIT_MS = 3000;
 const BATTLE_POPUP_MS = 1400;
@@ -2147,16 +2145,7 @@ export default function BattlePage() {
                 key,
                 VEGA_PRECOMPUTE_MAX_WAIT_MS,
             );
-            if (precomputedAction !== undefined) {
-                return precomputedAction ?? getFallbackAiAction(state);
-            }
-
-            return await getBestMoveVegaIterative(
-                state,
-                opponentPlayerIdRef.current,
-                VEGA_ITERATIVE_MAX_DEPTH,
-                VEGA_ITERATIVE_NODE_BUDGET,
-            ) ?? getFallbackAiAction(state);
+            return precomputedAction ?? getFallbackAiAction(state);
         }
         return await getBestMoveMinimax(state, opponentPlayerIdRef.current, 1) ?? getFallbackAiAction(state);
     };

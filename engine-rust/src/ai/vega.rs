@@ -1,4 +1,5 @@
-use crate::core::battle::{is_battle_over, step_battle, BattleOptions};
+use crate::ai::simulation::{prepare_search_state, SearchSimulator};
+use crate::core::battle::is_battle_over;
 use crate::core::state::{Action, ActionType, BattleState, CreatureState, PlayerState};
 use crate::core::utils::get_active_creature;
 use crate::data::moves::{Effect, MoveData, MoveDatabase};
@@ -106,6 +107,7 @@ pub struct VegaStats {
 
 struct VegaContext<'a> {
     move_db: &'a MoveDatabase,
+    simulator: &'a SearchSimulator,
     params: VegaParams,
     branch_limit: usize,
     node_budget: u64,
@@ -313,21 +315,24 @@ pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
 ) -> Option<Action> {
     stats.searches += 1;
     let started_at = start_search_timer();
+    let simulator = SearchSimulator::from_move_db(move_db);
+    let search_state = prepare_search_state(state);
     let ctx = VegaContext {
         move_db,
+        simulator: &simulator,
         params,
         branch_limit: branch_limit.max(1),
         node_budget: u64::MAX,
         tt: None,
     };
-    let actions = ordered_actions(state, player_id, &ctx, stats);
+    let actions = ordered_actions(&search_state, player_id, &ctx, stats);
     stats.root_actions += actions.len() as u64;
     if actions.is_empty() {
         record_search_elapsed(stats, &started_at);
         return None;
     }
 
-    let Some(opp_id) = opponent_id(state, player_id) else {
+    let Some(opp_id) = opponent_id(&search_state, player_id) else {
         record_search_elapsed(stats, &started_at);
         return actions.first().cloned();
     };
@@ -339,7 +344,7 @@ pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
 
     for action in actions.iter().take(ctx.branch_limit) {
         let score = worst_opponent_reply(
-            state,
+            &search_state,
             player_id,
             opp_id.as_str(),
             action,
@@ -380,6 +385,8 @@ pub fn get_best_move_vega_iterative(
     let max_depth = max_depth.max(1);
     let mut best_action: Option<Action> = None;
     let tt = RefCell::new(TranspositionTable::new());
+    let simulator = SearchSimulator::from_move_db(move_db);
+    let search_state = prepare_search_state(state);
 
     for depth in 1..=max_depth {
         let mut iter_stats = VegaStats::default();
@@ -389,16 +396,17 @@ pub fn get_best_move_vega_iterative(
         }
         let ctx = VegaContext {
             move_db,
+            simulator: &simulator,
             params,
             branch_limit: branch_limit.max(1),
             node_budget: remaining,
             tt: Some(&tt),
         };
-        let actions = ordered_actions(state, player_id, &ctx, &mut iter_stats);
+        let actions = ordered_actions(&search_state, player_id, &ctx, &mut iter_stats);
         if actions.is_empty() {
             break;
         }
-        let Some(opp_id) = opponent_id(state, player_id) else {
+        let Some(opp_id) = opponent_id(&search_state, player_id) else {
             best_action = actions.first().cloned();
             break;
         };
@@ -410,7 +418,7 @@ pub fn get_best_move_vega_iterative(
 
         for action in actions.iter().take(ctx.branch_limit) {
             let score = worst_opponent_reply(
-                state,
+                &search_state,
                 player_id,
                 opp_id.as_str(),
                 action,
@@ -479,14 +487,7 @@ fn worst_opponent_reply(
         let actions = vec![action.clone(), opponent_action.clone()];
         let mut rng = || 0.42;
         stats.step_battle_calls += 1;
-        let next = step_battle(
-            state,
-            &actions,
-            &mut rng,
-            BattleOptions {
-                record_history: false,
-            },
-        );
+        let next = ctx.simulator.step(state, &actions, &mut rng);
         let score = if depth_left == 0 {
             quiescence_eval(&next, player_id, ctx, 2, stats)
         } else {
@@ -639,14 +640,7 @@ fn worst_opponent_reply_qs(
         let actions = vec![action.clone(), opponent_action.clone()];
         let mut rng = || 0.42;
         stats.step_battle_calls += 1;
-        let next = step_battle(
-            state,
-            &actions,
-            &mut rng,
-            BattleOptions {
-                record_history: false,
-            },
-        );
+        let next = ctx.simulator.step(state, &actions, &mut rng);
         let score = quiescence_eval(&next, player_id, ctx, qs_depth - 1, stats);
         if stats.aborted {
             break;

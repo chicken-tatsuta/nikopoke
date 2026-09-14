@@ -1,5 +1,6 @@
 use crate::ai::eval::evaluate_state;
-use crate::core::battle::{is_battle_over, step_battle, BattleOptions};
+use crate::ai::simulation::{prepare_search_state, SearchSimulator};
+use crate::core::battle::is_battle_over;
 use crate::core::state::{Action, ActionType, BattleState};
 use crate::core::utils::get_active_creature;
 use crate::data::moves::MoveDatabase;
@@ -63,7 +64,7 @@ fn move_has_pp(
     }
 }
 
-fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
+fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabase) -> Vec<Action> {
     let player = state.players.iter().find(|p| p.id == player_id);
     let Some(player) = player else {
         return Vec::new();
@@ -95,10 +96,9 @@ fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
         return switch_actions;
     }
     let target_id = opponent_id(state, player_id);
-    let move_db = MoveDatabase::default();
     let mut actions = Vec::new();
     for move_id in &active.moves {
-        if !move_has_pp(active, move_id, &move_db) {
+        if !move_has_pp(active, move_id, move_db) {
             continue;
         }
         actions.push(Action {
@@ -123,11 +123,13 @@ pub fn get_best_move_mcts(
     player_id: &str,
     _iterations: usize,
 ) -> Option<Action> {
-    let actions = available_actions(state, player_id);
+    let simulator = SearchSimulator::new(MoveDatabase::default());
+    let search_state = prepare_search_state(state);
+    let actions = available_actions(&search_state, player_id, simulator.move_db());
     if actions.is_empty() {
         return None;
     }
-    let Some(opp_id) = opponent_id(state, player_id) else {
+    let Some(opp_id) = opponent_id(&search_state, player_id) else {
         return actions.first().cloned();
     };
 
@@ -140,43 +142,29 @@ pub fn get_best_move_mcts(
     for action in &actions {
         let mut total_score = 0.0;
         for _ in 0..iterations {
-            let mut sim_state = state.clone();
-            let opp_actions = available_actions(&sim_state, &opp_id);
+            let mut sim_state = search_state.clone();
+            let opp_actions = available_actions(&sim_state, &opp_id, simulator.move_db());
             if opp_actions.is_empty() {
                 total_score += evaluate_state(&sim_state, player_id);
                 continue;
             }
             let opp_action = opp_actions[rng.choose_index(opp_actions.len())].clone();
             let mut step_rng = || rng.next_f64();
-            sim_state = step_battle(
-                &sim_state,
-                &[action.clone(), opp_action],
-                &mut step_rng,
-                BattleOptions {
-                    record_history: false,
-                },
-            );
+            sim_state = simulator.step(&sim_state, &[action.clone(), opp_action], &mut step_rng);
 
             for _ in 0..rollout_depth {
                 if is_battle_over(&sim_state) {
                     break;
                 }
-                let my_actions = available_actions(&sim_state, player_id);
-                let opp_actions = available_actions(&sim_state, &opp_id);
+                let my_actions = available_actions(&sim_state, player_id, simulator.move_db());
+                let opp_actions = available_actions(&sim_state, &opp_id, simulator.move_db());
                 if my_actions.is_empty() || opp_actions.is_empty() {
                     break;
                 }
                 let my_action = my_actions[rng.choose_index(my_actions.len())].clone();
                 let opp_action = opp_actions[rng.choose_index(opp_actions.len())].clone();
                 let mut step_rng = || rng.next_f64();
-                sim_state = step_battle(
-                    &sim_state,
-                    &[my_action, opp_action],
-                    &mut step_rng,
-                    BattleOptions {
-                        record_history: false,
-                    },
-                );
+                sim_state = simulator.step(&sim_state, &[my_action, opp_action], &mut step_rng);
             }
             total_score += evaluate_state(&sim_state, player_id);
         }

@@ -1,5 +1,6 @@
 use crate::ai::eval::evaluate_state;
-use crate::core::battle::{is_battle_over, step_battle, BattleOptions};
+use crate::ai::simulation::{prepare_search_state, SearchSimulator};
+use crate::core::battle::is_battle_over;
 use crate::core::state::{Action, ActionType, BattleState};
 use crate::core::utils::get_active_creature;
 use crate::data::moves::MoveDatabase;
@@ -39,7 +40,7 @@ fn move_has_pp(
     }
 }
 
-fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
+fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabase) -> Vec<Action> {
     let player = state.players.iter().find(|p| p.id == player_id);
     let Some(player) = player else {
         return Vec::new();
@@ -72,9 +73,8 @@ fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
         return switch_actions;
     }
     let target_id = opponent_id(state, player_id);
-    let move_db = MoveDatabase::default();
     for move_id in &active.moves {
-        if !move_has_pp(active, move_id, &move_db) {
+        if !move_has_pp(active, move_id, move_db) {
             continue;
         }
         actions.push(Action {
@@ -95,19 +95,24 @@ fn available_actions(state: &BattleState, player_id: &str) -> Vec<Action> {
     }
 }
 
-fn evaluate_after_turn(state: &BattleState, max_player_id: &str, depth: usize) -> f32 {
+fn evaluate_after_turn(
+    state: &BattleState,
+    max_player_id: &str,
+    depth: usize,
+    simulator: &SearchSimulator,
+) -> f32 {
     if depth == 0 || is_battle_over(state) {
         return evaluate_state(state, max_player_id);
     }
 
-    let max_actions = available_actions(state, max_player_id);
+    let max_actions = available_actions(state, max_player_id, simulator.move_db());
     if max_actions.is_empty() {
         return evaluate_state(state, max_player_id);
     }
     let Some(opp_id) = opponent_id(state, max_player_id) else {
         return evaluate_state(state, max_player_id);
     };
-    let opp_actions = available_actions(state, opp_id.as_str());
+    let opp_actions = available_actions(state, opp_id.as_str(), simulator.move_db());
     if opp_actions.is_empty() {
         return evaluate_state(state, max_player_id);
     }
@@ -118,15 +123,8 @@ fn evaluate_after_turn(state: &BattleState, max_player_id: &str, depth: usize) -
         for opp_action in &opp_actions {
             let actions = vec![action.clone(), opp_action.clone()];
             let mut rng = || 0.42;
-            let next = step_battle(
-                state,
-                &actions,
-                &mut rng,
-                BattleOptions {
-                    record_history: false,
-                },
-            );
-            let score = evaluate_after_turn(&next, max_player_id, depth - 1);
+            let next = simulator.step(state, &actions, &mut rng);
+            let score = evaluate_after_turn(&next, max_player_id, depth - 1, simulator);
             if score < worst {
                 worst = score;
             }
@@ -139,14 +137,16 @@ fn evaluate_after_turn(state: &BattleState, max_player_id: &str, depth: usize) -
 }
 
 pub fn get_best_move_minimax(state: &BattleState, player_id: &str, depth: usize) -> Option<Action> {
-    let max_actions = available_actions(state, player_id);
+    let simulator = SearchSimulator::new(MoveDatabase::default());
+    let search_state = prepare_search_state(state);
+    let max_actions = available_actions(&search_state, player_id, simulator.move_db());
     if max_actions.is_empty() {
         return None;
     }
-    let Some(opp_id) = opponent_id(state, player_id) else {
+    let Some(opp_id) = opponent_id(&search_state, player_id) else {
         return max_actions.first().cloned();
     };
-    let opp_actions = available_actions(state, opp_id.as_str());
+    let opp_actions = available_actions(&search_state, opp_id.as_str(), simulator.move_db());
     if opp_actions.is_empty() {
         return max_actions.first().cloned();
     }
@@ -159,15 +159,8 @@ pub fn get_best_move_minimax(state: &BattleState, player_id: &str, depth: usize)
         for opp_action in &opp_actions {
             let actions = vec![action.clone(), opp_action.clone()];
             let mut rng = || 0.42;
-            let next = step_battle(
-                state,
-                &actions,
-                &mut rng,
-                BattleOptions {
-                    record_history: false,
-                },
-            );
-            let score = evaluate_after_turn(&next, player_id, search_depth - 1);
+            let next = simulator.step(&search_state, &actions, &mut rng);
+            let score = evaluate_after_turn(&next, player_id, search_depth - 1, &simulator);
             if score < worst {
                 worst = score;
             }

@@ -2,6 +2,7 @@ pub mod eval;
 pub mod mcts;
 pub mod minimax;
 pub mod simple;
+mod simulation;
 pub mod vega;
 
 pub use eval::evaluate_state;
