@@ -14,7 +14,7 @@ use std::time::Instant;
 type SearchTimer = Instant;
 
 #[cfg(target_arch = "wasm32")]
-struct SearchTimer;
+type SearchTimer = f64;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn start_search_timer() -> SearchTimer {
@@ -23,7 +23,17 @@ fn start_search_timer() -> SearchTimer {
 
 #[cfg(target_arch = "wasm32")]
 fn start_search_timer() -> SearchTimer {
-    SearchTimer
+    js_sys::Date::now()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn search_elapsed_ms(timer: &SearchTimer) -> f64 {
+    timer.elapsed().as_secs_f64() * 1_000.0
+}
+
+#[cfg(target_arch = "wasm32")]
+fn search_elapsed_ms(timer: &SearchTimer) -> f64 {
+    js_sys::Date::now() - *timer
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -111,7 +121,20 @@ struct VegaContext<'a> {
     params: VegaParams,
     branch_limit: usize,
     node_budget: u64,
+    deadline: Option<(&'a SearchTimer, u64)>,
     tt: Option<&'a RefCell<TranspositionTable>>,
+}
+
+fn should_abort_search(ctx: &VegaContext, stats: &mut VegaStats) -> bool {
+    let node_budget_exhausted = stats.nodes_entered >= ctx.node_budget;
+    let time_budget_exhausted = ctx
+        .deadline
+        .is_some_and(|(timer, budget_ms)| search_elapsed_ms(timer) >= budget_ms as f64);
+    if node_budget_exhausted || time_budget_exhausted {
+        stats.aborted = true;
+        return true;
+    }
+    false
 }
 
 struct TacticalContext {
@@ -323,6 +346,7 @@ pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
         params,
         branch_limit: branch_limit.max(1),
         node_budget: u64::MAX,
+        deadline: None,
         tt: None,
     };
     let actions = ordered_actions(&search_state, player_id, &ctx, stats);
@@ -367,14 +391,16 @@ pub fn get_best_move_vega_with_options_and_db_ref_and_stats(
     best_action
 }
 
-/// Iterative deepening search: starts at depth 1 and goes deeper until
-/// the node budget is exhausted. Returns the best action from the deepest
-/// fully completed iteration.
+/// Iterative deepening search: starts at depth 1 and goes deeper until the
+/// node or time budget is exhausted. Returns the best action from the deepest
+/// fully completed iteration instead of discarding it when a deeper iteration
+/// is interrupted.
 pub fn get_best_move_vega_iterative(
     state: &BattleState,
     player_id: &str,
     max_depth: usize,
     node_budget: u64,
+    time_budget_ms: Option<u64>,
     params: VegaParams,
     branch_limit: usize,
     move_db: &MoveDatabase,
@@ -400,11 +426,15 @@ pub fn get_best_move_vega_iterative(
             params,
             branch_limit: branch_limit.max(1),
             node_budget: remaining,
+            deadline: time_budget_ms.map(|budget_ms| (&started_at, budget_ms)),
             tt: Some(&tt),
         };
         let actions = ordered_actions(&search_state, player_id, &ctx, &mut iter_stats);
         if actions.is_empty() {
             break;
+        }
+        if best_action.is_none() {
+            best_action = actions.first().cloned();
         }
         let Some(opp_id) = opponent_id(&search_state, player_id) else {
             best_action = actions.first().cloned();
@@ -417,6 +447,10 @@ pub fn get_best_move_vega_iterative(
         let mut aborted = false;
 
         for action in actions.iter().take(ctx.branch_limit) {
+            if should_abort_search(&ctx, &mut iter_stats) {
+                aborted = true;
+                break;
+            }
             let score = worst_opponent_reply(
                 &search_state,
                 player_id,
@@ -471,8 +505,7 @@ fn worst_opponent_reply(
     stats: &mut VegaStats,
 ) -> f32 {
     stats.nodes_entered += 1;
-    if stats.nodes_entered >= ctx.node_budget {
-        stats.aborted = true;
+    if should_abort_search(ctx, stats) {
         stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
@@ -517,8 +550,7 @@ fn quiescence_eval(
     qs_depth: usize,
     stats: &mut VegaStats,
 ) -> f32 {
-    if stats.nodes_entered >= ctx.node_budget {
-        stats.aborted = true;
+    if should_abort_search(ctx, stats) {
         stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
@@ -567,8 +599,7 @@ fn best_continuation_qs(
     stats: &mut VegaStats,
 ) -> f32 {
     stats.nodes_entered += 1;
-    if stats.nodes_entered >= ctx.node_budget {
-        stats.aborted = true;
+    if should_abort_search(ctx, stats) {
         stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
@@ -623,8 +654,7 @@ fn worst_opponent_reply_qs(
     stats: &mut VegaStats,
 ) -> f32 {
     stats.nodes_entered += 1;
-    if stats.nodes_entered >= ctx.node_budget {
-        stats.aborted = true;
+    if should_abort_search(ctx, stats) {
         stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }
@@ -664,8 +694,7 @@ fn best_continuation(
     stats: &mut VegaStats,
 ) -> f32 {
     stats.nodes_entered += 1;
-    if stats.nodes_entered >= ctx.node_budget {
-        stats.aborted = true;
+    if should_abort_search(ctx, stats) {
         stats.leaf_evals += 1;
         return evaluate_state_vega(state, player_id, ctx);
     }

@@ -27,6 +27,7 @@ static LEARNSETS_DB: Lazy<LearnsetDatabase> =
     Lazy::new(|| LearnsetDatabase::load_default().unwrap_or_default());
 static MOVE_DB: Lazy<MoveDatabase> =
     Lazy::new(|| MoveDatabase::load_default().unwrap_or_else(|_| MoveDatabase::minimal()));
+const VEGA_THINK_TIME_MS: u64 = 2_000;
 static MOVE_ID_MIGRATIONS: Lazy<HashMap<String, String>> = Lazy::new(|| {
     const MIGRATIONS_JSON: &str = include_str!("../data/move_id_migration_report.json");
     serde_json::from_str::<Vec<MoveIdMigration>>(MIGRATIONS_JSON)
@@ -754,6 +755,7 @@ pub fn get_best_move_vega_iterative_wasm(
         player_id.as_str(),
         max_depth,
         node_budget as u64,
+        Some(VEGA_THINK_TIME_MS),
         DEFAULT_PARAMS,
         branch_limit,
         &MOVE_DB,
