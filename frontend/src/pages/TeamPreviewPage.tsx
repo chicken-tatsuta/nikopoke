@@ -265,6 +265,7 @@ export default function TeamPreviewPage() {
                 setOnlineSnapshot(event.snapshot);
     
                 if (event.snapshot.localSelectedDeck && event.snapshot.remoteSelectedDeck) {
+                    console.log('[team-preview] both decks selected via snapshot, navigating');
                     sessionStorage.setItem(
                         'selectedPlayerDeck',
                         JSON.stringify(event.snapshot.localSelectedDeck),
@@ -283,10 +284,12 @@ export default function TeamPreviewPage() {
             }
     
             if (event.type === 'team_selected') {
+                console.log('[team-preview] team_selected event received, deck size:', event.deck.length);
                 const snapshot = getOnlineSessionSnapshot();
                 setOnlineSnapshot(snapshot);
     
                 if (snapshot.localSelectedDeck && snapshot.remoteSelectedDeck) {
+                    console.log('[team-preview] both decks selected via team_selected, navigating');
                     sessionStorage.setItem(
                         'selectedPlayerDeck',
                         JSON.stringify(snapshot.localSelectedDeck),
@@ -347,6 +350,7 @@ export default function TeamPreviewPage() {
     
         if (battleMode === 'player') {
             try {
+                console.log('[team-preview] sending selected team to peer');
                 sendTeamSelected(selectedTeam);
                 setSubmitted(true);
     
@@ -354,16 +358,20 @@ export default function TeamPreviewPage() {
                 setOnlineSnapshot(snapshot);
     
                 if (snapshot.localSelectedDeck && snapshot.remoteSelectedDeck) {
+                    console.log('[team-preview] both teams selected, navigating to battle');
                     sessionStorage.setItem('selectedPlayerDeck', JSON.stringify(snapshot.localSelectedDeck));
                     sessionStorage.setItem('selectedOpponentDeck', JSON.stringify(snapshot.remoteSelectedDeck));
                     if (snapshot.remoteDeck) {
                         sessionStorage.setItem('opponentPreviewDeck', JSON.stringify(snapshot.remoteDeck));
                     }
                     navigate('/battle');
+                } else {
+                    console.log('[team-preview] waiting for opponent team selection');
                 }
             } catch (error) {
-                console.error('Failed to submit selected team:', error);
-                window.alert(error instanceof Error ? error.message : '選出の送信に失敗しました。');
+                console.error('[team-preview] Failed to submit selected team:', error);
+                const message = error instanceof Error ? error.message : '選出の送信に失敗しました。';
+                window.alert(message);
             }
             return;
         }

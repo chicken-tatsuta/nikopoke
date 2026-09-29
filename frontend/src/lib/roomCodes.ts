@@ -5,6 +5,7 @@ const ROOM_CODE_TTL_MINUTES = 5;
 /** Register a code → peerID mapping. Throws if code is already taken. */
 export async function registerRoomCode(code: string, peerId: string): Promise<void> {
     if (!supabase) {
+        console.warn('[roomCodes] Supabase not configured, room code registration skipped (code:', code, 'peer:', peerId, ')');
         return;
     }
 
@@ -14,6 +15,7 @@ export async function registerRoomCode(code: string, peerId: string): Promise<vo
     });
 
     if (error) {
+        console.error('[roomCodes] register failed:', error.message, { code, peerId });
         if (
             error.message?.includes('already in use') ||
             error.message?.includes('duplicate') ||
@@ -23,11 +25,14 @@ export async function registerRoomCode(code: string, peerId: string): Promise<vo
         }
         throw new Error(`ルーム登録に失敗しました: ${error.message}`);
     }
+
+    console.log('[roomCodes] room code registered:', code, '->', peerId);
 }
 
 /** Look up a peer ID by room code. Returns null if code is not found or expired. */
 export async function lookupRoomCode(code: string): Promise<string | null> {
     if (!supabase) {
+        console.warn('[roomCodes] Supabase not configured, lookup skipped (code:', code, ')');
         return null;
     }
 
@@ -36,7 +41,7 @@ export async function lookupRoomCode(code: string): Promise<string | null> {
     });
 
     if (error) {
-        console.warn('[roomCodes] lookup failed:', error.message);
+        console.warn('[roomCodes] lookup failed:', error.message, { code });
         return null;
     }
 
