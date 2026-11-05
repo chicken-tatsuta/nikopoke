@@ -2,7 +2,7 @@
   {
     "baseSpeciesId": "makocchan",
     "id": "kami_makocchan",
-    "name": "メガマコッチャン",
+    "name": "カミマコッチャン",
     "baseStats": {
       "hp": 107,
       "atk": 55,
@@ -20,7 +20,7 @@
   {
     "baseSpeciesId": "nisiki",
     "id": "kami_nisiki",
-    "name": "メガニシキ",
+    "name": "カミニシキ",
     "baseStats": {
       "hp": 90,
       "atk": 105,
@@ -38,7 +38,7 @@
   {
     "baseSpeciesId": "ikkun",
     "id": "kami_ikkun_x",
-    "name": "メガイックンX",
+    "name": "カミイックンX",
     "baseStats": {
       "hp": 100,
       "atk": 120,
@@ -57,7 +57,7 @@
   {
     "baseSpeciesId": "ikkun",
     "id": "kami_ikkun_y",
-    "name": "メガイックンY",
+    "name": "カミイックンY",
     "baseStats": {
       "hp": 120,
       "atk": 80,
@@ -76,7 +76,7 @@
   {
     "baseSpeciesId": "morimitu",
     "id": "kami_morimitu",
-    "name": "メガモリミツ",
+    "name": "カミモリミツ",
     "baseStats": {
       "hp": 145,
       "atk": 120,
@@ -94,7 +94,7 @@
   {
     "baseSpeciesId": "ayuma",
     "id": "kami_ayuma",
-    "name": "メガアユマ",
+    "name": "カミアユマ",
     "baseStats": {
       "hp": 100,
       "atk": 140,
@@ -113,7 +113,7 @@
   {
     "baseSpeciesId": "morimori",
     "id": "kami_morimori",
-    "name": "メガモリモリ",
+    "name": "カミモリモリ",
     "baseStats": {
       "hp": 110,
       "atk": 95,
@@ -132,7 +132,7 @@
   {
     "baseSpeciesId": "haruta",
     "id": "kami_haruta",
-    "name": "メガハルタ",
+    "name": "カミハルタ",
     "baseStats": {
       "hp": 108,
       "atk": 70,

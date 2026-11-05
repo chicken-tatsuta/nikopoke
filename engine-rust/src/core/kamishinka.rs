@@ -14,7 +14,7 @@ pub struct KamishinkaForm {
     pub base_stats: BaseStats,
     pub types: Vec<String>,
     pub ability: String,
-    /// No artwork has been supplied yet. Null is deliberately not invented art.
+    /// Optional artwork URL; null reuses the base species portrait.
     pub image: Option<String>,
 }
 

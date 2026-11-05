@@ -2982,7 +2982,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                             )}
                         >
                             <div className="flex items-center gap-2">
-                                <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
+                                <div className={cn("relative size-12 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]", mon.kamishinka && 'kami-rainbow-frame')}>
                                     <img
                                         src={portraitSrc}
                                         alt={mon.name}
@@ -3261,7 +3261,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 <div className="flex items-center gap-2">
 		                                    <div className={cn(
 	                                        'relative size-12 shrink-0 overflow-hidden rounded-md border bg-[var(--surface-3)]',
-	                                        'border-[var(--border)]'
+	                                        'border-[var(--border)]', mon.kamishinka && 'kami-rainbow-frame'
 	                                    )}>
                                         <img
 		                                            src={portraitSrc}
@@ -3548,7 +3548,7 @@ function PokemonStatus({
                     />
                 )}
                 <div className={cn('flex items-center gap-2 sm:gap-3', isPlayer ? 'flex-row-reverse' : '')}>
-                    <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)] sm:size-24">
+                    <div className={cn("relative size-16 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)] sm:size-24", creature.kamishinka && 'kami-rainbow-frame')}>
                         <img
                             src={portraitSrc}
                             alt={creature.name}

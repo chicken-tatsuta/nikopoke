@@ -21,18 +21,18 @@
 
 | 通常ID | 形態ID | 名前 | 特性 |
 | --- | --- | --- | --- |
-| makocchan | kami_makocchan | メガマコッチャン | かがくへんかガス |
-| nisiki | kami_nisiki | メガニシキ | いろめがね |
-| ikkun | kami_ikkun_x | メガイックンX | なまけ |
-| ikkun | kami_ikkun_y | メガイックンY | あついしぼう |
-| morimitu | kami_morimitu | メガモリミツ | どくしゅ |
-| ayuma | kami_ayuma | メガアユマ | そうだいしょう |
-| morimori | kami_morimori | メガモリモリ | ねつぼうそう |
-| haruta | kami_haruta | メガハルタ | サンパワー |
+| makocchan | kami_makocchan | カミマコッチャン | かがくへんかガス |
+| nisiki | kami_nisiki | カミニシキ | いろめがね |
+| ikkun | kami_ikkun_x | カミイックンX | なまけ |
+| ikkun | kami_ikkun_y | カミイックンY | あついしぼう |
+| morimitu | kami_morimitu | カミモリミツ | どくしゅ |
+| ayuma | kami_ayuma | カミアユマ | そうだいしょう |
+| morimori | kami_morimori | カミモリモリ | ねつぼうそう |
+| haruta | kami_haruta | カミハルタ | サンパワー |
 
 種族値とタイプは依頼の表の数値を登録した。HP種族値もデータとして保持するが、進化時の現在/最大HPには適用しない。
 
-**専用画像は未提供。** `image: null` として既存の仮ポートレートを使い、演出で未設定と表示する。実際の進化後の姿を創作していない。画像が用意できたら `frontend/public` 配下などへ配置し、`image` に公開URL（例 `/images/kami_nisiki.png`）を登録する。
+画像は通常形態と共通とし、進化中は虹色のエフェクトを重ねる。`image: null` は通常形態の画像を再利用する指定。未設定の案内は表示しない。必要なら将来 `image` に別の画像URLを登録できる。
 
 新形態の追加は、既存通常ID、固有の形態ID、名前、6種族値、タイプ、既存特性ID、画像URLをJSONへ追加し、WASMとフロントを再ビルドする。専用の持ち物・分岐コードの追加は不要。新しい未実装特性自体を追加する場合はその効果実装が別途必要。
 
@@ -82,7 +82,6 @@ node frontend/scripts/check-kamishinka-ui.cjs
 
 ## 残っている項目
 
-- 8形態の専用画像の登録。
 - 実機2台を使うPeerJSの接続・再接続を含む通し検証。今回は実WASMのJSON往復で形態・使用権・重複要求の検証を実施。
 - 既存の `spec_priority_cases` で3件が失敗。今回の変更前のHEADコードに同じ作業中データを組み合わせた別ディレクトリでも同じ3件を再現した。対象は以下。
   - `p0_spec_sleep_wakes_and_allows_action_when_counter_reaches_zero`

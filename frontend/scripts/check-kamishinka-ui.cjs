@@ -45,6 +45,7 @@ const deck=['nisiki','ikkun','ayuma','morimori','haruta','makocchan'].map(specie
     await page.goto(origin+'/battle');
     const toggle=page.getByRole('button',{name:'カミシンカ',exact:true});
     await toggle.waitFor();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='カミシンカ'&&!b.disabled));
+    const originalPortrait=await page.getByRole('img',{name:'にしき',exact:true}).first().getAttribute('src');
     await toggle.click();assert.equal(await page.getByRole('button',{name:/予約中/}).getAttribute('aria-pressed'),'true');
     await page.getByRole('button',{name:/予約中/}).click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
     await toggle.click();
@@ -61,9 +62,12 @@ const deck=['nisiki','ikkun','ayuma','morimori','haruta','makocchan'].map(specie
     await page.getByRole('button',{name:'カミシンカ 使用済み',exact:true}).waitFor();
     assert(await page.getByRole('button',{name:'カミシンカ 使用済み',exact:true}).isDisabled());
     await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='ニキダン'&&!b.disabled));
-    assert(await page.getByRole('heading',{name:'メガニシキ',exact:true}).isVisible());
+    assert(await page.getByRole('heading',{name:'カミニシキ',exact:true}).isVisible());
+    assert.equal(await page.getByRole('img',{name:'カミニシキ',exact:true}).first().getAttribute('src'),originalPortrait);
+    assert(await page.locator('.kami-rainbow-frame').count()>0);
+    assert.equal(await page.getByText('進化後の画像は未設定です').count(),0);
     await page.screenshot({path:'/tmp/kamishinka-battle.png'});
-    for (const name of ['いっくん','メガニシキ']) {
+    for (const name of ['いっくん','カミニシキ']) {
       await page.getByRole('button',{name:'ニキダン',exact:true}).click();
       await page.getByRole('button',{name:new RegExp(name)}).first().click();
       await page.getByRole('button',{name:'交代する',exact:true}).click();

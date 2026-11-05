@@ -1134,3 +1134,15 @@ body {
 @keyframes kami-envelop { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: scale(1.2); } }
 @keyframes kami-reveal { from { filter: brightness(5); transform: scale(1.1); } to { filter: brightness(1); transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .kami-overlay, .kami-orb, .kami-light, .kami-phase-reveal .kami-portrait { animation: none !important; } }
+
+/* Keep the original portrait visible beneath a gentle rainbow sheen. */
+.kami-rainbow-frame { position: relative; isolation: isolate; }
+.kami-rainbow-frame::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(120deg, #ff5370, #ffcf54, #76ed9a, #55d9ff, #a783ff, #ff70c7, #ff5370);
+  background-size: 300% 300%; mix-blend-mode: soft-light; opacity: .58;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 45%);
+  animation: kami-rainbow-flow 8s ease-in-out infinite alternate;
+}
+@keyframes kami-rainbow-flow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { .kami-rainbow-frame::after { animation: none; } }

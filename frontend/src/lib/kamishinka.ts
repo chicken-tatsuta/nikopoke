@@ -10,7 +10,7 @@ export interface KamishinkaForm {
     baseStats: BaseStats;
     types: string[];
     ability: string;
-    /** Public image URL; null until artwork is supplied. */
+    /** Optional public image URL; null reuses the normal portrait. */
     image: string | null;
 }
 export const kamishinkaForms: KamishinkaForm[] = registry;
@@ -24,7 +24,7 @@ export function availableKamishinkaForms(player: PlayerStateWire): KamishinkaFor
 
 export function getBattlePortrait(creature: CreatureStateWire): string {
     const form = kamishinkaForms.find((f) => f.id === creature.kamishinka?.formId);
-    return form?.image ?? getPokemonPortraitSrc(form?.id ?? creature.speciesId, creature.name);
+    return form?.image ?? getPokemonPortraitSrc(form?.baseSpeciesId ?? creature.speciesId, creature.kamishinka?.originalName ?? creature.name);
 }
 
 /** Playback only: never copy final HP, PP, statuses or stages ahead of the move animation. */

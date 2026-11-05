@@ -12,14 +12,13 @@ export function KamishinkaAnimation({ state }: { state: KamishinkaAnimationState
     return (
         <div className={`kami-overlay kami-phase-${state.phase}`} role="status" aria-live="polite" aria-label="カミシンカ演出中">
             <div className="kami-orb" aria-hidden="true" />
-            <div className="kami-portrait">
+            <div className={`kami-portrait${state.creature.kamishinka ? ' kami-rainbow-frame' : ''}`}>
                 <img src={getBattlePortrait(state.creature)} alt={state.creature.name} />
                 <div className="kami-light" />
             </div>
             <p className="mt-6 text-center text-xl font-bold text-white">
                 {state.phase === 'reveal' ? `${form?.name ?? state.creature.name}は カミシンカした！` : 'カミダマが 光り輝く…'}
             </p>
-            {state.phase === 'reveal' && !form?.image && <p className="mt-2 text-sm text-white/70">進化後の画像は未設定です</p>}
         </div>
     );
 }
