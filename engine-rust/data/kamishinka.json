@@ -86,6 +86,7 @@
       "spe": 80
     },
     "types": [
+      "water",
       "flying"
     ],
     "ability": "poison_touch",
