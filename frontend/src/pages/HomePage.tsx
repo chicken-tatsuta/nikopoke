@@ -162,6 +162,7 @@ export function HomeHeader({ profile }: { profile: { username: string; rating: n
     const navItems = [
         { label: 'トップ', to: '/home' },
         { label: '図鑑', to: '/pokedex' },
+        { label: 'ツール', to: '/tools' },
         { label: 'バトル', to: '/battle-mode' },
         { label: 'RPG', to: '/rpg' },
         { label: 'ランキング', to: '/ranking' },
