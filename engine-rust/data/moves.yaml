@@ -4575,20 +4575,20 @@ magnet_rise:
   tags: []
   type: electric
 make_it_rain:
-  accuracy: 1
+  accuracy: 0.95
   category: special
-  description: 攻撃後、自分の『とくこう』ランクが1段階下がる。
+  description: 攻撃後、自分の『とくこう』ランクが2段階下がる。
   id: make_it_rain
   name: ゴールドラッシュ
   power: 120
   pp: 5
   priority: 0
   steps:
-    - accuracy: 1
+    - accuracy: 0.95
       power: 120
       type: damage
     - stages:
-        spa: -1
+        spa: -2
       target: self
       type: modify_stage
   tags: []

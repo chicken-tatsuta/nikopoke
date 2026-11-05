@@ -13,9 +13,12 @@ use std::collections::HashMap;
 
 fn create_test_state() -> BattleState {
     let p1 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p1".to_string(),
         name: "Player 1".to_string(),
         team: vec![CreatureState {
+            kamishinka: None,
             id: "c1".to_string(),
             species_id: "test_mon".to_string(),
             name: "Mon1".to_string(),
@@ -63,6 +66,7 @@ fn test_lock_move_force_last_move() {
 
     // Add history
     let action = Action {
+        kamishinka_form: None,
         player_id: "p1".to_string(),
         action_type: ActionType::Move,
         move_id: Some("ember".to_string()),
@@ -94,6 +98,7 @@ fn test_lock_move_force_last_move() {
     let ctx = StatusHookContext {
         rng: &mut rng,
         action: Some(&Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("tackle".to_string()),
@@ -464,9 +469,12 @@ fn mist_filters_only_stage_drops_from_shell_smash() {
     let mut state = create_test_state();
     state.players[0].team[0].moves = vec!["shell_smash".to_string()];
     state.players.push(PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "Player 2".to_string(),
         team: vec![CreatureState {
+            kamishinka: None,
             id: "c2".to_string(),
             species_id: "test_mon_2".to_string(),
             name: "Mon2".to_string(),
@@ -509,6 +517,7 @@ fn mist_filters_only_stage_drops_from_shell_smash() {
         &state,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("shell_smash".to_string()),
@@ -517,6 +526,7 @@ fn mist_filters_only_stage_drops_from_shell_smash() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -608,9 +618,12 @@ fn test_parental_bond() {
 
     // Add a dummy target player
     let p2 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "Player 2".to_string(),
         team: vec![CreatureState {
+            kamishinka: None,
             id: "c2".to_string(),
             species_id: "test_mon_2".to_string(),
             name: "Mon2".to_string(),

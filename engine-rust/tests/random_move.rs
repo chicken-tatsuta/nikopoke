@@ -17,6 +17,7 @@ fn effect(effect_type: &str, data: Value) -> Effect {
 
 fn make_creature(id: &str, name: &str, moves: Vec<String>, speed: i32) -> CreatureState {
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: "testmon".to_string(),
         name: name.to_string(),
@@ -77,6 +78,8 @@ fn random_move_uses_self_moves_and_consumes_pp() {
     });
 
     let p1 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p1".to_string(),
         name: "P1".to_string(),
         team: vec![make_creature(
@@ -89,6 +92,8 @@ fn random_move_uses_self_moves_and_consumes_pp() {
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "P2".to_string(),
         team: vec![make_creature("c2", "Beta", vec!["tackle".to_string()], 10)],
@@ -111,6 +116,7 @@ fn random_move_uses_self_moves_and_consumes_pp() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("metronome".to_string()),
@@ -119,6 +125,7 @@ fn random_move_uses_self_moves_and_consumes_pp() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("tackle".to_string()),

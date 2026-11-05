@@ -83,6 +83,7 @@ fn build_name_to_id_map(move_db: &MoveDatabase) -> HashMap<String, String> {
 
 fn create_creature(id: &str, name: &str, types: Vec<String>) -> CreatureState {
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: id.to_string(),
         name: name.to_string(),
@@ -162,6 +163,8 @@ fn build_state(requirements: &Requirements) -> BattleState {
     BattleState {
         players: vec![
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p1".to_string(),
                 name: "Player 1".to_string(),
                 team: vec![attacker, bench_attacker],
@@ -169,6 +172,8 @@ fn build_state(requirements: &Requirements) -> BattleState {
                 last_fainted_ability: None,
             },
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p2".to_string(),
                 name: "Player 2".to_string(),
                 team: vec![target, bench_target],

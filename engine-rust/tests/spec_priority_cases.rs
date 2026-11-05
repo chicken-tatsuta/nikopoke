@@ -3739,6 +3739,7 @@ fn p1_spec_action_without_target_defaults_to_opponent() {
     ]);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("one_shot".to_string()),
@@ -3855,6 +3856,7 @@ fn p1_spec_switch_without_slot_is_rejected() {
     ]);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Switch,
             move_id: None,
@@ -3893,6 +3895,7 @@ fn p1_spec_use_item_without_item_is_rejected() {
     ]);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::UseItem,
             move_id: None,
@@ -3934,6 +3937,7 @@ fn p1_spec_use_item_with_item_emits_use_log() {
     ]);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::UseItem,
             move_id: None,
@@ -4392,6 +4396,7 @@ fn p3_spec_missing_move_id_is_logged_and_skipped() {
     ]);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: None,

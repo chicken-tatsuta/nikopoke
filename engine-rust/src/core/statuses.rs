@@ -1,3 +1,4 @@
+use crate::core::abilities::effective_ability;
 use crate::core::abilities::is_terrain_id;
 use crate::core::effects::{apply_effects, apply_events};
 use crate::core::events::{BattleEvent, EventTransform};
@@ -194,7 +195,7 @@ fn match_field_effect(
                 if active.hp > 0 && active.hp < active.max_hp {
                     // 地面にいるポケモンのみ回復（ひこう・ふゆう除外は簡略化）
                     let is_flying = active.types.iter().any(|t| t == "flying");
-                    let has_levitate = active.ability.as_deref() == Some("levitate");
+                    let has_levitate = effective_ability(state, active) == Some("levitate");
                     if !is_flying && !has_levitate {
                         let heal = (active.max_hp / 16).max(1);
                         events.push(BattleEvent::Log {
@@ -394,20 +395,37 @@ fn match_status(
                     let active = player.team.get_mut(player.active_slot).unwrap();
                     let status = &mut active.statuses[idx];
 
-                    let sleep_turn = status
+                    // `turns` is the action counter. Legacy elapsed-only saves are migrated once.
+                    let turns = status
                         .data
-                        .get("elapsed")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0)
-                        + 1;
-                    let effective_sleep_turn = if active.ability.as_deref() == Some("early_bird") {
-                        sleep_turn * 2
+                        .get("turns")
+                        .and_then(Value::as_i64)
+                        .or(status.remaining_turns.map(i64::from))
+                        .unwrap_or_else(|| {
+                            let elapsed = status
+                                .data
+                                .get("elapsed")
+                                .and_then(Value::as_i64)
+                                .unwrap_or(0);
+                            if elapsed > 0 {
+                                (3 - elapsed).max(1)
+                            } else {
+                                2 + (((ctx.rng)() * 3.0).floor() as i64).clamp(0, 2)
+                            }
+                        });
+                    let decrement = if get_active_creature(state, player_id)
+                        .and_then(|c| effective_ability(state, c))
+                        == Some("early_bird")
+                    {
+                        2
                     } else {
-                        sleep_turn
+                        1
                     };
-
-                    let wakes_up = effective_sleep_turn >= 3
-                        || (effective_sleep_turn == 2 && (ctx.rng)() < (1.0 / 3.0));
+                    let remaining = turns - decrement;
+                    status.remaining_turns = None;
+                    status.data.remove("elapsed");
+                    status.data.insert("turns".into(), Value::from(remaining));
+                    let wakes_up = remaining <= 0;
                     if wakes_up {
                         return StatusHookResult {
                             events: vec![
@@ -425,9 +443,6 @@ fn match_status(
                         };
                     }
 
-                    status
-                        .data
-                        .insert("elapsed".to_string(), Value::Number(sleep_turn.into()));
                     let name = active.name.clone();
                     if can_act_while_asleep {
                         return StatusHookResult {
@@ -1385,6 +1400,9 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
             let mut apply_confusion = false;
 
             for status in &mut active.statuses {
+                if status.id == "sleep" {
+                    continue;
+                }
                 if let Some(turns) = status.remaining_turns {
                     let new_turns = turns - 1;
                     status.remaining_turns = Some(new_turns);
@@ -1400,7 +1418,7 @@ pub fn tick_statuses(state: &BattleState) -> BattleState {
 
             active
                 .statuses
-                .retain(|s| s.remaining_turns.map(|t| t > 0).unwrap_or(true));
+                .retain(|s| s.id == "sleep" || s.remaining_turns.map(|t| t > 0).unwrap_or(true));
 
             // Apply confusion if needed (from expiring lock_move with confuseOnEnd)
             if apply_confusion && active.hp > 0 {

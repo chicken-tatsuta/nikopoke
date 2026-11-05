@@ -206,15 +206,34 @@ impl TranspositionTable {
 
 fn hash_battle_state(state: &BattleState, player_id: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    state.turn.hash(&mut hasher);
     // Hash each player
     for player in &state.players {
         // player identity relative to us
         let is_self = player.id == player_id;
         is_self.hash(&mut hasher);
         player.active_slot.hash(&mut hasher);
+        player.kamishinka_used.hash(&mut hasher);
+        player.fainted_count.hash(&mut hasher);
         for creature in &player.team {
             creature.id.hash(&mut hasher);
             creature.hp.hash(&mut hasher);
+            creature
+                .kamishinka
+                .as_ref()
+                .map(|f| &f.form_id)
+                .hash(&mut hasher);
+            creature.ability.hash(&mut hasher);
+            creature
+                .ability_data
+                .get("truantLoaf")
+                .and_then(|v| v.as_bool())
+                .hash(&mut hasher);
+            creature
+                .ability_data
+                .get("fallenAllies")
+                .and_then(|v| v.as_u64())
+                .hash(&mut hasher);
             // stages
             creature.stages.atk.hash(&mut hasher);
             creature.stages.def.hash(&mut hasher);
@@ -228,6 +247,25 @@ fn hash_battle_state(state: &BattleState, player_id: &str) -> u64 {
             for sid in &status_ids {
                 sid.hash(&mut hasher);
             }
+            // Sleep/ability timers distinguish otherwise identical-looking search states.
+            for status in &creature.statuses {
+                status.remaining_turns.hash(&mut hasher);
+                status
+                    .data
+                    .get("turns")
+                    .and_then(|v| v.as_i64())
+                    .hash(&mut hasher);
+            }
+            creature
+                .ability_data
+                .get("slowStartUntil")
+                .and_then(|v| v.as_u64())
+                .hash(&mut hasher);
+            creature
+                .ability_data
+                .get("pendingAbilityStart")
+                .and_then(|v| v.as_bool())
+                .hash(&mut hasher);
             // PP matters for search
             let mut pp_pairs: Vec<(&str, i32)> = creature
                 .move_pp
@@ -822,6 +860,7 @@ fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabas
             move_id: None,
             target_id: None,
             slot: Some(idx),
+            kamishinka_form: None,
             priority: None,
         })
         .collect();
@@ -849,9 +888,12 @@ fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabas
             move_id: Some(move_id.clone()),
             target_id: target_id.clone(),
             slot: None,
+            kamishinka_form: None,
             priority: None,
         });
     }
+
+    crate::core::kamishinka::append_move_variants(player, &mut actions);
 
     if actions.is_empty() {
         switch_actions

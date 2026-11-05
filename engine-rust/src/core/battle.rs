@@ -1,3 +1,4 @@
+use crate::core::abilities::effective_ability;
 use crate::core::abilities::{
     apply_ability_event_modifiers, get_terrain_id, get_weather, run_ability_check_hook,
     run_ability_hooks, run_ability_value_hook, AbilityCheckContext, AbilityHookContext,
@@ -76,6 +77,9 @@ impl BattleEngine {
         rng: &mut dyn FnMut() -> f64,
         options: BattleOptions,
     ) -> BattleState {
+        if is_battle_over(state) {
+            return state.clone();
+        }
         let mut next = state.clone();
         next.turn += 1;
         for player in &mut next.players {
@@ -166,38 +170,11 @@ impl BattleEngine {
                     return OrderedAction {
                         action: action.clone(),
                         priority: 10000,
-                        speed: 0,
+                        speed: creature_speed(&next, &action.player_id),
                         rand: rng_recorder(),
                     };
                 }
-                let move_data = action
-                    .move_id
-                    .as_deref()
-                    .and_then(|id| self.move_db.get(id));
-                let base_priority = move_data.and_then(|m| m.priority).unwrap_or(0) as f32;
-                let mut priority = run_ability_value_hook(
-                    &next,
-                    &action.player_id,
-                    "onModifyPriority",
-                    base_priority,
-                    AbilityValueContext {
-                        move_data,
-                        category: move_data.and_then(|m| m.category.as_deref()),
-                        target: None,
-                        weather: None,
-                        turn: next.turn,
-                        stages: None,
-                    },
-                );
-                if move_data
-                    .is_some_and(|m| matches!(m.id.as_str(), "grassy_glide" | "grass_slider"))
-                    && get_terrain_id(&next) == Some("grassy_terrain")
-                    && get_active_creature(&next, &action.player_id)
-                        .is_some_and(is_grounded_for_field)
-                {
-                    priority += 1.0;
-                }
-                let priority = priority.round() as i32;
+                let priority = move_priority(&next, action, &self.move_db);
                 OrderedAction {
                     action: action.clone(),
                     priority,
@@ -215,21 +192,7 @@ impl BattleEngine {
         // Sort into a temporary Vec then convert back to VecDeque
         {
             let mut tmp: Vec<OrderedAction> = ordered.into_iter().collect();
-            tmp.sort_by(|a, b| {
-                let speed_order = if trick_room_active {
-                    a.speed.cmp(&b.speed)
-                } else {
-                    b.speed.cmp(&a.speed)
-                };
-                b.priority
-                    .cmp(&a.priority)
-                    .then_with(|| speed_order)
-                    .then_with(|| {
-                        a.rand
-                            .partial_cmp(&b.rand)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    })
-            });
+            sort_actions(&mut tmp, trick_room_active);
             ordered = tmp.into_iter().collect();
         }
         for ordered_action in &ordered {
@@ -258,7 +221,57 @@ impl BattleEngine {
             }
         }
 
-        while let Some(ordered_action) = ordered.pop_front() {
+        next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
+        let mut forms_resolved = false;
+        while !ordered.is_empty() {
+            next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
+            // Ordinary switches resolve first, as with Gen 7 Mega Evolution.
+            if !forms_resolved
+                && ordered
+                    .front()
+                    .is_some_and(|a| a.action.action_type != ActionType::Switch)
+            {
+                forms_resolved = true;
+                let mut evolved = Vec::new();
+                for selected in &filtered_actions {
+                    if crate::core::kamishinka::apply(&mut next, selected, &self.move_db) {
+                        evolved.push(selected.player_id.clone());
+                    }
+                }
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
+                // All forms are installed before entry abilities (including Gas) run.
+                for id in evolved {
+                    let result = run_ability_hooks(
+                        &next,
+                        &id,
+                        "onStart",
+                        AbilityHookContext {
+                            rng: &mut rng_recorder,
+                            action: None,
+                            move_data: None,
+                        },
+                    );
+                    next = result.state.unwrap_or(next);
+                    for event in result.events {
+                        next = apply_event(&next, &event);
+                    }
+                }
+                let mut remaining: Vec<_> = ordered.drain(..).collect();
+                for entry in &mut remaining {
+                    entry.speed = creature_speed(&next, &entry.action.player_id);
+                    entry.priority = move_priority(&next, &entry.action, &self.move_db);
+                    if let Some(active) =
+                        get_active_creature_mut(&mut next, &entry.action.player_id)
+                    {
+                        active
+                            .volatile_data
+                            .insert("selectedPriority".into(), Value::from(entry.priority));
+                    }
+                }
+                sort_actions(&mut remaining, trick_room_active);
+                ordered = remaining.into();
+            }
+            let ordered_action = ordered.pop_front().unwrap();
             let mut action = ordered_action.action;
             let player_id = action.player_id.clone();
             let attacker_name = next
@@ -382,6 +395,7 @@ impl BattleEngine {
                 for event in switch_result.events {
                     next = apply_event(&next, &event);
                 }
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
                 for event in item_switch_in_events(&next, &action.player_id) {
                     next = apply_event(&next, &event);
                 }
@@ -696,6 +710,7 @@ impl BattleEngine {
             );
 
             next = apply_events(&next, &events);
+            next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             for event in &events {
                 if let BattleEvent::Switch { player_id, .. } = event {
                     next = apply_switch_in_effects(
@@ -760,6 +775,7 @@ impl BattleEngine {
             }
         }
 
+        next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
         let ability_end = run_all_ability(next.clone(), "onTurnEnd", &mut rng_recorder, None, None);
         next = ability_end.state.unwrap_or(next);
         for event in ability_end.events {
@@ -781,6 +797,7 @@ impl BattleEngine {
         next = weather_result.state.unwrap_or(next);
         for event in weather_result.events {
             next = apply_event(&next, &event);
+            next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
         }
 
         // 2. ねがいごと
@@ -799,6 +816,7 @@ impl BattleEngine {
             next = wish_result.state.unwrap_or(next);
             for event in wish_result.events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
         }
 
@@ -816,6 +834,7 @@ impl BattleEngine {
         next = grassy_result.state.unwrap_or(next);
         for event in grassy_result.events {
             next = apply_event(&next, &event);
+            next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
         }
 
         // 4. 道具効果（たべのこし、くろいヘドロ）
@@ -823,6 +842,7 @@ impl BattleEngine {
             let events = item_turn_end_events(&next, &player.id);
             for event in events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
             let item_result = run_status_hooks(
                 &next,
@@ -838,6 +858,7 @@ impl BattleEngine {
             next = item_result.state.unwrap_or(next);
             for event in item_result.events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
         }
 
@@ -857,6 +878,7 @@ impl BattleEngine {
             next = leech_result.state.unwrap_or(next);
             for event in leech_result.events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
         }
 
@@ -876,6 +898,7 @@ impl BattleEngine {
             next = status_result.state.unwrap_or(next);
             for event in status_result.events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
         }
 
@@ -895,6 +918,7 @@ impl BattleEngine {
             next = bind_result.state.unwrap_or(next);
             for event in bind_result.events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
         }
 
@@ -914,6 +938,7 @@ impl BattleEngine {
             next = result.state.unwrap_or(next);
             for event in result.events {
                 next = apply_event(&next, &event);
+                next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
             }
         }
 
@@ -930,6 +955,7 @@ impl BattleEngine {
         next = field_end.state.unwrap_or(next);
         for event in field_end.events {
             next = apply_event(&next, &event);
+            next = crate::core::abilities::resolve_ability_changes(next, &mut rng_recorder);
         }
 
         next = tick_statuses(&next);
@@ -1028,7 +1054,7 @@ impl BattleEngine {
             next = apply_event(&next, &event);
         }
         next = apply_switch_in_field_effects(next, player_id, &self.type_chart);
-        next
+        crate::core::abilities::resolve_ability_changes(next, rng)
     }
 }
 
@@ -1052,10 +1078,12 @@ fn apply_switch_in_effects(
     for event in switch_result.events {
         state = apply_event(&state, &event);
     }
+    state = crate::core::abilities::resolve_ability_changes(state, rng);
     for event in item_switch_in_events(&state, player_id) {
         state = apply_event(&state, &event);
     }
-    apply_switch_in_field_effects(state, player_id, type_chart)
+    let next = apply_switch_in_field_effects(state, player_id, type_chart);
+    crate::core::abilities::resolve_ability_changes(next, rng)
 }
 
 fn item_switch_in_events(state: &BattleState, player_id: &str) -> Vec<BattleEvent> {
@@ -1482,7 +1510,7 @@ fn prankster_blocked_by_dark_type(
     let Some(attacker) = get_active_creature(state, attacker_id) else {
         return false;
     };
-    if attacker.ability.as_deref() != Some("prankster") || !is_status_move(move_data) {
+    if effective_ability(state, attacker) != Some("prankster") || !is_status_move(move_data) {
         return false;
     }
     if !move_targets_opposing_active(move_data) {
@@ -1569,7 +1597,7 @@ fn apply_switch_in_field_effects(
     if active.hp <= 0 {
         return state;
     }
-    let grounded = is_grounded_for_field(&active);
+    let grounded = is_grounded_for_field(&state, &active);
     let mut events = Vec::new();
     let toxic_spikes_layers = effects
         .iter()
@@ -1692,6 +1720,51 @@ fn can_be_poisoned_by_toxic_spikes(
 ) -> bool {
     !active.types.iter().any(|t| t == "poison" || t == "steel")
         && get_terrain_id(state) != Some("misty_terrain")
+}
+
+fn move_priority(state: &BattleState, action: &Action, moves: &MoveDatabase) -> i32 {
+    let move_data = action.move_id.as_deref().and_then(|id| moves.get(id));
+    let mut priority = run_ability_value_hook(
+        state,
+        &action.player_id,
+        "onModifyPriority",
+        move_data.and_then(|m| m.priority).unwrap_or(0) as f32,
+        AbilityValueContext {
+            move_data,
+            category: move_data.and_then(|m| m.category.as_deref()),
+            target: None,
+            weather: None,
+            turn: state.turn,
+            stages: None,
+        },
+    );
+    if move_data.is_some_and(|m| matches!(m.id.as_str(), "grassy_glide" | "grass_slider"))
+        && get_terrain_id(state) == Some("grassy_terrain")
+        && get_active_creature(state, &action.player_id)
+            .is_some_and(|c| is_grounded_for_field(state, c))
+    {
+        priority += 1.0;
+    }
+    priority.round() as i32
+}
+
+fn sort_actions(actions: &mut [OrderedAction], trick_room: bool) {
+    actions.sort_by(|a, b| {
+        b.priority
+            .cmp(&a.priority)
+            .then_with(|| {
+                if trick_room {
+                    a.speed.cmp(&b.speed)
+                } else {
+                    b.speed.cmp(&a.speed)
+                }
+            })
+            .then_with(|| {
+                a.rand
+                    .partial_cmp(&b.rand)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+    });
 }
 
 #[derive(Clone, Debug)]
@@ -1894,12 +1967,15 @@ fn creature_speed(state: &BattleState, player_id: &str) -> i32 {
     speed.round() as i32
 }
 
-fn is_grounded_for_field(creature: &crate::core::state::CreatureState) -> bool {
+fn is_grounded_for_field(
+    state: &BattleState,
+    creature: &crate::core::state::CreatureState,
+) -> bool {
     (creature.statuses.iter().any(|s| s.id == "roosted")
         || !effective_types_for_field(creature)
             .iter()
             .any(|t| t == "flying"))
-        && creature.ability.as_deref() != Some("levitate")
+        && effective_ability(state, creature) != Some("levitate")
         && creature.item.as_deref() != Some("air_balloon")
         && !creature.statuses.iter().any(|s| s.id == "magnet_rise")
 }

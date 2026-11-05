@@ -325,6 +325,8 @@ fn main() {
         name: "あなた".to_string(),
         team: player_team,
         active_slot: 0,
+        fainted_count: 0,
+        kamishinka_used: false,
         last_fainted_ability: None,
     };
     let ai_state = PlayerState {
@@ -332,6 +334,8 @@ fn main() {
         name: "相手".to_string(),
         team: ai_team,
         active_slot: 0,
+        fainted_count: 0,
+        kamishinka_used: false,
         last_fainted_ability: None,
     };
 
@@ -896,6 +900,7 @@ fn prompt_move(state: &BattleState, move_db: &MoveDatabase) -> Option<Action> {
                     move_id: Some(selected_move_id.clone()),
                     target_id: Some("ai".to_string()),
                     slot: None,
+                    kamishinka_form: None,
                     priority: None,
                 })
             } else {
@@ -955,6 +960,7 @@ fn prompt_switch(state: &BattleState, player_id: &str) -> Option<Action> {
         move_id: None,
         target_id: None,
         slot: Some(slot),
+        kamishinka_form: None,
         priority: None,
     })
 }
@@ -987,6 +993,7 @@ fn ai_switch(state: &BattleState) -> Option<Action> {
         move_id: None,
         target_id: None,
         slot: Some(available[0]),
+        kamishinka_form: None,
         priority: None,
     })
 }
@@ -1025,6 +1032,7 @@ fn ai_random_move(state: &BattleState, move_db: &MoveDatabase, player_id: &str) 
             move_id: active.moves.first().cloned(),
             target_id: Some(opponent_id.to_string()),
             slot: None,
+            kamishinka_form: None,
             priority: None,
         });
     }
@@ -1038,6 +1046,7 @@ fn ai_random_move(state: &BattleState, move_db: &MoveDatabase, player_id: &str) 
         move_id: Some(selected_move.clone()),
         target_id: Some(opponent_id.to_string()),
         slot: None,
+        kamishinka_form: None,
         priority: None,
     })
 }
@@ -1062,6 +1071,7 @@ fn ai_switch_for_player(state: &BattleState, player_id: &str) -> Option<Action> 
         move_id: None,
         target_id: None,
         slot: Some(available[0]),
+        kamishinka_form: None,
         priority: None,
     })
 }
@@ -1108,6 +1118,7 @@ fn ai_choose_action_for_player(
             move_id: active.moves.first().cloned(),
             target_id: Some(opponent_id.to_string()),
             slot: None,
+            kamishinka_form: None,
             priority: None,
         });
     }
@@ -1132,6 +1143,7 @@ fn ai_choose_action_for_player(
         move_id: Some(best_move),
         target_id: Some(opponent_id.to_string()),
         slot: None,
+        kamishinka_form: None,
         priority: None,
     })
 }
@@ -1172,6 +1184,7 @@ fn ai_choose_action(state: &BattleState, move_db: &MoveDatabase) -> Option<Actio
             move_id: active.moves.first().cloned(),
             target_id: Some("player".to_string()),
             slot: None,
+            kamishinka_form: None,
             priority: None,
         });
     }
@@ -1196,6 +1209,7 @@ fn ai_choose_action(state: &BattleState, move_db: &MoveDatabase) -> Option<Actio
         move_id: Some(best_move),
         target_id: Some("player".to_string()),
         slot: None,
+        kamishinka_form: None,
         priority: None,
     })
 }

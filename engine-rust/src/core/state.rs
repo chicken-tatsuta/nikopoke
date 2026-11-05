@@ -48,6 +48,17 @@ pub struct EVStats {
     pub spe: i32,
 }
 
+/// Battle-only form metadata; base species identity and team configuration stay intact.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KamishinkaState {
+    pub form_id: String,
+    pub original_name: String,
+    pub original_ability: Option<String>,
+    pub original_types: Vec<String>,
+    pub original_stats: [i32; 5],
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreatureState {
     pub id: String,
@@ -58,6 +69,8 @@ pub struct CreatureState {
     pub moves: Vec<String>,
     pub ability: Option<String>,
     pub item: Option<String>,
+    #[serde(default)]
+    pub kamishinka: Option<KamishinkaState>,
     #[serde(default)]
     pub consumed_item: Option<String>,
     #[serde(default)]
@@ -88,6 +101,10 @@ pub struct PlayerState {
     pub name: String,
     pub team: Vec<CreatureState>,
     pub active_slot: usize,
+    #[serde(default)]
+    pub kamishinka_used: bool,
+    #[serde(default)]
+    pub fainted_count: u32,
     #[serde(default)]
     pub last_fainted_ability: Option<String>,
 }
@@ -147,6 +164,8 @@ pub struct Action {
     pub target_id: Option<String>,
     pub slot: Option<usize>,
     pub priority: Option<i32>,
+    #[serde(default)]
+    pub kamishinka_form: Option<String>,
 }
 
 pub fn create_battle_state(players: Vec<PlayerState>) -> BattleState {
@@ -154,6 +173,8 @@ pub fn create_battle_state(players: Vec<PlayerState>) -> BattleState {
         players: players
             .into_iter()
             .map(|mut player| {
+                crate::core::kamishinka::reset_player(&mut player);
+                player.fainted_count = 0;
                 player.active_slot = 0;
                 player
             })

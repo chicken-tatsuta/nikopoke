@@ -36,6 +36,7 @@ pub fn choose_highest_power(state: &BattleState, player_id: &str) -> Option<Acti
         move_id: Some(best_move_id),
         target_id: Some(target_id),
         slot: None,
+        kamishinka_form: None,
         priority: None,
     })
 }

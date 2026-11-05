@@ -1,8 +1,10 @@
 pub mod abilities;
 pub mod battle;
+pub mod damage;
 pub mod effects;
 pub mod events;
 pub mod factory;
+pub mod kamishinka;
 pub mod replay;
 pub mod state;
 pub mod statuses;

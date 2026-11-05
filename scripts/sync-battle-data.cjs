@@ -590,6 +590,7 @@ function main() {
   writeYaml(path.join(engineDataDir, 'species.yaml'), speciesMap);
   syncJsonCopies('learnsets.json', learnsets);
   syncRawJsonCopy('move_id_migration_report.json');
+  syncRawJsonCopy('items.json');
   writeYaml(path.join(engineDataDir, 'learnsets.yaml'), learnsets);
 
   const syncReport = {

@@ -23,12 +23,19 @@ export default function TitlePage() {
                         こわいとか いわれることも あるけど そんなことないです。
                     </p>
 
-                    <div className="mt-10">
+                    <div className="mt-10 flex flex-wrap gap-3">
                         <Link
                             to="/home"
                             className="inline-flex min-w-52 items-center justify-between gap-8 rounded-md border border-[#111111] bg-white px-6 py-3 text-sm font-bold tracking-[0.1em] text-[#111111] transition-colors hover:bg-[#F5EEE4]"
                         >
                             はじめる
+                            <span className="text-xl leading-none">→</span>
+                        </Link>
+                        <Link
+                            to="/rpg"
+                            className="inline-flex min-w-52 items-center justify-between gap-8 rounded-md border border-white bg-transparent px-6 py-3 text-sm font-bold tracking-[0.1em] text-white transition-colors hover:bg-white hover:text-[#111111]"
+                        >
+                            RPGで遊ぶ
                             <span className="text-xl leading-none">→</span>
                         </Link>
                     </div>

@@ -18,6 +18,7 @@ fn effect(effect_type: &str, data: Value) -> Effect {
 
 fn make_creature(id: &str, name: &str, types: Vec<String>, moves: Vec<String>) -> CreatureState {
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: "testmon".to_string(),
         name: name.to_string(),
@@ -50,6 +51,8 @@ fn make_state(p1: CreatureState, p2: CreatureState) -> BattleState {
     BattleState {
         players: vec![
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p1".to_string(),
                 name: "P1".to_string(),
                 team: vec![p1],
@@ -57,6 +60,8 @@ fn make_state(p1: CreatureState, p2: CreatureState) -> BattleState {
                 last_fainted_ability: None,
             },
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p2".to_string(),
                 name: "P2".to_string(),
                 team: vec![p2],
@@ -134,6 +139,7 @@ fn bypass_protect_allows_damage() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -142,6 +148,7 @@ fn bypass_protect_allows_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),
@@ -212,6 +219,7 @@ fn protect_blocks_damage_without_bypass() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -220,6 +228,7 @@ fn protect_blocks_damage_without_bypass() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),
@@ -287,6 +296,7 @@ fn ignore_immunity_allows_damage() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -295,6 +305,7 @@ fn ignore_immunity_allows_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),
@@ -359,6 +370,7 @@ fn immunity_blocks_damage_without_ignore() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -367,6 +379,7 @@ fn immunity_blocks_damage_without_ignore() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),
@@ -437,6 +450,7 @@ fn substitute_blocks_damage_without_bypass() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -445,6 +459,7 @@ fn substitute_blocks_damage_without_bypass() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),
@@ -515,6 +530,7 @@ fn bypass_substitute_allows_damage_by_tag() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -523,6 +539,7 @@ fn bypass_substitute_allows_damage_by_tag() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),
@@ -596,6 +613,7 @@ fn ignore_substitute_allows_damage_by_effect() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -604,6 +622,7 @@ fn ignore_substitute_allows_damage_by_effect() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("poke".to_string()),

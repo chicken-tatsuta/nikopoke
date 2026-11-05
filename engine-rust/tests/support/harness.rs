@@ -137,6 +137,7 @@ impl CreatureBuilder {
 
     pub fn build(self) -> CreatureState {
         CreatureState {
+            kamishinka: None,
             id: self.id,
             species_id: self.species_id,
             name: self.name,
@@ -174,6 +175,8 @@ pub fn status(status_id: &str, remaining_turns: Option<i32>) -> Status {
 
 pub fn player(id: &str, name: &str, team: Vec<CreatureState>) -> PlayerState {
     PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: id.to_string(),
         name: name.to_string(),
         team,
@@ -189,6 +192,8 @@ pub fn player_with_active(
     active_slot: usize,
 ) -> PlayerState {
     PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: id.to_string(),
         name: name.to_string(),
         team,
@@ -212,6 +217,7 @@ pub fn battle_state(players: Vec<PlayerState>) -> BattleState {
 
 pub fn move_action(player_id: &str, move_id: &str, target_id: &str) -> Action {
     Action {
+        kamishinka_form: None,
         player_id: player_id.to_string(),
         action_type: ActionType::Move,
         move_id: Some(move_id.to_string()),
@@ -223,6 +229,7 @@ pub fn move_action(player_id: &str, move_id: &str, target_id: &str) -> Action {
 
 pub fn switch_action(player_id: &str, slot: usize) -> Action {
     Action {
+        kamishinka_form: None,
         player_id: player_id.to_string(),
         action_type: ActionType::Switch,
         move_id: None,

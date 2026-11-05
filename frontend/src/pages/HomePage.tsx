@@ -103,6 +103,7 @@ export default function HomePage() {
                             <div className="flex flex-wrap gap-3">
                                 <PrimaryLink to="/pokedex">図鑑を見る</PrimaryLink>
                                 <PrimaryLink to="/battle-mode">バトルをはじめる</PrimaryLink>
+                                <PrimaryLink to="/rpg">RPGで遊ぶ</PrimaryLink>
                                 <Link
                                     to="/news"
                                     className="inline-flex min-w-40 items-center justify-between gap-6 rounded-md border border-white bg-transparent px-5 py-2.5 text-sm font-bold tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-[#111111]"
@@ -162,6 +163,7 @@ export function HomeHeader({ profile }: { profile: { username: string; rating: n
         { label: 'トップ', to: '/home' },
         { label: '図鑑', to: '/pokedex' },
         { label: 'バトル', to: '/battle-mode' },
+        { label: 'RPG', to: '/rpg' },
         { label: 'ランキング', to: '/ranking' },
         { label: 'おしらせ', to: '/news' },
     ];

@@ -18,6 +18,7 @@ fn create_creature(
 ) -> CreatureState {
     let (hp, atk, def, spa, spd, spe) = stats;
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: species.to_string(),
         name: name.to_string(),
@@ -48,6 +49,8 @@ fn create_creature(
 
 fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> BattleState {
     let p1 = PlayerState {
+        kamishinka_used: false,
+        fainted_count: 0,
         id: "p1".to_string(),
         name: "Player 1".to_string(),
         team: p1_team,
@@ -55,6 +58,8 @@ fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Ba
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
+        kamishinka_used: false,
+        fainted_count: 0,
         id: "p2".to_string(),
         name: "Player 2".to_string(),
         team: p2_team,
@@ -105,6 +110,7 @@ fn test_lightning_rod_immunity() {
     // P2 uses Thunderbolt on P1
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("thunderbolt".to_string()),
@@ -113,6 +119,7 @@ fn test_lightning_rod_immunity() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move, // Use Move but with no move (effectively pass/struggle/wait)
             move_id: None,
@@ -174,6 +181,7 @@ fn test_thick_fat_resistance() {
 
     let state = create_battle(vec![snorlax], vec![opponent.clone()]);
     let actions = vec![Action {
+        kamishinka_form: None,
         player_id: "p2".to_string(),
         action_type: ActionType::Move,
         move_id: Some("flame_wheel".to_string()),
@@ -251,6 +259,7 @@ fn test_prankster_priority() {
     // Murkrow uses Swagger (Status), Opponent uses Tackle
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("swagger".to_string()),
@@ -259,6 +268,7 @@ fn test_prankster_priority() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("tackle".to_string()),
@@ -345,6 +355,7 @@ fn test_skill_link_multi_hit() {
     let state = create_battle(vec![cinccino], vec![opponent]);
 
     let actions = vec![Action {
+        kamishinka_form: None,
         player_id: "p1".to_string(),
         action_type: ActionType::Move,
         move_id: Some("fury_attack".to_string()),

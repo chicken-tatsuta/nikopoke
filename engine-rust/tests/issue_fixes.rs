@@ -10,9 +10,12 @@ use std::collections::HashMap;
 
 fn create_test_state() -> BattleState {
     let p1 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p1".to_string(),
         name: "Player 1".to_string(),
         team: vec![CreatureState {
+            kamishinka: None,
             id: "c1".to_string(),
             species_id: "test_mon".to_string(),
             name: "Mon1".to_string(),
@@ -43,9 +46,12 @@ fn create_test_state() -> BattleState {
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "Player 2".to_string(),
         team: vec![CreatureState {
+            kamishinka: None,
             id: "c2".to_string(),
             species_id: "test_mon2".to_string(),
             name: "Mon2".to_string(),

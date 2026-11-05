@@ -1,3 +1,4 @@
+import { resetKamishinkaState } from './kamishinka';
 import Peer, { type DataConnection, type PeerJSOption } from 'peerjs';
 import type { DeckPokemon } from '../types/pokemon';
 import type { ActionWire, BattleStateWire } from './engine';
@@ -433,6 +434,7 @@ function handleIncomingMessage(raw: unknown): void {
             emit({ type: 'battle_init', state: toPlainData(message.state) });
             return;
         case 'action_submit':
+            if (session.role !== 'host' || message.actorId !== 'guest' || message.action?.playerId !== 'guest') return;
             emit({ type: 'remote_action', actorId: message.actorId, action: message.action });
             return;
         case 'battle_update':
@@ -923,4 +925,10 @@ export function sendPlayerAction(action: ActionWire): void {
 /** for testing: exposes current session state */
 export function __debugSession(): Readonly<OnlineSessionState> {
     return session;
+}
+
+/** End-of-match cleanup; team selections and held items remain available for rematches. */
+export function resetOnlineKamishinka(): void {
+    if (session.latestState) session.latestState = resetKamishinkaState(session.latestState);
+    session.latestActions = null;
 }

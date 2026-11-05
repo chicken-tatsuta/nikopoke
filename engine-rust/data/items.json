@@ -334,5 +334,11 @@
     "name": "ピントレンズ",
     "kind": "attack",
     "description": "技が急所に当たりやすくなる。"
+  },
+  "kamidama": {
+    "id": "kamidama",
+    "name": "カミダマ",
+    "kind": "support",
+    "description": "対応するニキダンがカミシンカできる。1試合に各プレイヤー1匹まで。複数に持たせられ、消費されない。"
   }
 }

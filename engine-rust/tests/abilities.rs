@@ -40,6 +40,7 @@ fn damage_move(id: &str, move_type: &str, power: i32) -> MoveData {
 
 fn make_creature(id: &str, name: &str, ability: Option<&str>, moves: Vec<String>) -> CreatureState {
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: "testmon".to_string(),
         name: name.to_string(),
@@ -72,6 +73,8 @@ fn make_state(p1: CreatureState, p2: CreatureState) -> BattleState {
     BattleState {
         players: vec![
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p1".to_string(),
                 name: "P1".to_string(),
                 team: vec![p1],
@@ -79,6 +82,8 @@ fn make_state(p1: CreatureState, p2: CreatureState) -> BattleState {
                 last_fainted_ability: None,
             },
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p2".to_string(),
                 name: "P2".to_string(),
                 team: vec![p2],
@@ -137,6 +142,7 @@ fn soundproof_blocks_sound_tagged_damage() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("echo".to_string()),
@@ -145,6 +151,7 @@ fn soundproof_blocks_sound_tagged_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -223,7 +230,7 @@ fn steely_spirit_boosts_steel_damage() {
 }
 
 #[test]
-fn steely_spirit_boosts_opposing_steel_damage() {
+fn steely_spirit_does_not_boost_opposing_steel_damage() {
     let state = make_state(
         make_creature("c1", "Alpha", None, vec![]),
         make_creature("c2", "Beta", Some("steely_spirit"), vec![]),
@@ -258,7 +265,7 @@ fn steely_spirit_boosts_opposing_steel_damage() {
         },
     );
 
-    assert_eq!(value, 120.0);
+    assert_eq!(value, 80.0);
 }
 
 #[test]
@@ -276,6 +283,7 @@ fn boost_grass_increases_matching_attack_damage() {
 
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("leaf_hit".to_string()),
@@ -284,6 +292,7 @@ fn boost_grass_increases_matching_attack_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -325,6 +334,7 @@ fn boost_grass_does_not_increase_fire_attack_damage() {
     let target = make_creature("c2", "Beta", None, vec!["wait".to_string()]);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("fire_hit".to_string()),
@@ -333,6 +343,7 @@ fn boost_grass_does_not_increase_fire_attack_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -375,6 +386,7 @@ fn resist_grass_halves_super_effective_damage_and_is_consumed() {
     normal_target.item = None;
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("leaf_hit".to_string()),
@@ -383,6 +395,7 @@ fn resist_grass_halves_super_effective_damage_and_is_consumed() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -431,6 +444,7 @@ fn resist_grass_does_not_trigger_when_grass_is_not_super_effective() {
     target.item = Some("resist_grass".to_string());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("leaf_hit".to_string()),
@@ -439,6 +453,7 @@ fn resist_grass_does_not_trigger_when_grass_is_not_super_effective() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -480,6 +495,7 @@ fn resist_grass_only_triggers_once() {
     target.item = Some("resist_grass".to_string());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("leaf_hit".to_string()),
@@ -488,6 +504,7 @@ fn resist_grass_only_triggers_once() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -538,6 +555,7 @@ fn resist_consumption_persists_after_switching() {
     state.players[1].team.push(reserve);
     let attack_actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("leaf_hit".to_string()),
@@ -546,6 +564,7 @@ fn resist_consumption_persists_after_switching() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -563,6 +582,7 @@ fn resist_consumption_persists_after_switching() {
         &after_first,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -571,6 +591,7 @@ fn resist_consumption_persists_after_switching() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Switch,
                 move_id: None,
@@ -586,6 +607,7 @@ fn resist_consumption_persists_after_switching() {
         &after_switch_out,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -594,6 +616,7 @@ fn resist_consumption_persists_after_switching() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Switch,
                 move_id: None,
@@ -697,6 +720,7 @@ fn disguise_blocks_first_attack_damage_once() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -705,6 +729,7 @@ fn disguise_blocks_first_attack_damage_once() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -778,6 +803,7 @@ fn disguise_prevents_drain_recovery_from_blocked_damage() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("draining_hit".to_string()),
@@ -786,6 +812,7 @@ fn disguise_prevents_drain_recovery_from_blocked_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -854,6 +881,7 @@ fn disguise_does_not_reset_after_switching_out() {
         &state,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("hit".to_string()),
@@ -862,6 +890,7 @@ fn disguise_does_not_reset_after_switching_out() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -877,6 +906,7 @@ fn disguise_does_not_reset_after_switching_out() {
         &after_first,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -885,6 +915,7 @@ fn disguise_does_not_reset_after_switching_out() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Switch,
                 move_id: None,
@@ -900,6 +931,7 @@ fn disguise_does_not_reset_after_switching_out() {
         &after_switch_out,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -908,6 +940,7 @@ fn disguise_does_not_reset_after_switching_out() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Switch,
                 move_id: None,
@@ -923,6 +956,7 @@ fn disguise_does_not_reset_after_switching_out() {
         &after_switch_in,
         &[
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("hit".to_string()),
@@ -931,6 +965,7 @@ fn disguise_does_not_reset_after_switching_out() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -998,6 +1033,7 @@ fn rattled_raises_speed_after_bug_dark_or_ghost_damage() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("spook".to_string()),
@@ -1006,6 +1042,7 @@ fn rattled_raises_speed_after_bug_dark_or_ghost_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1134,6 +1171,7 @@ fn air_balloon_logs_when_broken_by_attack() {
     let state = make_state(attacker, target);
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -1142,6 +1180,7 @@ fn air_balloon_logs_when_broken_by_attack() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1276,6 +1315,7 @@ fn sniper_boosts_critical_hit_damage() {
         let state = make_state(attacker, defender);
         let actions = vec![
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("sure_crit".to_string()),
@@ -1284,6 +1324,7 @@ fn sniper_boosts_critical_hit_damage() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -1348,6 +1389,7 @@ fn adaptability_uses_double_stab_damage() {
         let state = make_state(attacker, defender);
         let actions = vec![
             Action {
+                kamishinka_form: None,
                 player_id: "p1".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("flame".to_string()),
@@ -1356,6 +1398,7 @@ fn adaptability_uses_double_stab_damage() {
                 priority: None,
             },
             Action {
+                kamishinka_form: None,
                 player_id: "p2".to_string(),
                 action_type: ActionType::Move,
                 move_id: Some("wait".to_string()),
@@ -1419,6 +1462,7 @@ fn cotton_down_triggers_on_attack_damage() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("non_contact_hit".to_string()),
@@ -1427,6 +1471,7 @@ fn cotton_down_triggers_on_attack_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1488,6 +1533,7 @@ fn stamina_does_not_trigger_from_self_hp_loss() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1496,6 +1542,7 @@ fn stamina_does_not_trigger_from_self_hp_loss() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("self_cut".to_string()),
@@ -1557,6 +1604,7 @@ fn rage_fist_hit_counter_does_not_increase_from_self_hp_loss() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1565,6 +1613,7 @@ fn rage_fist_hit_counter_does_not_increase_from_self_hp_loss() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("self_cut".to_string()),
@@ -1622,6 +1671,7 @@ fn static_can_paralyze_contact_attacker() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("contact_hit".to_string()),
@@ -1630,6 +1680,7 @@ fn static_can_paralyze_contact_attacker() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1691,6 +1742,7 @@ fn static_does_not_paralyze_non_contact_attacker() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("ranged_hit".to_string()),
@@ -1699,6 +1751,7 @@ fn static_does_not_paralyze_non_contact_attacker() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1765,6 +1818,7 @@ fn popping_habanero_burns_attacker_after_attack_damage() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("ranged_hit".to_string()),
@@ -1773,6 +1827,7 @@ fn popping_habanero_burns_attacker_after_attack_damage() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -1847,6 +1902,7 @@ fn cotton_down_does_not_trigger_from_drain_recovery() {
     );
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("draining_beam".to_string()),
@@ -1855,6 +1911,7 @@ fn cotton_down_does_not_trigger_from_drain_recovery() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),

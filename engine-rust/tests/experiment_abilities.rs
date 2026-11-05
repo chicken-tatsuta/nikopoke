@@ -18,6 +18,7 @@ fn create_creature(
 ) -> CreatureState {
     let (hp, atk, def, spa, spd, spe) = stats;
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: species.to_string(),
         name: name.to_string(),
@@ -48,6 +49,8 @@ fn create_creature(
 
 fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> BattleState {
     let p1 = PlayerState {
+        kamishinka_used: false,
+        fainted_count: 0,
         id: "p1".to_string(),
         name: "Player 1".to_string(),
         team: p1_team,
@@ -55,6 +58,8 @@ fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Ba
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
+        kamishinka_used: false,
+        fainted_count: 0,
         id: "p2".to_string(),
         name: "Player 2".to_string(),
         team: p2_team,
@@ -111,6 +116,7 @@ fn test_contrary_self_debuff() {
 
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("leaf_storm".to_string()),
@@ -119,6 +125,7 @@ fn test_contrary_self_debuff() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move, // Do nothing
             move_id: None,
@@ -174,6 +181,7 @@ fn test_contrary_enemy_debuff() {
 
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("metal_sound".to_string()),
@@ -182,6 +190,7 @@ fn test_contrary_enemy_debuff() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: None,
@@ -236,6 +245,7 @@ fn test_moody_turn_end() {
 
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: None,
@@ -244,6 +254,7 @@ fn test_moody_turn_end() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: None,

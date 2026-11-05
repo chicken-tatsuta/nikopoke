@@ -1,7 +1,9 @@
+use crate::core::abilities::effective_ability;
 use crate::core::abilities::{
     get_terrain_id, run_ability_check_hook, run_ability_value_hook, AbilityCheckContext,
     AbilityValueContext, WeatherKind,
 };
+use crate::core::damage::{apply_roll, base_damage, modify as damage_modify};
 use crate::core::events::{apply_event, meta_with_move_source, BattleEvent};
 use crate::core::state::{BattleState, CreatureState};
 use crate::core::utils::{get_active_creature, stage_multiplier};
@@ -599,7 +601,7 @@ fn apply_damage(
         });
     }
 
-    if attacker.ability.as_deref() == Some("parental_bond") {
+    if effective_ability(state, attacker) == Some("parental_bond") {
         let second_power = (power as f32 * 0.25).floor() as i32;
         // Pass true for is_secondary_hit, parental bond 2nd hit doesn't crit
         let (second_amount, _, _) = calc_damage(
@@ -971,6 +973,14 @@ fn apply_status(
                 );
             }
         }
+    }
+    if status_id == "sleep" && !data.contains_key("turns") {
+        let turns = if ctx.move_data.is_some_and(|m| m.id == "rest") {
+            3
+        } else {
+            duration.unwrap_or_else(|| 2 + (((ctx.rng)() * 3.0).floor() as i32).clamp(0, 2))
+        };
+        data.insert("turns".into(), Value::from(turns));
     }
     if status_id == "substitute" && !data.contains_key("hp") {
         if let Some(target) = get_active_creature(state, &target_id) {
@@ -1706,6 +1716,11 @@ fn apply_swap_abilities(state: &BattleState, ctx: &mut EffectContext<'_>) -> Vec
     ) else {
         return Vec::new();
     };
+    if user.ability.as_deref() == Some("neutralizing_gas")
+        || target.ability.as_deref() == Some("neutralizing_gas")
+    {
+        return Vec::new();
+    }
     if user.ability.is_none() && target.ability.is_none() {
         return Vec::new();
     }
@@ -1740,6 +1755,16 @@ fn apply_set_ability(
                 None
             }
         });
+    let target_ability = get_active_creature(state, &target_id).and_then(|c| c.ability.as_deref());
+    let move_id = ctx.move_data.map(|m| m.id.as_str());
+    if target_ability == Some("truant")
+        && matches!(move_id, Some("simple_beam" | "worry_seed" | "entrainment"))
+    {
+        return vec![];
+    }
+    if ability_id.as_deref() == Some("neutralizing_gas") && target_id != ctx.attacker_player_id {
+        return vec![];
+    }
     vec![BattleEvent::SetAbility {
         target_id,
         ability_id,
@@ -3121,7 +3146,7 @@ fn apply_force_switch(
             meta: Map::new(),
         }];
     }
-    if ctx.is_sound && target.ability.as_deref() == Some("soundproof") {
+    if ctx.is_sound && effective_ability(state, target) == Some("soundproof") {
         return vec![
             BattleEvent::Log {
                 message: format!("{}の 特性『ぼうおん』！", target.name),
@@ -3496,6 +3521,9 @@ fn apply_meta_flags(events: &mut [BattleEvent], ctx: &EffectContext<'_>) {
             }
             if ctx.bypass_protect {
                 meta.insert("bypassProtect".to_string(), Value::Bool(true));
+            }
+            if ctx.ignore_ability {
+                meta.insert("ignoreDefenderAbility".into(), Value::Bool(true));
             }
             if ctx.ignore_immunity {
                 meta.insert("ignoreImmunity".to_string(), Value::Bool(true));
@@ -3933,65 +3961,46 @@ fn calc_damage(
         (ctx.rng)() < crit_chance
     };
 
-    let mut move_power = if ctx.ignore_ability {
-        power
-    } else {
-        run_ability_value_hook(
-            state,
-            attacker_id,
-            "onModifyPower",
-            power,
-            AbilityValueContext {
-                move_data: ctx.move_data,
-                category: Some(&category),
-                target: Some(target),
-                weather: None,
-                turn: ctx.turn,
-                stages: None,
-            },
-        )
-    };
-
-    if !ctx.ignore_ability {
-        move_power = run_ability_value_hook(
-            state,
-            target_id,
-            "onDefensivePower",
-            move_power,
-            AbilityValueContext {
-                move_data: ctx.move_data,
-                category: Some(&category),
-                target: Some(attacker),
-                weather: None,
-                turn: ctx.turn,
-                stages: None,
-            },
-        );
-    }
+    let mut move_power = run_ability_value_hook(
+        state,
+        attacker_id,
+        "onModifyPower",
+        power,
+        AbilityValueContext {
+            move_data: ctx.move_data,
+            category: Some(&category),
+            target: Some(target),
+            weather: None,
+            turn: ctx.turn,
+            stages: None,
+        },
+    );
+    // A move ignoring defender abilities never suppresses its user's own ability.
+    let mut weather_modifier = 1.0;
     if let Some(move_type) = ctx.move_data.and_then(|m| m.move_type.as_deref()) {
         let weather = crate::core::abilities::get_weather(state);
         match (weather, move_type) {
-            (Some(WeatherKind::Sun), "fire") => move_power *= 1.5,
-            (Some(WeatherKind::Sun), "water") => move_power *= 0.5,
-            (Some(WeatherKind::Rain), "water") => move_power *= 1.5,
-            (Some(WeatherKind::Rain), "fire") => move_power *= 0.5,
+            (Some(WeatherKind::Sun), "fire") => weather_modifier = 1.5,
+            (Some(WeatherKind::Sun), "water") => weather_modifier = 0.5,
+            (Some(WeatherKind::Rain), "water") => weather_modifier = 1.5,
+            (Some(WeatherKind::Rain), "fire") => weather_modifier = 0.5,
             _ => {}
         }
         if move_type == "electric"
             && get_terrain_id(state) == Some("electric_terrain")
-            && is_grounded_for_field(attacker)
+            && is_grounded_for_field(state, attacker)
         {
             move_power *= 1.3;
         }
         if move_type == "grass"
             && get_terrain_id(state) == Some("grassy_terrain")
-            && is_grounded_for_field(attacker)
+            && is_grounded_for_field(state, attacker)
         {
             move_power *= 1.3;
         }
         if move_type == "dragon"
             && get_terrain_id(state) == Some("misty_terrain")
-            && is_grounded_for_field(target)
+            && is_grounded_for_field(state, target)
         {
             move_power *= 0.5;
         }
@@ -4049,15 +4058,17 @@ fn calc_damage(
         def_stage = 0;
     }
 
-    if attacker.ability.as_deref() == Some("unaware") {
+    if effective_ability(state, attacker) == Some("unaware") {
         def_stage = 0;
     }
-    if !ctx.ignore_ability && target.ability.as_deref() == Some("unaware") {
+    if !ctx.ignore_ability && effective_ability(state, target) == Some("unaware") {
         atk_stage = 0;
     }
 
-    let attack = offense_key as f32 * stage_multiplier(atk_stage);
-    let mut defense = (defense_key as f32 * stage_multiplier(def_stage)).max(1.0);
+    let attack = (offense_key as f32 * stage_multiplier(atk_stage)).floor();
+    let mut defense = (defense_key as f32 * stage_multiplier(def_stage))
+        .floor()
+        .max(1.0);
 
     match crate::core::abilities::get_weather(state) {
         Some(WeatherKind::Sandstorm)
@@ -4073,7 +4084,7 @@ fn calc_damage(
         _ => {}
     }
 
-    let attack = run_ability_value_hook(
+    let modified_attack = run_ability_value_hook(
         state,
         attacker_id,
         "onModifyOffense",
@@ -4088,7 +4099,24 @@ fn calc_damage(
         },
     );
 
-    let defense = if ctx.ignore_ability {
+    let mut attack = damage_modify(attack as i32, modified_attack / attack.max(1.0));
+    if !ctx.ignore_ability {
+        attack = run_ability_value_hook(
+            state,
+            target_id,
+            "onSourceModifyOffense",
+            attack as f32,
+            AbilityValueContext {
+                move_data: ctx.move_data,
+                category: Some(&category),
+                target: Some(attacker),
+                weather: None,
+                turn: ctx.turn,
+                stages: None,
+            },
+        ) as i32;
+    }
+    let modified_defense = if ctx.ignore_ability {
         defense
     } else {
         run_ability_value_hook(
@@ -4107,11 +4135,19 @@ fn calc_damage(
         )
     };
 
-    let level = attacker.level as f32;
-    let base = (((2.0 * level / 5.0 + 2.0) * move_power * attack / defense) / 50.0 + 2.0).max(1.0);
-    // Damage roll uses the official 16-step range [85, 100].
+    let defense = damage_modify(defense as i32, modified_defense / defense.max(1.0));
+    let mut base = base_damage(
+        attacker.level,
+        damage_modify(power as i32, move_power / power).max(1),
+        attack.max(1),
+        defense.max(1),
+    );
+    base = damage_modify(base, weather_modifier);
+    if is_crit {
+        base = ((base as i64 * 3) / 2) as i32;
+    }
     let roll_index = (((ctx.rng)() * 16.0).floor() as i32).clamp(0, 15);
-    let roll = (85 + roll_index) as f32 / 100.0;
+    let mut damage = apply_roll(base, 85 + roll_index);
 
     let mut modifier = 1.0;
     let mut consumed_item: Option<String> = None;
@@ -4132,13 +4168,12 @@ fn calc_damage(
             .iter()
             .any(|t| t.eq_ignore_ascii_case(move_type))
         {
-            let stab_multiplier =
-                if !ctx.ignore_ability && attacker.ability.as_deref() == Some("adaptability") {
-                    2.0
-                } else {
-                    1.5
-                };
-            modifier *= stab_multiplier;
+            let stab_multiplier = if effective_ability(state, attacker) == Some("adaptability") {
+                2.0
+            } else {
+                1.5
+            };
+            damage = damage_modify(damage, stab_multiplier);
         }
         let gravity_active = state.field.global.iter().any(|e| e.id == "gravity");
         let magnet_rise_active = target.statuses.iter().any(|s| s.id == "magnet_rise");
@@ -4172,7 +4207,10 @@ fn calc_damage(
                 }
             }
         }
-        modifier *= effectiveness;
+        if effectiveness < 1.0 && effective_ability(state, attacker) == Some("tinted_lens") {
+            modifier *= 2.0;
+        }
+        damage = (damage as f32 * effectiveness).floor() as i32;
     }
 
     // 壁補正（リフレクター/ひかりのかべ/オーロラベール）
@@ -4196,18 +4234,18 @@ fn calc_damage(
 
     if category == "physical"
         && attacker.statuses.iter().any(|s| s.id == "burn")
-        && attacker.ability.as_deref() != Some("guts")
+        && effective_ability(state, attacker) != Some("guts")
+        && !ctx.move_data.is_some_and(|m| m.id == "facade")
     {
-        modifier *= 0.5;
+        damage = damage_modify(damage, 0.5);
     }
 
     if is_crit {
-        modifier *= 1.5;
-        if attacker.ability.as_deref() == Some("sniper") {
+        if effective_ability(state, attacker) == Some("sniper") {
             modifier *= 1.5;
         }
     }
-    let damage = (base * roll * modifier).floor() as i32;
+    let damage = damage_modify(damage, modifier);
     (damage.max(1), is_crit, consumed_item)
 }
 
@@ -4225,10 +4263,13 @@ pub fn has_item(creature: &crate::core::state::CreatureState) -> bool {
         .any(|s| s.id == "item" || s.id == "berry")
 }
 
-fn is_grounded_for_field(creature: &crate::core::state::CreatureState) -> bool {
+fn is_grounded_for_field(
+    state: &BattleState,
+    creature: &crate::core::state::CreatureState,
+) -> bool {
     (creature.statuses.iter().any(|s| s.id == "roosted")
         || !effective_types(creature).iter().any(|t| t == "flying"))
-        && creature.ability.as_deref() != Some("levitate")
+        && effective_ability(state, creature) != Some("levitate")
         && !creature.statuses.iter().any(|s| s.id == "magnet_rise")
 }
 
@@ -4311,6 +4352,7 @@ mod tests {
             moves: Vec::new(),
             ability: None,
             item: None,
+            kamishinka: None,
             consumed_item: None,
             evs: EVStats::default(),
             hp: 100,
@@ -4336,6 +4378,8 @@ mod tests {
                 name: "player".to_string(),
                 team: vec![test_creature("attacker")],
                 active_slot: 0,
+                fainted_count: 0,
+                kamishinka_used: false,
                 last_fainted_ability: None,
             },
             PlayerState {
@@ -4343,6 +4387,8 @@ mod tests {
                 name: "opponent".to_string(),
                 team: vec![test_creature("target")],
                 active_slot: 0,
+                fainted_count: 0,
+                kamishinka_used: false,
                 last_fainted_ability: None,
             },
         ])

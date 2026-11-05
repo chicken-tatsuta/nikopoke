@@ -156,6 +156,8 @@ fn create_player(
         name: id.to_string(),
         team: creatures,
         active_slot: 0,
+        fainted_count: 0,
+        kamishinka_used: false,
         last_fainted_ability: None,
     })
 }

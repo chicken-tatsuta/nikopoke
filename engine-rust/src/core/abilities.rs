@@ -39,6 +39,14 @@ pub struct AbilityHookResult {
 
 pub fn ability_label(ability: &str) -> &str {
     match ability {
+        "neutralizing_gas" => "かがくへんかガス",
+        "tinted_lens" => "いろめがね",
+        "truant" => "なまけ",
+        "thick_fat" => "あついしぼう",
+        "poison_touch" => "どくしゅ",
+        "supreme_overlord" => "そうだいしょう",
+        "flare_boost" => "ねつぼうそう",
+        "solar_power" => "サンパワー",
         "intimidate" => "いかく",
         "download" => "ダウンロード",
         "drought" => "ひでり",
@@ -134,6 +142,15 @@ fn type_label(type_id: &str) -> &str {
     }
 }
 
+fn slow_start_active(creature: &CreatureState, turn: u32) -> bool {
+    turn as u64
+        <= creature
+            .ability_data
+            .get("slowStartUntil")
+            .and_then(Value::as_u64)
+            .unwrap_or(5)
+}
+
 pub fn slow_start_log(creature_name: &str) -> BattleEvent {
     BattleEvent::Log {
         message: format!("{}は 調子が 上がらない！", creature_name),
@@ -141,14 +158,112 @@ pub fn slow_start_log(creature_name: &str) -> BattleEvent {
     }
 }
 
-fn has_active_steely_spirit(state: &BattleState) -> bool {
-    state.players.iter().any(|player| {
-        player
-            .team
-            .get(player.active_slot)
-            .and_then(|creature| creature.ability.as_deref())
-            == Some("steely_spirit")
-    })
+/// Central ability lookup: suppression never destroys the actual ability or form.
+pub fn effective_ability<'a>(state: &BattleState, creature: &'a CreatureState) -> Option<&'a str> {
+    let ability = creature.ability.as_deref()?;
+    let protected = matches!(
+        ability,
+        "neutralizing_gas"
+            | "disguise"
+            | "multitype"
+            | "zen_mode"
+            | "stance_change"
+            | "power_construct"
+            | "schooling"
+            | "rks_system"
+            | "shields_down"
+            | "battle_bond"
+            | "comatose"
+            | "gulp_missile"
+            | "ice_face"
+            | "as_one"
+            | "zero_to_hero"
+            | "tera_shift"
+    );
+    let gas = state
+        .players
+        .iter()
+        .filter_map(|p| p.team.get(p.active_slot))
+        .any(|c| {
+            c.hp > 0 && c.id != creature.id && c.ability.as_deref() == Some("neutralizing_gas")
+        });
+    if !protected && creature.item.as_deref() != Some("ability_shield") && gas {
+        None
+    } else {
+        Some(ability)
+    }
+}
+
+/// Resume entry abilities when Gas leaves/faints/changes ability. Already granted stages remain.
+pub fn refresh_gas(state: BattleState, rng: &mut dyn FnMut() -> f64) -> BattleState {
+    if !state
+        .players
+        .iter()
+        .filter_map(|p| p.team.get(p.active_slot))
+        .any(|c| {
+            c.ability.as_deref() == Some("neutralizing_gas")
+                || c.ability_data.contains_key("gasSuppressed")
+        })
+    {
+        return state;
+    }
+    let mut next = state.clone();
+    let mut resumed = Vec::new();
+    for player in &state.players {
+        let Some(active) = player.team.get(player.active_slot) else {
+            continue;
+        };
+        if active.hp <= 0 {
+            continue;
+        }
+        let suppressed = active.ability.is_some() && effective_ability(&state, active).is_none();
+        let was_suppressed = active
+            .ability_data
+            .get("gasSuppressed")
+            .and_then(Value::as_bool)
+            == Some(true);
+        let c = crate::core::utils::get_active_creature_mut(&mut next, &player.id).unwrap();
+        if suppressed {
+            c.ability_data
+                .insert("gasSuppressed".into(), Value::Bool(true));
+            c.ability_data.remove("unburdenActivated");
+        } else if was_suppressed {
+            c.ability_data.remove("gasSuppressed");
+            for key in [
+                "intimidateUsed",
+                "downloadUsed",
+                "droughtUsed",
+                "drizzleUsed",
+                "sandStreamUsed",
+                "friskUsed",
+                "hospitalityUsed",
+                "truantLoaf",
+            ] {
+                c.ability_data.remove(key);
+            }
+            resumed.push(player.id.clone());
+        }
+    }
+    resumed.sort_by_key(|id| {
+        std::cmp::Reverse(get_active_creature(&next, id).map(|c| c.speed).unwrap_or(0))
+    });
+    for id in resumed {
+        let result = run_ability_hooks(
+            &next,
+            &id,
+            "onStart",
+            AbilityHookContext {
+                rng,
+                action: None,
+                move_data: None,
+            },
+        );
+        next = result.state.unwrap_or(next);
+        for event in result.events {
+            next = crate::core::events::apply_event(&next, &event);
+        }
+    }
+    next
 }
 
 pub fn run_ability_value_hook(
@@ -161,21 +276,44 @@ pub fn run_ability_value_hook(
     let Some(active) = get_active_creature(state, player_id) else {
         return value;
     };
-    let ability = active.ability.as_deref();
+    let ability = effective_ability(state, active);
 
-    if hook == "onModifyPower"
+    let value = if hook == "onModifyPower"
         && ctx.move_data.and_then(|m| m.move_type.as_deref()) == Some("steel")
-        && (ability == Some("steelworker") || has_active_steely_spirit(state))
+        && matches!(ability, Some("steelworker" | "steely_spirit"))
     {
-        return value * 1.5;
-    }
+        value * 1.5
+    } else {
+        value
+    };
 
     let Some(ability) = ability else {
         return value;
     };
 
     match (ability, hook) {
-        ("thick_fat", "onDefensivePower") => {
+        ("flare_boost", "onModifyPower")
+            if ctx.category == Some("special")
+                && active.statuses.iter().any(|s| s.id == "burn") =>
+        {
+            value * 1.5
+        }
+        ("solar_power", "onModifyOffense")
+            if ctx.category == Some("special")
+                && matches!(get_weather(state), Some(WeatherKind::Sun)) =>
+        {
+            value * 1.5
+        }
+        ("supreme_overlord", "onModifyPower") => {
+            let fallen = active
+                .ability_data
+                .get("fallenAllies")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+                .min(5);
+            value * (1.0 + fallen as f32 * 0.1)
+        }
+        ("thick_fat", "onSourceModifyOffense") => {
             match ctx.move_data.and_then(|m| m.move_type.as_deref()) {
                 Some("fire") | Some("ice") => value * 0.5,
                 _ => value,
@@ -189,14 +327,14 @@ pub fn run_ability_value_hook(
             }
         }
         ("slow_start", "onModifyOffense") => {
-            if ctx.category == Some("physical") && ctx.turn <= 5 {
+            if ctx.category == Some("physical") && slow_start_active(active, ctx.turn) {
                 value * 0.5
             } else {
                 value
             }
         }
         ("slow_start", "onModifySpeed") => {
-            if ctx.turn <= 5 {
+            if slow_start_active(active, ctx.turn) {
                 value * 0.5
             } else {
                 value
@@ -320,7 +458,7 @@ pub fn run_ability_check_hook(
     let Some(active) = get_active_creature(state, player_id) else {
         return default_value;
     };
-    let Some(ability) = active.ability.as_deref() else {
+    let Some(ability) = effective_ability(state, active) else {
         return default_value;
     };
 
@@ -344,7 +482,7 @@ pub fn run_ability_check_hook(
                     return false;
                 }
                 let target = get_active_creature(state, target_id);
-                if target.and_then(|c| c.ability.as_deref()) == Some("shadow_tag") {
+                if target.and_then(|c| effective_ability(state, c)) == Some("shadow_tag") {
                     return false;
                 }
                 return true;
@@ -364,7 +502,7 @@ pub fn modify_stages_with_ability(
     let Some(active) = get_active_creature(state, target_id) else {
         return stages.clone();
     };
-    let Some(ability) = active.ability.as_deref() else {
+    let Some(ability) = effective_ability(state, active) else {
         return stages.clone();
     };
 
@@ -384,12 +522,88 @@ pub fn run_ability_hooks(
     let Some(active) = get_active_creature(state, player_id) else {
         return AbilityHookResult::default();
     };
-    let Some(ability) = active.ability.as_deref() else {
+    // Entry/end/action hooks belong to living active creatures.
+    if active.hp <= 0 {
+        return AbilityHookResult::default();
+    }
+    let Some(ability) = effective_ability(state, active) else {
         return AbilityHookResult::default();
     };
 
     match (ability, hook) {
-        ("intimidate", "onSwitchIn") => {
+        ("neutralizing_gas", "onSwitchIn" | "onStart") => AbilityHookResult {
+            events: vec![ability_activation_log(&active.name, ability)],
+            ..Default::default()
+        },
+        ("supreme_overlord", "onSwitchIn" | "onStart") => {
+            let fallen = state
+                .players
+                .iter()
+                .find(|p| p.id == player_id)
+                .map(|p| p.fainted_count.min(5))
+                .unwrap_or(0);
+            let mut next = state.clone();
+            crate::core::utils::get_active_creature_mut(&mut next, player_id)
+                .unwrap()
+                .ability_data
+                .insert("fallenAllies".into(), Value::from(fallen));
+            AbilityHookResult {
+                state: Some(next),
+                ..Default::default()
+            }
+        }
+        ("truant", "onSwitchIn" | "onStart") => {
+            let mut next = state.clone();
+            crate::core::utils::get_active_creature_mut(&mut next, player_id)
+                .unwrap()
+                .ability_data
+                .remove("truantLoaf");
+            AbilityHookResult {
+                state: Some(next),
+                ..Default::default()
+            }
+        }
+        ("truant", "onBeforeAction") => {
+            let loaf = active
+                .ability_data
+                .get("truantLoaf")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let mut next = state.clone();
+            crate::core::utils::get_active_creature_mut(&mut next, player_id)
+                .unwrap()
+                .ability_data
+                .insert("truantLoaf".into(), Value::Bool(!loaf));
+            AbilityHookResult {
+                state: Some(next),
+                prevent_action: loaf,
+                events: if loaf {
+                    vec![BattleEvent::Log {
+                        message: format!("{}は なまけている！", active.name),
+                        meta: Map::new(),
+                    }]
+                } else {
+                    vec![]
+                },
+                ..Default::default()
+            }
+        }
+        ("solar_power", "onTurnEnd")
+            if active.hp > 0 && matches!(get_weather(state), Some(WeatherKind::Sun)) =>
+        {
+            AbilityHookResult {
+                events: vec![
+                    ability_activation_log(&active.name, ability),
+                    BattleEvent::Damage {
+                        target_id: player_id.into(),
+                        amount: (active.max_hp / 8).max(1),
+                        meta: Map::new(),
+                    },
+                ],
+                ..Default::default()
+            }
+        }
+        ("intimidate", "onSwitchIn" | "onStart") => {
             if active
                 .ability_data
                 .get("intimidateUsed")
@@ -436,7 +650,7 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("download", "onSwitchIn") => {
+        ("download", "onSwitchIn" | "onStart") => {
             if active
                 .ability_data
                 .get("downloadUsed")
@@ -477,7 +691,7 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("drought", "onSwitchIn") => {
+        ("drought", "onSwitchIn" | "onStart") => {
             if active
                 .ability_data
                 .get("droughtUsed")
@@ -501,7 +715,7 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("drizzle", "onSwitchIn") => {
+        ("drizzle", "onSwitchIn" | "onStart") => {
             if active
                 .ability_data
                 .get("drizzleUsed")
@@ -525,7 +739,7 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("sand_stream", "onSwitchIn") => {
+        ("sand_stream", "onSwitchIn" | "onStart") => {
             if active
                 .ability_data
                 .get("sandStreamUsed")
@@ -549,7 +763,7 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("frisk", "onSwitchIn") => {
+        ("frisk", "onSwitchIn" | "onStart") => {
             if active
                 .ability_data
                 .get("friskUsed")
@@ -588,7 +802,7 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("hospitality", "onSwitchIn") => {
+        ("hospitality", "onSwitchIn" | "onStart") => {
             if active.hp >= active.max_hp {
                 return AbilityHookResult::default();
             }
@@ -607,8 +821,15 @@ pub fn run_ability_hooks(
                 override_action: None,
             }
         }
-        ("slow_start", "onSwitchIn") => AbilityHookResult {
-            state: None,
+        ("slow_start", "onSwitchIn" | "onStart") => AbilityHookResult {
+            state: {
+                let mut next = state.clone();
+                crate::core::utils::get_active_creature_mut(&mut next, player_id)
+                    .unwrap()
+                    .ability_data
+                    .insert("slowStartUntil".into(), Value::from(state.turn.max(1) + 4));
+                Some(next)
+            },
             events: vec![
                 ability_activation_log(&active.name, ability),
                 slow_start_log(&active.name),
@@ -758,7 +979,9 @@ pub fn apply_ability_event_modifiers(
         let mut current_events = vec![event.clone()];
         if let Some(target_id) = event_target_id(event) {
             if let Some(target) = get_active_creature(state, &target_id) {
-                if let Some(ability) = target.ability.as_deref() {
+                if let Some(ability) = effective_ability(state, target)
+                    .filter(|_| !event_meta_flag(event, "ignoreDefenderAbility"))
+                {
                     if ability == "aroma_veil" {
                         if let Some(replacement) = try_aroma_veil(event, state) {
                             current_events = replacement;
@@ -794,7 +1017,9 @@ pub fn apply_ability_event_modifiers(
             }
             if let Some(target_id) = event_target_id(&processed) {
                 if let Some(target) = get_active_creature(state, &target_id) {
-                    if target.ability.as_deref() == Some("soundproof") {
+                    if effective_ability(state, target) == Some("soundproof")
+                        && !event_meta_flag(&processed, "ignoreDefenderAbility")
+                    {
                         let is_sound = event_meta_ref(&processed)
                             .and_then(|meta| meta_get_bool(meta, "sound"))
                             .unwrap_or(false);
@@ -819,7 +1044,7 @@ pub fn apply_ability_event_modifiers(
             output.push(processed.clone());
             for player in &state.players {
                 if let Some(active) = get_active_creature(state, &player.id) {
-                    if let Some(ability) = active.ability.as_deref() {
+                    if let Some(ability) = effective_ability(state, active) {
                         let reactions = match ability {
                             "stamina" => after_stamina(&processed, &player.id, &active.name),
                             "cotton_down" => {
@@ -832,6 +1057,14 @@ pub fn apply_ability_event_modifiers(
                             "opportunist" => {
                                 after_opportunist(&processed, &player.id, &active.name)
                             }
+                            "poison_touch" => after_poison_touch(
+                                state,
+                                &processed,
+                                &player.id,
+                                &active.name,
+                                move_db,
+                                rng,
+                            ),
                             "static" => {
                                 after_static(&processed, &player.id, &active.name, move_db, rng)
                             }
@@ -945,6 +1178,7 @@ fn copy_fainted_ability(
     ability_id: &str,
 ) -> AbilityHookResult {
     let ban = [
+        "neutralizing_gas",
         "receiver",
         "power_of_alchemy",
         "trace",
@@ -991,7 +1225,7 @@ fn copy_fainted_ability(
                     Value::String(creature.ability.clone().unwrap_or_default()),
                 );
             }
-            creature.ability = Some(last.to_string());
+            change_creature_ability(creature, Some(last.to_string()));
             creature
                 .ability_data
                 .insert("copiedAbility".to_string(), Value::String(last.to_string()));
@@ -1666,4 +1900,119 @@ fn set_event_meta(event: &mut BattleEvent, key: &str, value: Value) {
         _ => return,
     };
     meta.insert(key.to_string(), value);
+}
+
+fn after_poison_touch(
+    state: &BattleState,
+    event: &BattleEvent,
+    player_id: &str,
+    name: &str,
+    moves: &HashMap<String, MoveData>,
+    rng: &mut dyn FnMut() -> f64,
+) -> Vec<BattleEvent> {
+    let BattleEvent::Damage {
+        target_id, amount, ..
+    } = event
+    else {
+        return vec![];
+    };
+    if *amount <= 0
+        || target_id == player_id
+        || event_meta_source(event).as_deref() != Some(player_id)
+    {
+        return vec![];
+    }
+    let Some(target) = get_active_creature(state, target_id) else {
+        return vec![];
+    };
+    if target.hp <= 0 || target.statuses.iter().any(|s| s.id == "substitute") {
+        return vec![];
+    }
+    if blocks_secondary_effects(state, target) {
+        return vec![];
+    }
+    let contact = event_meta_move_id(event)
+        .and_then(|id| moves.get(&id))
+        .is_some_and(|m| m.tags.iter().any(|t| t == "contact"));
+    if !contact || rng() >= 0.3 {
+        return vec![];
+    }
+    vec![
+        ability_activation_log(name, "poison_touch"),
+        BattleEvent::ApplyStatus {
+            target_id: target_id.clone(),
+            status_id: "poison".into(),
+            duration: None,
+            stack: false,
+            data: HashMap::new(),
+            meta: Map::new(),
+        },
+    ]
+}
+
+/// Shared protection used by ability-generated additional effects.
+pub fn blocks_secondary_effects(state: &BattleState, target: &CreatureState) -> bool {
+    effective_ability(state, target) == Some("shield_dust")
+        || target.item.as_deref() == Some("covert_cloak")
+}
+
+/// End the old ability's private state while retaining the switch-back identity.
+pub fn change_creature_ability(creature: &mut CreatureState, ability: Option<String>) {
+    if creature.ability == ability {
+        return;
+    }
+    let original = creature
+        .ability_data
+        .get("originalAbility")
+        .cloned()
+        .unwrap_or_else(|| {
+            creature
+                .ability
+                .clone()
+                .map(Value::String)
+                .unwrap_or(Value::Null)
+        });
+    creature.ability_data.clear();
+    creature
+        .ability_data
+        .insert("originalAbility".into(), original);
+    creature
+        .ability_data
+        .insert("pendingAbilityStart".into(), Value::Bool(true));
+    creature.ability = ability;
+}
+
+/// All changes in a batch are installed before any new ability starts (Skill Swap/Gas).
+pub fn resolve_ability_changes(
+    mut state: BattleState,
+    rng: &mut dyn FnMut() -> f64,
+) -> BattleState {
+    let ids: Vec<_> = state
+        .players
+        .iter_mut()
+        .filter_map(|p| {
+            let c = p.team.get_mut(p.active_slot)?;
+            c.ability_data
+                .remove("pendingAbilityStart")
+                .map(|_| p.id.clone())
+        })
+        .collect();
+    state = refresh_gas(state, rng);
+    for id in ids {
+        let result = run_ability_hooks(
+            &state,
+            &id,
+            "onStart",
+            AbilityHookContext {
+                rng,
+                action: None,
+                move_data: None,
+            },
+        );
+        state = result.state.unwrap_or(state);
+        for event in result.events {
+            state = crate::core::events::apply_event(&state, &event);
+        }
+    }
+    state
 }

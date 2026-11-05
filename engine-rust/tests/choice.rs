@@ -18,6 +18,7 @@ fn effect(effect_type: &str, data: Value) -> Effect {
 
 fn make_creature(id: &str, name: &str, moves: Vec<String>) -> CreatureState {
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: "testmon".to_string(),
         name: name.to_string(),
@@ -50,6 +51,8 @@ fn make_state(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Battl
     BattleState {
         players: vec![
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p1".to_string(),
                 name: "P1".to_string(),
                 team: p1_team,
@@ -57,6 +60,8 @@ fn make_state(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Battl
                 last_fainted_ability: None,
             },
             PlayerState {
+                fainted_count: 0,
+                kamishinka_used: false,
                 id: "p2".to_string(),
                 name: "P2".to_string(),
                 team: p2_team,
@@ -121,6 +126,7 @@ fn pending_switch_blocks_non_switch_action() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("hit".to_string()),
@@ -129,6 +135,7 @@ fn pending_switch_blocks_non_switch_action() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -189,6 +196,7 @@ fn self_switch_requires_choice_and_clears_after_switch() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("pivot".to_string()),
@@ -197,6 +205,7 @@ fn self_switch_requires_choice_and_clears_after_switch() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -215,6 +224,7 @@ fn self_switch_requires_choice_and_clears_after_switch() {
 
     let follow_actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Switch,
             move_id: None,
@@ -223,6 +233,7 @@ fn self_switch_requires_choice_and_clears_after_switch() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),
@@ -282,6 +293,7 @@ fn manual_switch_effect_sets_pending_switch() {
     let engine = BattleEngine::new(move_db, TypeChart::new());
     let actions = vec![
         Action {
+            kamishinka_form: None,
             player_id: "p1".to_string(),
             action_type: ActionType::Move,
             move_id: Some("teleport".to_string()),
@@ -290,6 +302,7 @@ fn manual_switch_effect_sets_pending_switch() {
             priority: None,
         },
         Action {
+            kamishinka_form: None,
             player_id: "p2".to_string(),
             action_type: ActionType::Move,
             move_id: Some("wait".to_string()),

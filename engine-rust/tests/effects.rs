@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 fn make_creature(id: &str, name: &str) -> CreatureState {
     CreatureState {
+        kamishinka: None,
         id: id.to_string(),
         species_id: "testmon".to_string(),
         name: name.to_string(),
@@ -42,6 +43,8 @@ fn make_creature(id: &str, name: &str) -> CreatureState {
 
 fn make_state() -> BattleState {
     let p1 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p1".to_string(),
         name: "P1".to_string(),
         team: vec![make_creature("c1", "Alpha")],
@@ -49,6 +52,8 @@ fn make_state() -> BattleState {
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "P2".to_string(),
         team: vec![make_creature("c2", "Beta")],
@@ -79,6 +84,8 @@ fn make_revival_state() -> BattleState {
         data: HashMap::new(),
     });
     let p1 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p1".to_string(),
         name: "P1".to_string(),
         team: vec![active, fainted],
@@ -86,6 +93,8 @@ fn make_revival_state() -> BattleState {
         last_fainted_ability: Some("none".to_string()),
     };
     let p2 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "P2".to_string(),
         team: vec![make_creature("c3", "Gamma")],
@@ -523,6 +532,7 @@ fn lock_move_forces_specific_move() {
     state = apply_events(&state, &events);
 
     let action = Action {
+        kamishinka_form: None,
         player_id: "p2".to_string(),
         action_type: ActionType::Move,
         move_id: Some("growl".to_string()),
@@ -582,6 +592,8 @@ fn self_switch_marks_pending_switch() {
 fn force_switch_randomly_switches_target() {
     // Create state with target having 2 Pokémon
     let p1 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p1".to_string(),
         name: "P1".to_string(),
         team: vec![make_creature("c1", "Alpha")],
@@ -589,6 +601,8 @@ fn force_switch_randomly_switches_target() {
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
+        fainted_count: 0,
+        kamishinka_used: false,
         id: "p2".to_string(),
         name: "P2".to_string(),
         team: vec![make_creature("c2", "Beta"), make_creature("c3", "Gamma")],

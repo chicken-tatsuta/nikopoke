@@ -81,6 +81,7 @@ fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabas
             move_id: None,
             target_id: None,
             slot: Some(idx),
+            kamishinka_form: None,
             priority: None,
         })
         .collect();
@@ -107,9 +108,12 @@ fn available_actions(state: &BattleState, player_id: &str, move_db: &MoveDatabas
             move_id: Some(move_id.clone()),
             target_id: target_id.clone(),
             slot: None,
+            kamishinka_form: None,
             priority: None,
         });
     }
+    crate::core::kamishinka::append_move_variants(player, &mut actions);
+
     if actions.is_empty() {
         switch_actions
     } else {

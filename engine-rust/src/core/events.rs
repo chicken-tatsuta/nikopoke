@@ -1,3 +1,4 @@
+use crate::core::abilities::effective_ability;
 use crate::core::abilities::{
     ability_label, get_terrain_id, get_weather, is_terrain_id, is_weather_id,
     modify_stages_with_ability, run_ability_check_hook, AbilityCheckContext, WeatherKind,
@@ -323,6 +324,9 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             active.statuses.iter().any(|s| s.id == "destiny_bond");
                         next.log.push(format!("{}は たおれた！", active.name));
                         player.last_fainted_ability = active.ability.clone();
+                        if effective_amount > 0 {
+                            player.fainted_count += 1;
+                        }
                         let effects = next.field.sides.entry(target_id.clone()).or_default();
                         effects.retain(|effect| effect.id != "ally_fainted");
                         let mut data = HashMap::new();
@@ -448,10 +452,20 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         }
                         active.statuses.retain(|status| status.id != "yawn");
                     }
+                    let mut status_data = data.clone();
+                    if status_id == "sleep" && !status_data.contains_key("turns") {
+                        if let Some(turns) = duration {
+                            status_data.insert("turns".into(), Value::from(*turns));
+                        }
+                    }
                     active.statuses.push(Status {
                         id: status_id.clone(),
-                        remaining_turns: *duration,
-                        data: data.clone(),
+                        remaining_turns: if status_id == "sleep" {
+                            None
+                        } else {
+                            *duration
+                        },
+                        data: status_data,
                     });
                     if status_id == "item" || status_id == "berry" {
                         update_unburden_after_item_change(active, false);
@@ -674,12 +688,8 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                                 status.data.remove("counter");
                             }
                         }
-                        if let Some(original) = outgoing
-                            .ability_data
-                            .get("originalAbility")
-                            .and_then(|v| v.as_str())
-                        {
-                            outgoing.ability = Some(original.to_string());
+                        if let Some(original) = outgoing.ability_data.get("originalAbility") {
+                            outgoing.ability = original.as_str().map(str::to_string);
                         }
                         outgoing.ability_data.clear();
                         outgoing
@@ -789,7 +799,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             );
                         }
                     }
-                    active.ability = ability_id.clone();
+                    crate::core::abilities::change_creature_ability(active, ability_id.clone());
                     let message = match ability_id {
                         Some(ability_id) => {
                             format!(
@@ -801,10 +811,6 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         None => format!("{}の 特性が 消えた！", active.name),
                     };
                     next.log.push(message);
-                    if ability_id.as_deref() == Some("slow_start") {
-                        next.log
-                            .push(format!("{}は 調子が 上がらない！", active.name));
-                    }
                 }
             }
         }
@@ -832,16 +838,14 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                         }
                     }
                 }
-                next.players[left_idx].team[left_slot].ability = right_current.clone();
-                next.players[right_idx].team[right_slot].ability = left_current.clone();
-                if right_current.as_deref() == Some("slow_start") {
-                    let name = next.players[left_idx].team[left_slot].name.clone();
-                    next.log.push(format!("{}は 調子が 上がらない！", name));
-                }
-                if left_current.as_deref() == Some("slow_start") {
-                    let name = next.players[right_idx].team[right_slot].name.clone();
-                    next.log.push(format!("{}は 調子が 上がらない！", name));
-                }
+                crate::core::abilities::change_creature_ability(
+                    &mut next.players[left_idx].team[left_slot],
+                    right_current,
+                );
+                crate::core::abilities::change_creature_ability(
+                    &mut next.players[right_idx].team[right_slot],
+                    left_current,
+                );
             }
         }
         BattleEvent::SetItem {
@@ -1060,7 +1064,7 @@ fn status_blocked_by_type_or_field(
     status_id: &str,
 ) -> bool {
     let grounded = !active.types.iter().any(|t| t == "flying")
-        && active.ability.as_deref() != Some("levitate")
+        && effective_ability(state, active) != Some("levitate")
         && !active.statuses.iter().any(|s| s.id == "magnet_rise");
     if grounded && status_id == "sleep" && get_terrain_id(state) == Some("electric_terrain") {
         return true;
@@ -1290,6 +1294,7 @@ mod tests {
             moves: Vec::new(),
             ability: None,
             item: None,
+            kamishinka: None,
             consumed_item: None,
             evs: EVStats::default(),
             hp: 100,
@@ -1315,6 +1320,8 @@ mod tests {
                 name: "player".to_string(),
                 team: vec![test_creature("outgoing"), test_creature("incoming")],
                 active_slot: 0,
+                fainted_count: 0,
+                kamishinka_used: false,
                 last_fainted_ability: None,
             }],
             field: FieldState {

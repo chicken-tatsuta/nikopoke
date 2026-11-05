@@ -1,0 +1,151 @@
+[
+  {
+    "baseSpeciesId": "makocchan",
+    "id": "kami_makocchan",
+    "name": "メガマコッチャン",
+    "baseStats": {
+      "hp": 107,
+      "atk": 55,
+      "def": 70,
+      "spa": 175,
+      "spd": 155,
+      "spe": 58
+    },
+    "types": [
+      "poison"
+    ],
+    "ability": "neutralizing_gas",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "nisiki",
+    "id": "kami_nisiki",
+    "name": "メガニシキ",
+    "baseStats": {
+      "hp": 90,
+      "atk": 105,
+      "def": 65,
+      "spa": 60,
+      "spd": 55,
+      "spe": 140
+    },
+    "types": [
+      "psychic"
+    ],
+    "ability": "tinted_lens",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "ikkun",
+    "id": "kami_ikkun_x",
+    "name": "メガイックンX",
+    "baseStats": {
+      "hp": 100,
+      "atk": 120,
+      "def": 122,
+      "spa": 75,
+      "spd": 163,
+      "spe": 35
+    },
+    "types": [
+      "rock",
+      "poison"
+    ],
+    "ability": "truant",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "ikkun",
+    "id": "kami_ikkun_y",
+    "name": "メガイックンY",
+    "baseStats": {
+      "hp": 120,
+      "atk": 80,
+      "def": 52,
+      "spa": 135,
+      "spd": 153,
+      "spe": 75
+    },
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "ability": "thick_fat",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "morimitu",
+    "id": "kami_morimitu",
+    "name": "メガモリミツ",
+    "baseStats": {
+      "hp": 145,
+      "atk": 120,
+      "def": 90,
+      "spa": 90,
+      "spd": 95,
+      "spe": 80
+    },
+    "types": [
+      "flying"
+    ],
+    "ability": "poison_touch",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "ayuma",
+    "id": "kami_ayuma",
+    "name": "メガアユマ",
+    "baseStats": {
+      "hp": 100,
+      "atk": 140,
+      "def": 55,
+      "spa": 125,
+      "spd": 55,
+      "spe": 145
+    },
+    "types": [
+      "steel",
+      "dark"
+    ],
+    "ability": "supreme_overlord",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "morimori",
+    "id": "kami_morimori",
+    "name": "メガモリモリ",
+    "baseStats": {
+      "hp": 110,
+      "atk": 95,
+      "def": 133,
+      "spa": 150,
+      "spd": 60,
+      "spe": 72
+    },
+    "types": [
+      "normal",
+      "ground"
+    ],
+    "ability": "flare_boost",
+    "image": null
+  },
+  {
+    "baseSpeciesId": "haruta",
+    "id": "kami_haruta",
+    "name": "メガハルタ",
+    "baseStats": {
+      "hp": 108,
+      "atk": 70,
+      "def": 78,
+      "spa": 107,
+      "spd": 110,
+      "spe": 147
+    },
+    "types": [
+      "fire",
+      "fairy"
+    ],
+    "ability": "solar_power",
+    "image": null
+  }
+]

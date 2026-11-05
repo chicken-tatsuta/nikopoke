@@ -137,7 +137,7 @@ export default function DeckBuilderPage() {
         const presetAbility = preset?.abilityId && mon.abilities.includes(preset.abilityId)
             ? preset.abilityId
             : (mon.abilities[0] || 'none');
-        const presetItem = preset?.itemId && items[preset.itemId] && !selectedPokemon.some((pokemon) => pokemon.item === preset.itemId)
+        const presetItem = preset?.itemId && items[preset.itemId] && (preset.itemId === 'kamidama' || !selectedPokemon.some((pokemon) => pokemon.item === preset.itemId))
             ? preset.itemId
             : null;
     
@@ -266,7 +266,7 @@ export default function DeckBuilderPage() {
 
     const handleSaveItem = () => {
         if (editingItemIndex === null) return;
-        if (editingItemId && selectedPokemon.some((pokemon, index) => index !== editingItemIndex && pokemon.item === editingItemId)) {
+        if (editingItemId && editingItemId !== 'kamidama' && selectedPokemon.some((pokemon, index) => index !== editingItemIndex && pokemon.item === editingItemId)) {
             window.alert('同じ持ち物はチーム内で重複できません。');
             return;
         }
@@ -294,6 +294,7 @@ export default function DeckBuilderPage() {
         localStorage.setItem('savedDeck', JSON.stringify(sanitizedDeck));
         sessionStorage.setItem('playerDeck', JSON.stringify(sanitizedDeck));
         sessionStorage.setItem('battleMode', mode);
+        sessionStorage.removeItem('rpgBattleKind');
         sessionStorage.removeItem('selectedPlayerDeck');
         sessionStorage.removeItem('selectedOpponentDeck');
         navigate(mode === 'player' ? '/online-lobby' : '/team-preview');
@@ -314,7 +315,7 @@ export default function DeckBuilderPage() {
         }
         return new Set(
             selectedPokemon
-                .filter((pokemon, index) => index !== editingItemIndex && Boolean(pokemon.item))
+                .filter((pokemon, index) => index !== editingItemIndex && Boolean(pokemon.item) && pokemon.item !== 'kamidama')
                 .map((pokemon) => pokemon.item as string),
         );
     }, [editingItemIndex, selectedPokemon]);
@@ -615,7 +616,7 @@ function sanitizeDeck(
 function enforceUniqueItems(deck: DeckPokemon[]): DeckPokemon[] {
     const usedItemIds = new Set<string>();
     return deck.map((pokemon) => {
-        if (!pokemon.item) {
+        if (!pokemon.item || pokemon.item === 'kamidama') {
             return pokemon;
         }
         if (usedItemIds.has(pokemon.item)) {

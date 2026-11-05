@@ -316,6 +316,8 @@ fn run_game(
             name: "MLP A".to_string(),
             team: team_a,
             active_slot: 0,
+            fainted_count: 0,
+            kamishinka_used: false,
             last_fainted_ability: None,
         },
         PlayerState {
@@ -323,6 +325,8 @@ fn run_game(
             name: "MLP B".to_string(),
             team: team_b,
             active_slot: 0,
+            fainted_count: 0,
+            kamishinka_used: false,
             last_fainted_ability: None,
         },
     ]);
@@ -1088,6 +1092,7 @@ fn action_from_slot(state: &BattleState, player_id: &str, slot: usize) -> Option
                 move_id: Some(move_id),
                 target_id: opponent_id,
                 slot: None,
+                kamishinka_form: None,
                 priority: None,
             })
         }
@@ -1099,6 +1104,7 @@ fn action_from_slot(state: &BattleState, player_id: &str, slot: usize) -> Option
                 move_id: None,
                 target_id: None,
                 slot: bench.get(slot - 4).copied(),
+                kamishinka_form: None,
                 priority: None,
             })
         }
@@ -1125,6 +1131,7 @@ fn first_switch(state: &BattleState, player_id: &str) -> Option<Action> {
         move_id: None,
         target_id: None,
         slot: Some(slot),
+        kamishinka_form: None,
         priority: None,
     })
 }

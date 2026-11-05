@@ -1,3 +1,6 @@
+import { resetOnlineKamishinka } from '../lib/p2p';
+import { availableKamishinkaForms, getBattleSpecies, getBattlePortrait, applyVisualForm, resetKamishinkaState } from '../lib/kamishinka';
+import { KamishinkaAnimation, type KamishinkaAnimationState } from '../components/KamishinkaAnimation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -1228,11 +1231,15 @@ export default function BattlePage() {
     const [aiLevel] = useState<'lv1' | 'lv2'>(() =>
         sessionStorage.getItem('aiLevel') === 'lv2' ? 'lv2' : 'lv1',
     );
+    const [rpgBattleKind] = useState<string | null>(() => sessionStorage.getItem('rpgBattleKind'));
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
     const [items, setItems] = useState<ItemData>({});
     const [battleState, setBattleState] = useState<BattleStateWire | null>(null);
     const [loading, setLoading] = useState(true);
+    const [kamishinkaReservation, setKamishinkaReservation] = useState<string | null>(null);
+    const [kamishinkaAnimation, setKamishinkaAnimation] = useState<KamishinkaAnimationState | null>(null);
+    const submittingActionRef = useRef(false);
     const [waiting, setWaiting] = useState(false);    
     const [commandMode, setCommandMode] = useState<'fight' | 'pokemon'>('fight');
     const [focusedTeamSlot, setFocusedTeamSlot] = useState(0);
@@ -1421,6 +1428,7 @@ export default function BattlePage() {
         actions: ActionWire[],
     ) => {
         playbackRef.current = true;
+        setKamishinkaReservation(null);
         setWaiting(true);
         setStatusText('');
         setPlayback({
@@ -1429,289 +1437,323 @@ export default function BattlePage() {
             faintedCreatureIds: [],
         });
 
-        const stagedState = cloneBattleState(startState);
-        stagedState.log = [...startState.log];
-        setBattleState(stagedState);
+        let playbackCompleted = false;
+        try {
+            const stagedState = cloneBattleState(startState);
+            stagedState.log = [...startState.log];
+            setBattleState(stagedState);
 
-        const newLogs = finalState.log.slice(startState.log.length);
-        const actionQueue = orderActionsByBattleLogs(
-            actions.length > 0 ? actions : [{ type: 'move', playerId: opponentPlayerIdRef.current } as ActionWire],
-            startState,
-            newLogs,
-            moves,
-        );
-        const actionLogStarts = actionQueue.map((action) => getActionLogStartIndex(action, startState, newLogs, moves));
-        let consumedLogs = 0;
-        const animatedFaintIds = new Set<string>();
-
-        await wait(PLAYBACK_STEP_MS);
-
-        for (let actionIndex = 0; actionIndex < actionQueue.length; actionIndex += 1) {
-            const action = actionQueue[actionIndex];
-            const targetId = action.targetId ?? (
-                action.playerId === localPlayerIdRef.current
-                    ? opponentPlayerIdRef.current
-                    : localPlayerIdRef.current
+            const newLogs = finalState.log.slice(startState.log.length);
+            const actionQueue = orderActionsByBattleLogs(
+                actions.length > 0 ? actions : [{ type: 'move', playerId: opponentPlayerIdRef.current } as ActionWire],
+                startState,
+                newLogs,
+                moves,
             );
-            const hasLaterTargetAction = actionQueue
-                .slice(actionIndex + 1)
-                .some((queuedAction) => queuedAction.playerId === targetId);
-            const moveType = getMoveType(action.moveId, moves);
-            const move = action.moveId ? moves[action.moveId] : undefined;
-            const isForceSwitchMove = moveHasEffect(move, 'force_switch');
-            const isDamagingForceSwitchMove = isForceSwitchMove && moveHasEffect(move, 'damage');
-            const isSelfSwitchMove = moveHasEffect(move, 'self_switch');
-            const isSelfOnlyMove = moveTargetsOnlySelf(move);
-            const willSelfSwitch = isSelfSwitchMove && activeSlotChanged(stagedState, finalState, action.playerId);
-            const isForcedReplacement = isForcedReplacementAction(action, stagedState);
-
-            setPlayback({
-                isPlaying: true,
-                label: getActionLabel(action, stagedState, moves, localPlayerIdRef.current),
-                attackingPlayerId: action.type === 'switch' ? undefined : action.playerId,
-                effectType: moveType,
-                faintedCreatureIds: [],
-            });
-
-            const nextActionLogStart = actionLogStarts
-                .slice(actionIndex + 1)
-                .find((index) => Number.isFinite(index));
-            const nextLogCount = Math.min(newLogs.length, nextActionLogStart ?? newLogs.length);
-            const actionLogStart = consumedLogs;
-            const actionLogs = newLogs.slice(consumedLogs, nextLogCount);
-            const statusFlash = getStatusFlashFromLogs(actionLogs, stagedState, action.playerId);
-            const hasNoEffectStatusLog = actionLogs.some(isStatusNoEffectLog);
-            let displayedLogCount = consumedLogs;
-            const switchLogIndex = action.type === 'switch'
-                ? actionLogs.findIndex((log) => log.includes('を 繰り出した！'))
-                : -1;
-            const switchLogCount = switchLogIndex >= 0
-                ? Math.min(nextLogCount, actionLogStart + switchLogIndex + 1)
-                : nextLogCount;
-            const initialLogCount = action.type === 'switch'
-                ? switchLogCount
-                : isForceSwitchMove
-                ? Math.min(nextLogCount, consumedLogs + 1)
-                : nextLogCount;
-            if (initialLogCount > consumedLogs) {
-                stagedState.log = [...startState.log, ...newLogs.slice(0, initialLogCount)];
-                displayedLogCount = initialLogCount;
-                setBattleState(cloneBattleState(stagedState));
-            }
-            await showPopupsFromLogs(newLogs.slice(consumedLogs, displayedLogCount), stagedState);
+            const actionLogStarts = actionQueue.map((action) => getActionLogStartIndex(action, startState, newLogs, moves));
+            let consumedLogs = 0;
+            const animatedFaintIds = new Set<string>();
 
             await wait(PLAYBACK_STEP_MS);
 
-            if (action.type === 'switch') {
-                const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(
-                    stagedState,
-                    finalState,
-                    action.playerId,
-                    actionLogs,
-                );
-                setBattleState(cloneBattleState(stagedState));
-                await wait(isForcedReplacement ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
-
-                let delayedSwitchHealPopupLogs: string[] = [];
-                if (nextLogCount > displayedLogCount) {
-                    const remainingLogs = newLogs.slice(displayedLogCount, nextLogCount);
-                    const shouldDelayHealPopups = switchInHpDelta !== null
-                        && switchInHpDelta > 0
-                        && remainingLogs.some((log) => parseAbilityPopup(
-                            log,
-                            stagedState,
-                            localPlayerIdRef.current,
-                            opponentPlayerIdRef.current,
-                        ));
-                    stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
-                    setBattleState(cloneBattleState(stagedState));
-                    if (shouldDelayHealPopups) {
-                        delayedSwitchHealPopupLogs = remainingLogs;
-                    } else {
-                        await showPopupsFromLogs(remainingLogs, stagedState);
+            let evolutionPlayed = false;
+            for (let actionIndex = 0; actionIndex < actionQueue.length; actionIndex += 1) {
+                const action = actionQueue[actionIndex];
+                if (!evolutionPlayed && action.type !== 'switch') {
+                    evolutionPlayed = true;
+                    for (const p of stagedState.players) {
+                        for (const c of p.team) {
+                            const evolved = finalState.players.find((fp) => fp.id === p.id)?.team.find((fc) => fc.id === c.id);
+                            if (!evolved?.kamishinka || c.kamishinka) continue;
+                            const formId = evolved.kamishinka.formId;
+                            setKamishinkaAnimation({ creature: { ...c }, formId, phase: 'orb' });
+                            await wait(650);
+                            setKamishinkaAnimation({ creature: { ...c }, formId, phase: 'light' });
+                            await wait(650);
+                            applyVisualForm(c, formId);
+                            p.kamishinkaUsed = true;
+                            setBattleState(cloneBattleState(stagedState));
+                            setKamishinkaAnimation({ creature: { ...c }, formId, phase: 'reveal' });
+                            await wait(1000);
+                            setKamishinkaAnimation(null);
+                        }
                     }
-                    displayedLogCount = nextLogCount;
+                }
+                const targetId = action.targetId ?? (
+                    action.playerId === localPlayerIdRef.current
+                        ? opponentPlayerIdRef.current
+                        : localPlayerIdRef.current
+                );
+                const hasLaterTargetAction = actionQueue
+                    .slice(actionIndex + 1)
+                    .some((queuedAction) => queuedAction.playerId === targetId);
+                const moveType = getMoveType(action.moveId, moves);
+                const move = action.moveId ? moves[action.moveId] : undefined;
+                const isForceSwitchMove = moveHasEffect(move, 'force_switch');
+                const isDamagingForceSwitchMove = isForceSwitchMove && moveHasEffect(move, 'damage');
+                const isSelfSwitchMove = moveHasEffect(move, 'self_switch');
+                const isSelfOnlyMove = moveTargetsOnlySelf(move);
+                const willSelfSwitch = isSelfSwitchMove && activeSlotChanged(stagedState, finalState, action.playerId);
+                const isForcedReplacement = isForcedReplacementAction(action, stagedState);
+
+                setPlayback({
+                    isPlaying: true,
+                    label: getActionLabel(action, stagedState, moves, localPlayerIdRef.current),
+                    attackingPlayerId: action.type === 'switch' ? undefined : action.playerId,
+                    effectType: moveType,
+                    faintedCreatureIds: [],
+                });
+
+                const nextActionLogStart = actionLogStarts
+                    .slice(actionIndex + 1)
+                    .find((index) => Number.isFinite(index));
+                const evolutionLogStart = action.type === 'switch' && !evolutionPlayed
+                    ? newLogs.findIndex((log, index) => index >= consumedLogs && log.includes('は カミシンカした！'))
+                    : -1;
+                const nextLogCount = Math.min(newLogs.length, nextActionLogStart ?? newLogs.length,
+                    evolutionLogStart >= 0 ? evolutionLogStart : newLogs.length);
+                const actionLogStart = consumedLogs;
+                const actionLogs = newLogs.slice(consumedLogs, nextLogCount);
+                const statusFlash = getStatusFlashFromLogs(actionLogs, stagedState, action.playerId);
+                const hasNoEffectStatusLog = actionLogs.some(isStatusNoEffectLog);
+                let displayedLogCount = consumedLogs;
+                const switchLogIndex = action.type === 'switch'
+                    ? actionLogs.findIndex((log) => log.includes('を 繰り出した！'))
+                    : -1;
+                const switchLogCount = switchLogIndex >= 0
+                    ? Math.min(nextLogCount, actionLogStart + switchLogIndex + 1)
+                    : nextLogCount;
+                const initialLogCount = action.type === 'switch'
+                    ? switchLogCount
+                    : isForceSwitchMove
+                    ? Math.min(nextLogCount, consumedLogs + 1)
+                    : nextLogCount;
+                if (initialLogCount > consumedLogs) {
+                    stagedState.log = [...startState.log, ...newLogs.slice(0, initialLogCount)];
+                    displayedLogCount = initialLogCount;
+                    setBattleState(cloneBattleState(stagedState));
+                }
+                await showPopupsFromLogs(newLogs.slice(consumedLogs, displayedLogCount), stagedState);
+
+                await wait(PLAYBACK_STEP_MS);
+
+                if (action.type === 'switch') {
+                    const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(
+                        stagedState,
+                        finalState,
+                        action.playerId,
+                        actionLogs,
+                    );
+                    setBattleState(cloneBattleState(stagedState));
+                    await wait(isForcedReplacement ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
+
+                    let delayedSwitchHealPopupLogs: string[] = [];
+                    if (nextLogCount > displayedLogCount) {
+                        const remainingLogs = newLogs.slice(displayedLogCount, nextLogCount);
+                        const shouldDelayHealPopups = switchInHpDelta !== null
+                            && switchInHpDelta > 0
+                            && remainingLogs.some((log) => parseAbilityPopup(
+                                log,
+                                stagedState,
+                                localPlayerIdRef.current,
+                                opponentPlayerIdRef.current,
+                            ));
+                        stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
+                        setBattleState(cloneBattleState(stagedState));
+                        if (shouldDelayHealPopups) {
+                            delayedSwitchHealPopupLogs = remainingLogs;
+                        } else {
+                            await showPopupsFromLogs(remainingLogs, stagedState);
+                        }
+                        displayedLogCount = nextLogCount;
+                    }
+
+                    if (statusFlash) {
+                        setPlayback({
+                            isPlaying: true,
+                            label: '状態変化を反映中',
+                            statusFlashPlayerId: statusFlash.playerId,
+                            statusFlashType: statusFlash.statusType,
+                            faintedCreatureIds: [],
+                        });
+                        await wait(PLAYBACK_STEP_MS);
+                    }
+
+                    if (switchInHpDelta !== null) {
+                        setPlayback({
+                            isPlaying: true,
+                            label: switchInHpDelta < 0 ? '場の効果を反映中' : '回復を反映中',
+                            damagedPlayerId: switchInHpDelta < 0 ? action.playerId : undefined,
+                            effectType: switchInHpDelta < 0 ? 'rock' : undefined,
+                            faintedCreatureIds: [],
+                        });
+                        copyFinalActiveCreature(stagedState, finalState, action.playerId);
+                        setBattleState(cloneBattleState(stagedState));
+                        if (delayedSwitchHealPopupLogs.length > 0) {
+                            await showPopupsFromLogs(delayedSwitchHealPopupLogs, stagedState);
+                        } else {
+                            await wait(PLAYBACK_HIT_MS);
+                        }
+
+                        const faintedIds = finalFaintedCreatureIds(stagedState);
+                        const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
+                        if (switchInHpDelta < 0 && newlyFaintedIds.length > 0) {
+                            newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
+                            setPlayback((current) => ({
+                                ...current,
+                                label: 'ひんし処理中',
+                                faintedCreatureIds: newlyFaintedIds,
+                            }));
+                            await wait(PLAYBACK_FAINT_MS);
+                        }
+                    }
+
+                    consumedLogs = nextLogCount;
+                    continue;
                 }
 
-                if (statusFlash) {
+                const visualImpactPlayerId = getVisualImpactPlayerId(action, stagedState, targetId, actionLogs, moves);
+                setPlayback({
+                    isPlaying: true,
+                    label: visualImpactPlayerId === action.playerId
+                        ? '効果を反映中'
+                        : action.playerId === localPlayerIdRef.current
+                            ? '技のエフェクト'
+                            : '相手の行動中',
+                    attackingPlayerId: action.playerId,
+                    damagedPlayerId: visualImpactPlayerId,
+                    effectType: moveType,
+                    showMoveEffect: move?.category === 'physical' || move?.category === 'special',
+                    statusFlashPlayerId: statusFlash?.playerId,
+                    statusFlashType: statusFlash?.statusType,
+                    faintedCreatureIds: [],
+                });
+
+                await wait(PLAYBACK_HIT_MS);
+
+                if (isDamagingForceSwitchMove) {
+                    copyCurrentSlotAfterAction(stagedState, finalState, targetId, actionLogs);
+                } else if (isSelfOnlyMove) {
+                    copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs, true);
+                } else if (!isForceSwitchMove) {
+                    copyTargetAfterAction(stagedState, finalState, targetId, actionLogs, hasLaterTargetAction);
+                } else {
+                    copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
+                }
+                if ((!isForceSwitchMove || isDamagingForceSwitchMove) && !willSelfSwitch && !isSelfOnlyMove) {
+                    copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
+                }
+                setBattleState(cloneBattleState(stagedState));
+
+                const faintedIds = finalFaintedCreatureIds(stagedState);
+                const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
+                newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
+                setPlayback((current) => ({
+                    ...current,
+                    label: newlyFaintedIds.length > 0
+                        ? 'ひんし処理中'
+                        : hasNoEffectStatusLog
+                            ? '効果を確認中'
+                            : statusFlash
+                                ? '状態異常を反映中'
+                                : 'ダメージ・状態を反映中',
+                    faintedCreatureIds: newlyFaintedIds,
+                }));
+
+                await wait(newlyFaintedIds.length > 0 ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
+
+                if (isForceSwitchMove && activeSlotChanged(stagedState, finalState, targetId)) {
+                    const forcedSwitchLogIndex = actionLogs.findIndex((log) => log.includes('を 繰り出した！'));
+                    const forcedSwitchLogCount = forcedSwitchLogIndex >= 0
+                        ? Math.min(nextLogCount, actionLogStart + forcedSwitchLogIndex + 1)
+                        : nextLogCount;
                     setPlayback({
                         isPlaying: true,
-                        label: '状態変化を反映中',
-                        statusFlashPlayerId: statusFlash.playerId,
-                        statusFlashType: statusFlash.statusType,
+                        label: targetId === localPlayerIdRef.current ? 'あなたが引きずり出されています' : '相手を引きずり出しています',
                         faintedCreatureIds: [],
                     });
                     await wait(PLAYBACK_STEP_MS);
+                    if (forcedSwitchLogCount > displayedLogCount) {
+                        stagedState.log = [...startState.log, ...newLogs.slice(0, forcedSwitchLogCount)];
+                        setBattleState(cloneBattleState(stagedState));
+                        await showPopupsFromLogs(newLogs.slice(displayedLogCount, forcedSwitchLogCount), stagedState);
+                        displayedLogCount = forcedSwitchLogCount;
+                    }
+                    const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(stagedState, finalState, targetId, actionLogs);
+                    setBattleState(cloneBattleState(stagedState));
+                    await wait(PLAYBACK_STEP_MS);
+
+                    if (switchInHpDelta !== null && switchInHpDelta < 0) {
+                        if (nextLogCount > displayedLogCount) {
+                            stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
+                            setBattleState(cloneBattleState(stagedState));
+                            await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
+                            displayedLogCount = nextLogCount;
+                        }
+                        setPlayback({
+                            isPlaying: true,
+                            label: '場の効果を反映中',
+                            damagedPlayerId: targetId,
+                            effectType: 'rock',
+                            faintedCreatureIds: [],
+                        });
+                        copyFinalActiveCreature(stagedState, finalState, targetId);
+                        setBattleState(cloneBattleState(stagedState));
+                        await wait(PLAYBACK_HIT_MS);
+                    }
                 }
 
-                if (switchInHpDelta !== null) {
+                if (activeSlotChanged(stagedState, finalState, action.playerId)) {
                     setPlayback({
                         isPlaying: true,
-                        label: switchInHpDelta < 0 ? '場の効果を反映中' : '回復を反映中',
-                        damagedPlayerId: switchInHpDelta < 0 ? action.playerId : undefined,
-                        effectType: switchInHpDelta < 0 ? 'rock' : undefined,
+                        label: action.playerId === localPlayerIdRef.current ? 'あなたが交代しています' : '相手が交代しています',
                         faintedCreatureIds: [],
                     });
                     copyFinalActiveCreature(stagedState, finalState, action.playerId);
                     setBattleState(cloneBattleState(stagedState));
-                    if (delayedSwitchHealPopupLogs.length > 0) {
-                        await showPopupsFromLogs(delayedSwitchHealPopupLogs, stagedState);
-                    } else {
-                        await wait(PLAYBACK_HIT_MS);
-                    }
-
-                    const faintedIds = finalFaintedCreatureIds(stagedState);
-                    const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
-                    if (switchInHpDelta < 0 && newlyFaintedIds.length > 0) {
-                        newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
-                        setPlayback((current) => ({
-                            ...current,
-                            label: 'ひんし処理中',
-                            faintedCreatureIds: newlyFaintedIds,
-                        }));
-                        await wait(PLAYBACK_FAINT_MS);
-                    }
+                    await wait(PLAYBACK_STEP_MS);
                 }
 
+                if (nextLogCount > displayedLogCount) {
+                    stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
+                    setBattleState(cloneBattleState(stagedState));
+                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
+                }
                 consumedLogs = nextLogCount;
-                continue;
             }
 
-            const visualImpactPlayerId = getVisualImpactPlayerId(action, stagedState, targetId, actionLogs, moves);
+            if (consumedLogs < newLogs.length) {
+                const remainingLogs = newLogs.slice(consumedLogs);
+                const statusFlash = getStatusFlashFromLogs(remainingLogs, finalState);
+                setPlayback((current) => ({
+                    ...current,
+                    label: '状態変化を反映中',
+                    statusFlashPlayerId: statusFlash?.playerId,
+                    statusFlashType: statusFlash?.statusType,
+                }));
+                stagedState.log = finalState.log;
+                setBattleState(cloneBattleState(stagedState));
+                await showPopupsFromLogs(remainingLogs, stagedState);
+                await wait(PLAYBACK_STEP_MS);
+            }
+
             setPlayback({
                 isPlaying: true,
-                label: visualImpactPlayerId === action.playerId
-                    ? '効果を反映中'
-                    : action.playerId === localPlayerIdRef.current
-                        ? '技のエフェクト'
-                        : '相手の行動中',
-                attackingPlayerId: action.playerId,
-                damagedPlayerId: visualImpactPlayerId,
-                effectType: moveType,
-                showMoveEffect: move?.category === 'physical' || move?.category === 'special',
-                statusFlashPlayerId: statusFlash?.playerId,
-                statusFlashType: statusFlash?.statusType,
+                label: 'ターン処理完了',
                 faintedCreatureIds: [],
             });
-
-            await wait(PLAYBACK_HIT_MS);
-
-            if (isDamagingForceSwitchMove) {
-                copyCurrentSlotAfterAction(stagedState, finalState, targetId, actionLogs);
-            } else if (isSelfOnlyMove) {
-                copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs, true);
-            } else if (!isForceSwitchMove) {
-                copyTargetAfterAction(stagedState, finalState, targetId, actionLogs, hasLaterTargetAction);
-            } else {
-                copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
-            }
-            if ((!isForceSwitchMove || isDamagingForceSwitchMove) && !willSelfSwitch && !isSelfOnlyMove) {
-                copyActorAfterOwnAction(stagedState, finalState, action.playerId, actionLogs);
-            }
-            setBattleState(cloneBattleState(stagedState));
-
-            const faintedIds = finalFaintedCreatureIds(stagedState);
-            const newlyFaintedIds = faintedIds.filter((id) => !animatedFaintIds.has(id));
-            newlyFaintedIds.forEach((id) => animatedFaintIds.add(id));
-            setPlayback((current) => ({
-                ...current,
-                label: newlyFaintedIds.length > 0
-                    ? 'ひんし処理中'
-                    : hasNoEffectStatusLog
-                        ? '効果を確認中'
-                        : statusFlash
-                            ? '状態異常を反映中'
-                            : 'ダメージ・状態を反映中',
-                faintedCreatureIds: newlyFaintedIds,
-            }));
-
-            await wait(newlyFaintedIds.length > 0 ? PLAYBACK_FAINT_MS : PLAYBACK_STEP_MS);
-
-            if (isForceSwitchMove && activeSlotChanged(stagedState, finalState, targetId)) {
-                const forcedSwitchLogIndex = actionLogs.findIndex((log) => log.includes('を 繰り出した！'));
-                const forcedSwitchLogCount = forcedSwitchLogIndex >= 0
-                    ? Math.min(nextLogCount, actionLogStart + forcedSwitchLogIndex + 1)
-                    : nextLogCount;
-                setPlayback({
-                    isPlaying: true,
-                    label: targetId === localPlayerIdRef.current ? 'あなたが引きずり出されています' : '相手を引きずり出しています',
-                    faintedCreatureIds: [],
-                });
-                await wait(PLAYBACK_STEP_MS);
-                if (forcedSwitchLogCount > displayedLogCount) {
-                    stagedState.log = [...startState.log, ...newLogs.slice(0, forcedSwitchLogCount)];
-                    setBattleState(cloneBattleState(stagedState));
-                    await showPopupsFromLogs(newLogs.slice(displayedLogCount, forcedSwitchLogCount), stagedState);
-                    displayedLogCount = forcedSwitchLogCount;
-                }
-                const switchInHpDelta = copyFinalActiveCreatureBeforeLoggedHpDelta(stagedState, finalState, targetId, actionLogs);
-                setBattleState(cloneBattleState(stagedState));
-                await wait(PLAYBACK_STEP_MS);
-
-                if (switchInHpDelta !== null && switchInHpDelta < 0) {
-                    if (nextLogCount > displayedLogCount) {
-                        stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
-                        setBattleState(cloneBattleState(stagedState));
-                        await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
-                        displayedLogCount = nextLogCount;
-                    }
-                    setPlayback({
-                        isPlaying: true,
-                        label: '場の効果を反映中',
-                        damagedPlayerId: targetId,
-                        effectType: 'rock',
-                        faintedCreatureIds: [],
-                    });
-                    copyFinalActiveCreature(stagedState, finalState, targetId);
-                    setBattleState(cloneBattleState(stagedState));
-                    await wait(PLAYBACK_HIT_MS);
-                }
-            }
-
-            if (activeSlotChanged(stagedState, finalState, action.playerId)) {
-                setPlayback({
-                    isPlaying: true,
-                    label: action.playerId === localPlayerIdRef.current ? 'あなたが交代しています' : '相手が交代しています',
-                    faintedCreatureIds: [],
-                });
-                copyFinalActiveCreature(stagedState, finalState, action.playerId);
-                setBattleState(cloneBattleState(stagedState));
-                await wait(PLAYBACK_STEP_MS);
-            }
-
-            if (nextLogCount > displayedLogCount) {
-                stagedState.log = [...startState.log, ...newLogs.slice(0, nextLogCount)];
-                setBattleState(cloneBattleState(stagedState));
-                await showPopupsFromLogs(newLogs.slice(displayedLogCount, nextLogCount), stagedState);
-            }
-            consumedLogs = nextLogCount;
-        }
-
-        if (consumedLogs < newLogs.length) {
-            const remainingLogs = newLogs.slice(consumedLogs);
-            const statusFlash = getStatusFlashFromLogs(remainingLogs, finalState);
-            setPlayback((current) => ({
-                ...current,
-                label: '状態変化を反映中',
-                statusFlashPlayerId: statusFlash?.playerId,
-                statusFlashType: statusFlash?.statusType,
-            }));
-            stagedState.log = finalState.log;
-            setBattleState(cloneBattleState(stagedState));
-            await showPopupsFromLogs(remainingLogs, stagedState);
+            setBattleState(finalState);
             await wait(PLAYBACK_STEP_MS);
+
+            playbackCompleted = true;
+        } finally {
+            // Keep the authoritative result even if presentation fails.
+            setBattleState(finalState);
+            playbackRef.current = false;
+            setKamishinkaAnimation(null);
+            setPlayback(IDLE_PLAYBACK_STATE);
+            if (!playbackCompleted) setWaiting(false);
         }
-
-        setPlayback({
-            isPlaying: true,
-            label: 'ターン処理完了',
-            faintedCreatureIds: [],
-        });
-        setBattleState(finalState);
-        await wait(PLAYBACK_STEP_MS);
-
-        playbackRef.current = false;
-        setPlayback(IDLE_PLAYBACK_STATE);
     }, [moves, showPopupsFromLogs]);
 
     const finishBattle = useCallback(async (nextState: BattleStateWire) => {
@@ -1748,6 +1790,11 @@ export default function BattlePage() {
         };
 
         window.setTimeout(() => {
+            const reset = resetKamishinkaState(nextState);
+            battleStateRef.current = reset;
+            setBattleState(reset);
+            resetOnlineKamishinka();
+            setKamishinkaReservation(null);
             navigate('/result', {
                 state: {
                     battleMode,
@@ -1890,6 +1937,7 @@ export default function BattlePage() {
                 return;
             }
             if (event.type === 'remote_action' && onlineRoleRef.current === 'host') {
+                if (event.actorId !== 'guest' || event.action.playerId !== opponentPlayerIdRef.current || resolvingTurnRef.current || playbackRef.current || pendingRemoteActionRef.current) return;
                 const currentState = battleStateRef.current;
                 if (
                     currentState &&
@@ -1952,7 +2000,7 @@ export default function BattlePage() {
                 ? JSON.parse(opponentPreviewDeckJson)
                 : aiDeck;
         
-            if (playerDeck.length !== 3 || aiDeck.length !== 3) {
+            if (playerDeck.length < 1 || aiDeck.length < 1) {
                 navigate('/team-preview');
                 return;
             }
@@ -2171,7 +2219,7 @@ export default function BattlePage() {
     };
 
     const handleSelectMove = async (moveId: string) => {
-        if (!battleState || waiting || playbackRef.current) return;
+        if (!battleState || waiting || playbackRef.current || submittingActionRef.current) return;
         const player = battleState.players.find((candidate) => candidate.id === localPlayerIdRef.current);
         const activeCreature = player?.team[player.activeSlot];
         const choiceLockedMoveId = getVisibleChoiceLockedMoveId(activeCreature, player?.name);
@@ -2180,10 +2228,12 @@ export default function BattlePage() {
             setStatusText(`${lockedMoveName}で こだわっています。`);
             return;
         }
+        submittingActionRef.current = true;
         setWaiting(true);
         setCommandMode('fight');
 
         if (battleState && needsForcedSwitch(battleState, localPlayerIdRef.current)) {
+            submittingActionRef.current = false;
             setWaiting(false);
             return;
         }
@@ -2197,6 +2247,7 @@ export default function BattlePage() {
                     setFocusedTeamSlot(slot);
                     setCommandMode('pokemon');
                     setStatusText('交代先を選んでください。');
+                    submittingActionRef.current = false;
                     setWaiting(false);
                     return;
                 }
@@ -2210,6 +2261,7 @@ export default function BattlePage() {
                     setFocusedTeamSlot(slot);
                     setCommandMode('pokemon');
                     setStatusText('復活させるニキダンを選んでください。');
+                    submittingActionRef.current = false;
                     setWaiting(false);
                     return;
                 }
@@ -2226,9 +2278,11 @@ export default function BattlePage() {
                 type: 'move',
                 playerId: localPlayerIdRef.current,
                 moveId,
+                kamishinkaForm: kamishinkaReservation ?? undefined,
                 targetId: opponentPlayerIdRef.current,
             };
 
+            setKamishinkaReservation(null);
             if (battleMode === 'player') {
                 await submitOnlineAction(playerAction);
                 return;
@@ -2250,13 +2304,15 @@ if (!aiAction) {
         } catch (err) {
             console.error('Battle step error:', err);
             setStatusText('行動の送信に失敗しました。');
+        } finally {
+            submittingActionRef.current = false;
         }
 
         setWaiting(false);
     };
 
     const handleSwitch = async (index: number) => {
-        if (!battleState || waiting || playbackRef.current) return;
+        if (!battleState || waiting || playbackRef.current || submittingActionRef.current) return;
         const player = getPlayer(localPlayerIdRef.current);
         if (!player) return;
         if (index === player.activeSlot) return;
@@ -2276,6 +2332,7 @@ if (!aiAction) {
             });
         }
 
+        submittingActionRef.current = true;
         setWaiting(true);
         setCommandMode('fight');
 
@@ -2285,12 +2342,14 @@ if (!aiAction) {
                 type: 'move',
                 playerId: localPlayerIdRef.current,
                 moveId: pendingReviveMoveId,
+                kamishinkaForm: kamishinkaReservation ?? undefined,
                 targetId: opponentPlayerIdRef.current,
                 slot: index,
             } : pendingMoveId ? {
                 type: 'move',
                 playerId: localPlayerIdRef.current,
                 moveId: pendingMoveId,
+                kamishinkaForm: kamishinkaReservation ?? undefined,
                 targetId: opponentPlayerIdRef.current,
                 slot: index,
             } : {
@@ -2298,6 +2357,7 @@ if (!aiAction) {
                 playerId: localPlayerIdRef.current,
                 slot: index
             };
+            setKamishinkaReservation(null);
             setPendingSelfSwitchMoveId(null);
             setPendingRevivalMoveId(null);
             const forcedSwitch = needsForcedSwitch(battleState, localPlayerIdRef.current);
@@ -2342,6 +2402,8 @@ if (!aiAction) {
         } catch (err) {
             console.error('Switch error:', err);
             setStatusText('交代に失敗しました。');
+        } finally {
+            submittingActionRef.current = false;
         }
 
         setWaiting(false);
@@ -2412,8 +2474,8 @@ if (!playerPokemon || !aiPokemon) {
     );
 }
 
-const playerSpecies = species[playerPokemon.speciesId];
-const aiSpecies = species[aiPokemon.speciesId];
+const playerSpecies = getBattleSpecies(playerPokemon, species);
+const aiSpecies = getBattleSpecies(aiPokemon, species);
 
 if (!playerSpecies || !aiSpecies) {
     return (
@@ -2429,6 +2491,7 @@ if (!playerSpecies || !aiSpecies) {
 }
 
 const mustSwitch = needsForcedSwitch(battleState, localPlayerId);
+const opponentPreviewSlots = battleMode === 'ai' && rpgBattleKind === 'wild' ? 1 : OPPONENT_TEAM_PREVIEW_SLOTS;
 const interactionLocked = waiting || playback.isPlaying;
 const battleStatusLabel = playback.isPlaying
     ? playback.label
@@ -2455,6 +2518,7 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
             'flex min-h-dvh flex-col bg-[var(--surface-1)]',
             isTypeMoveImpact && 'battle-fire-screen-shake',
         )}>
+            {kamishinkaAnimation && <KamishinkaAnimation state={kamishinkaAnimation} />}
             {isTypeMoveImpact && (
                 <MoveTypeEffect
                     effectType={playback.effectType!}
@@ -2491,6 +2555,8 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
   <span className="hidden truncate text-sm text-[var(--text-muted)] sm:inline">
     {battleMode === 'player'
       ? 'VS Player (PeerJS)'
+      : rpgBattleKind === 'wild'
+        ? 'VS Wild'
       : aiLevel === 'lv2'
         ? 'Vega'
         : 'VS AI (Minimax 深さ1)'}
@@ -2519,6 +2585,7 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
                             isPlayer={false}
                             previewDeck={opponentPreviewDeck}
                             revealedSlots={revealedOpponentSlots}
+                            previewSlots={opponentPreviewSlots}
                         />
                         <div className="h-[21rem] min-h-0">
                             <BattleLog
@@ -2572,6 +2639,7 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
                         isPlayer={false}
                         previewDeck={opponentPreviewDeck}
                         revealedSlots={revealedOpponentSlots}
+                        previewSlots={opponentPreviewSlots}
                     />
                     <PokemonStatus
                         key={aiPokemon.id}
@@ -2640,6 +2708,7 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
         onClick={() => {
             setPendingSelfSwitchMoveId(null);
             setPendingRevivalMoveId(null);
+            setKamishinkaReservation(null);
             setCommandMode('pokemon');
         }}
         disabled={interactionLocked}
@@ -2656,6 +2725,19 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
 </div>
                     {commandMode === 'fight' ? (
                         <div>
+                            <div className="mb-2 flex flex-wrap gap-2" aria-label="カミシンカ予約">
+                                {(availableKamishinkaForms(player).length ? availableKamishinkaForms(player) : [null]).map((form) => (
+                                    <button key={form?.id ?? 'unavailable'} type="button"
+                                        aria-pressed={Boolean(form && kamishinkaReservation === form.id)}
+                                        disabled={interactionLocked || !form || mustSwitch}
+                                        onClick={() => form && setKamishinkaReservation((current) => current === form.id ? null : form.id)}
+                                        className={cn('rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40',
+                                            form && kamishinkaReservation === form.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--surface-3)] text-[var(--text-primary)]')}>
+                                        {form && availableKamishinkaForms(player).length > 1 ? `カミシンカ：${form.name}` : 'カミシンカ'}
+                                        {form && kamishinkaReservation === form.id ? ' 予約中（解除）' : player.kamishinkaUsed ? ' 使用済み' : ''}
+                                    </button>
+                                ))}
+                            </div>
                             {(() => {
                                 const lockedMoveId = getVisibleChoiceLockedMoveId(playerPokemon, player.name);
                                 if (!lockedMoveId) return null;
@@ -2875,12 +2957,12 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
 
                 <div className="grid grid-cols-2 gap-2 lg:block lg:space-y-2">
                 {player.team.map((mon, idx) => {
-                    const monSpecies = species[mon.speciesId];
+                    const monSpecies = getBattleSpecies(mon, species);
                     const isActive = idx === player.activeSlot;
                     const isFainted = mon.hp <= 0;
                     const hpPercentage = mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
                     const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
-                    const portraitSrc = getPokemonPortraitSrc(mon.speciesId, monSpecies?.name || mon.name);
+                    const portraitSrc = getBattlePortrait(mon);
 
                     return (
                         <button
@@ -2903,7 +2985,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-3)]">
                                     <img
                                         src={portraitSrc}
-                                        alt={monSpecies?.name || mon.name}
+                                        alt={mon.name}
                                         className={cn('size-full object-cover', isFainted && 'grayscale')}
                                     />
                                     {isActive && (
@@ -2912,7 +2994,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                                        {monSpecies?.name ?? mon.name}
+                                        {mon.name}
                                     </div>
                                     <div className="mt-1 flex flex-wrap gap-1">
                                         {(monSpecies?.type ?? mon.types).map((type) => (
@@ -2959,7 +3041,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                 </button>
                 {(() => {
                     const mon = player.team[focusedTeamSlot] ?? player.team[player.activeSlot];
-                    const monSpecies = species[mon.speciesId];
+                    const monSpecies = getBattleSpecies(mon, species);
                     const isActive = focusedTeamSlot === player.activeSlot;
                     const isFainted = mon.hp <= 0;
                     const shownStatuses = visibleStatuses(mon.statuses);
@@ -2982,10 +3064,10 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                                             <div className="flex min-w-0 flex-wrap items-start gap-2">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="truncate text-xl font-bold text-[var(--text-primary)]">
-                                                        {monSpecies?.name}
+                                                        {mon.name}
                                                     </div>
                                                     <div className="mt-1 flex flex-wrap gap-1">
-                                                        {(monSpecies?.type ?? []).map((t) => (
+                                                        {(mon.types ?? monSpecies?.type ?? []).map((t) => (
                                                             <span
                                                                 key={t}
                                                                 className="rounded-full px-2 py-0.5 text-xs text-white"
@@ -3145,20 +3227,20 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     ai.team.forEach((mon, idx) => {
                         selectedSlotBySpecies.set(mon.speciesId, idx);
                     });
-                    const displayDeck = Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => opponentPreviewDeck[idx] ?? null);
+                    const displayDeck = Array.from({ length: opponentPreviewSlots }, (_, idx) => opponentPreviewDeck[idx] ?? null);
 
                     return displayDeck.map((deckMon, idx) => {
                         const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
                         const mon = selectedSlot !== undefined ? ai.team[selectedSlot] : null;
                         const monSpecies = deckMon ? species[deckMon.speciesId] : null;
-                        const displayName = monSpecies?.name ?? mon?.name ?? '未確認';
                         const isActive = selectedSlot !== undefined && selectedSlot === ai.activeSlot;
                         const isFainted = Boolean(mon && mon.hp <= 0);
                         const isRevealed = selectedSlot !== undefined && Boolean(mon && (isActive || revealedOpponentSlots.has(selectedSlot)));
                         const hpPercentage = mon && mon.maxHp > 0 ? (mon.hp / mon.maxHp) * 100 : 0;
                         const hpPercentLabel = `${Math.floor(hpPercentage)}%`;
                         const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
-                        const portraitSrc = deckMon
+                        const displayName = isRevealed && mon ? mon.name : monSpecies?.name ?? '未確認';
+                        const portraitSrc = isRevealed && mon ? getBattlePortrait(mon) : deckMon
                             ? getPokemonPortraitSrc(deckMon.speciesId, displayName)
                             : '';
 
@@ -3266,6 +3348,7 @@ function TeamIndicator({
     isPlayer,
     previewDeck,
     revealedSlots,
+    previewSlots = OPPONENT_TEAM_PREVIEW_SLOTS,
 }: {
     team: CreatureStateWire[];
     activeSlot: number;
@@ -3273,6 +3356,7 @@ function TeamIndicator({
     isPlayer: boolean;
     previewDeck?: DeckPokemon[];
     revealedSlots?: Set<number>;
+    previewSlots?: number;
 }) {
     const selectedSlotBySpecies = new Map<string, number>();
     team.forEach((mon, idx) => {
@@ -3280,7 +3364,7 @@ function TeamIndicator({
     });
     const displaySlots = isPlayer
         ? team.map((mon, idx) => ({ mon, deckMon: null, selectedSlot: idx }))
-        : Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => {
+        : Array.from({ length: previewSlots }, (_, idx) => {
             const deckMon = previewDeck?.[idx] ?? null;
             const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
             const mon = selectedSlot !== undefined ? team[selectedSlot] : null;
@@ -3302,8 +3386,8 @@ function TeamIndicator({
                 const monSpecies = species[(isRevealed ? mon?.speciesId : deckMon?.speciesId) ?? ''];
                 const title = isRevealed && mon
                     ? isPlayer
-                        ? `${monSpecies?.name}: ${mon.hp}/${mon.maxHp} HP`
-                        : `${monSpecies?.name}: ${hpPercentLabel} HP`
+                        ? `${mon.name}: ${mon.hp}/${mon.maxHp} HP`
+                        : `${mon.name}: ${hpPercentLabel} HP`
                     : `${monSpecies?.name ?? '未確認'}: 未登場`;
 
                 return (
@@ -3439,7 +3523,7 @@ function PokemonStatus({
         ? `${creature.hp}/${creature.maxHp}`
         : `${Math.floor(hpPercentage)}%`;
     const hpColor = hpPercentage > 50 ? 'bg-emerald-500' : hpPercentage > 20 ? 'bg-amber-500' : 'bg-red-500';
-    const portraitSrc = getPokemonPortraitSrc(creature.speciesId, species?.name || creature.name);
+    const portraitSrc = getBattlePortrait(creature);
     const typeColor = getTypeColor(effectType);
     const statusFlashColor = statusFlashType ? STATUS_FLASH_COLORS[statusFlashType] : undefined;
     const [showAllStages, setShowAllStages] = useState(false);
@@ -3467,7 +3551,7 @@ function PokemonStatus({
                     <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-3)] sm:size-24">
                         <img
                             src={portraitSrc}
-                            alt={species?.name || creature.name}
+                            alt={creature.name}
                             className="size-full object-cover"
                             draggable={false}
                         />
@@ -3486,7 +3570,7 @@ function PokemonStatus({
                         )} />
                     </div>
                     <div className={cn('min-w-0', isPlayer ? 'text-right' : '')}>
-                        <h3 className="truncate text-base font-bold text-[var(--text-primary)] sm:text-balance sm:text-lg">{species?.name || creature.name}</h3>
+                        <h3 className="truncate text-base font-bold text-[var(--text-primary)] sm:text-balance sm:text-lg">{creature.name}</h3>
                         <div className={cn('flex flex-wrap gap-1', isPlayer ? 'justify-end' : '')}>
                         {(creature.types || species?.type || []).map((t) => (
     <span

@@ -129,6 +129,8 @@ struct CreatureStateWire {
     #[serde(default)]
     consumed_item: Option<String>,
     #[serde(default)]
+    kamishinka: Option<crate::core::state::KamishinkaState>,
+    #[serde(default)]
     evs: EVStatsWire,
     hp: i32,
     max_hp: i32,
@@ -160,6 +162,10 @@ struct PlayerStateWire {
     active_slot: usize,
     #[serde(default)]
     last_fainted_ability: Option<String>,
+    #[serde(default)]
+    kamishinka_used: bool,
+    #[serde(default)]
+    fainted_count: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -181,6 +187,8 @@ struct ActionWire {
     target_id: Option<String>,
     slot: Option<usize>,
     priority: Option<i32>,
+    #[serde(default)]
+    kamishinka_form: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -357,6 +365,7 @@ impl From<CreatureState> for CreatureStateWire {
             ability: creature.ability,
             item: creature.item,
             consumed_item: creature.consumed_item,
+            kamishinka: creature.kamishinka,
             evs: EVStatsWire::from(creature.evs),
             hp: creature.hp,
             max_hp: creature.max_hp,
@@ -402,6 +411,7 @@ impl From<CreatureStateWire> for CreatureState {
             ability: creature.ability,
             item: creature.item,
             consumed_item: creature.consumed_item,
+            kamishinka: creature.kamishinka,
             evs: EVStats::from(creature.evs),
             hp: creature.hp,
             max_hp: creature.max_hp,
@@ -432,6 +442,8 @@ impl From<PlayerState> for PlayerStateWire {
                 .collect(),
             active_slot: player.active_slot,
             last_fainted_ability: player.last_fainted_ability,
+            kamishinka_used: player.kamishinka_used,
+            fainted_count: player.fainted_count,
         }
     }
 }
@@ -444,6 +456,8 @@ impl From<PlayerStateWire> for PlayerState {
             team: player.team.into_iter().map(CreatureState::from).collect(),
             active_slot: player.active_slot,
             last_fainted_ability: player.last_fainted_ability,
+            kamishinka_used: player.kamishinka_used,
+            fainted_count: player.fainted_count,
         }
     }
 }
@@ -487,6 +501,7 @@ impl From<Action> for ActionWire {
             target_id: action.target_id,
             slot: action.slot,
             priority: action.priority,
+            kamishinka_form: action.kamishinka_form,
         }
     }
 }
@@ -504,6 +519,7 @@ impl TryFrom<ActionWire> for Action {
             target_id: action.target_id,
             slot: action.slot,
             priority: action.priority,
+            kamishinka_form: action.kamishinka_form,
         })
     }
 }

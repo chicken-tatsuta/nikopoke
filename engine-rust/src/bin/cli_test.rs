@@ -783,6 +783,8 @@ fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Ba
         name: "あなた".to_string(),
         team: p1_team,
         active_slot: 0,
+        fainted_count: 0,
+        kamishinka_used: false,
         last_fainted_ability: None,
     };
     let p2 = PlayerState {
@@ -790,6 +792,8 @@ fn create_battle(p1_team: Vec<CreatureState>, p2_team: Vec<CreatureState>) -> Ba
         name: "相手".to_string(),
         team: p2_team,
         active_slot: 0,
+        fainted_count: 0,
+        kamishinka_used: false,
         last_fainted_ability: None,
     };
     BattleState {
@@ -846,6 +850,7 @@ fn select_battle_actions(
         move_id: Some(move_id),
         target_id: Some("p2".to_string()),
         slot: None,
+        kamishinka_form: None,
         priority: None,
     };
 
@@ -860,6 +865,7 @@ fn select_battle_actions(
         move_id: opp_move_id,
         target_id: Some("p1".to_string()),
         slot: None,
+        kamishinka_form: None,
         priority: None,
     };
 

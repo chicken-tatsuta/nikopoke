@@ -44,6 +44,13 @@ export interface CreatureStateWire {
     ability: string | null;
     item: string | null;
     consumedItem?: string | null;
+    kamishinka?: {
+        formId: string;
+        originalName: string;
+        originalAbility: string | null;
+        originalTypes: string[];
+        originalStats: [number, number, number, number, number];
+    } | null;
     evs: EVStats;
     hp: number;
     maxHp: number;
@@ -64,6 +71,8 @@ export interface PlayerStateWire {
     name: string;
     team: CreatureStateWire[];
     activeSlot: number;
+    kamishinkaUsed?: boolean;
+    faintedCount?: number;
 }
 
 export interface FieldStateWire {
@@ -83,6 +92,7 @@ export interface ActionWire {
     playerId: string;
     moveId?: string;
     targetId?: string;
+    kamishinkaForm?: string;
     slot?: number;
 }
 

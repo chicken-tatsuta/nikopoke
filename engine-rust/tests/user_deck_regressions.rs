@@ -98,6 +98,8 @@ fn buchii_sub_deck_allows_ai_move_selection() {
     ];
     let state = create_battle_state(vec![
         PlayerState {
+            kamishinka_used: false,
+            fainted_count: 0,
             id: "player".to_string(),
             name: "player".to_string(),
             team: player_team,
@@ -105,6 +107,8 @@ fn buchii_sub_deck_allows_ai_move_selection() {
             last_fainted_ability: None,
         },
         PlayerState {
+            kamishinka_used: false,
+            fainted_count: 0,
             id: "ai".to_string(),
             name: "ai".to_string(),
             team: ai_team,
