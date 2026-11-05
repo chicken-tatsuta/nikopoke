@@ -294,7 +294,6 @@ export default function DeckBuilderPage() {
         localStorage.setItem('savedDeck', JSON.stringify(sanitizedDeck));
         sessionStorage.setItem('playerDeck', JSON.stringify(sanitizedDeck));
         sessionStorage.setItem('battleMode', mode);
-        sessionStorage.removeItem('rpgBattleKind');
         sessionStorage.removeItem('selectedPlayerDeck');
         sessionStorage.removeItem('selectedOpponentDeck');
         navigate(mode === 'player' ? '/online-lobby' : '/team-preview');

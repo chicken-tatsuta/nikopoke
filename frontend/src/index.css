@@ -1135,14 +1135,32 @@ body {
 @keyframes kami-reveal { from { filter: brightness(5); transform: scale(1.1); } to { filter: brightness(1); transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .kami-overlay, .kami-orb, .kami-light, .kami-phase-reveal .kami-portrait { animation: none !important; } }
 
-/* Keep the original portrait visible beneath a gentle rainbow sheen. */
-.kami-rainbow-frame { position: relative; isolation: isolate; }
+/* A full-spectrum tint and luminous rim make evolved portraits unmistakable. */
+.kami-rainbow-frame {
+  position: relative; isolation: isolate;
+  box-shadow: 0 0 10px rgb(165 72 255 / 65%), 0 0 18px rgb(40 221 255 / 40%);
+}
+.kami-rainbow-frame::before,
 .kami-rainbow-frame::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
-  background: linear-gradient(120deg, #ff5370, #ffcf54, #76ed9a, #55d9ff, #a783ff, #ff70c7, #ff5370);
-  background-size: 300% 300%; mix-blend-mode: soft-light; opacity: .58;
-  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 45%);
-  animation: kami-rainbow-flow 8s ease-in-out infinite alternate;
 }
-@keyframes kami-rainbow-flow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
-@media (prefers-reduced-motion: reduce) { .kami-rainbow-frame::after { animation: none; } }
+.kami-rainbow-frame::before {
+  z-index: 2; padding: 3px;
+  background: conic-gradient(#ff165d, #ff9a00, #fff200, #00f59b, #00cfff, #7357ff, #ff38db, #ff165d);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: kami-rainbow-rim 5s linear infinite;
+}
+.kami-rainbow-frame::after {
+  z-index: 1;
+  background: linear-gradient(125deg, #ff165d 0%, #ff9a00 16%, #fff200 32%, #00f59b 48%, #00cfff 64%, #7357ff 80%, #ff38db 100%);
+  background-size: 120% 120%; mix-blend-mode: color; opacity: .88;
+  animation: kami-rainbow-flow 4s ease-in-out infinite alternate;
+}
+@keyframes kami-rainbow-flow { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+@keyframes kami-rainbow-rim { to { filter: hue-rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .kami-rainbow-frame::before, .kami-rainbow-frame::after { animation: none; }
+}

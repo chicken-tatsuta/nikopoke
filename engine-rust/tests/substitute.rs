@@ -285,3 +285,140 @@ fn substitute_breaks_when_hp_depleted() {
         .any(|s| s.id == "substitute");
     assert!(!has_substitute);
 }
+
+fn use_substitute(state: &BattleState) -> BattleState {
+    let engine = BattleEngine::new(MoveDatabase::load_default().unwrap(), TypeChart::new());
+    engine.step_battle(
+        state,
+        &[Action {
+            player_id: "p1".into(),
+            action_type: ActionType::Move,
+            move_id: Some("substitute".into()),
+            target_id: Some("p2".into()),
+            slot: None,
+            priority: None,
+            kamishinka_form: None,
+        }],
+        &mut || 0.5,
+        BattleOptions::default(),
+    )
+}
+
+#[test]
+fn repeated_substitute_fails_without_cost_or_restoring_its_hp() {
+    let mut s = make_state(
+        make_creature("c1", "Alpha", vec!["substitute".into()]),
+        make_creature("c2", "Beta", vec![]),
+    );
+    s = use_substitute(&s);
+    assert_eq!(s.players[0].team[0].hp, 75);
+    s.players[0].team[0]
+        .statuses
+        .iter_mut()
+        .find(|s| s.id == "substitute")
+        .unwrap()
+        .data
+        .insert("hp".into(), json!(7));
+    s = use_substitute(&s);
+    let c = &s.players[0].team[0];
+    assert_eq!(c.hp, 75);
+    assert_eq!(
+        c.statuses.iter().filter(|s| s.id == "substitute").count(),
+        1
+    );
+    assert_eq!(
+        c.statuses
+            .iter()
+            .find(|s| s.id == "substitute")
+            .unwrap()
+            .data["hp"],
+        json!(7)
+    );
+    assert_eq!(c.move_pp["substitute"], 8); // Failed use still consumes PP.
+}
+
+#[test]
+fn substitute_requires_more_hp_than_the_cost() {
+    for (hp, max_hp, succeeds) in [
+        (24, 100, false),
+        (25, 100, false),
+        (26, 100, true),
+        (25, 101, false),
+        (26, 101, true),
+        (1, 1, false),
+    ] {
+        let mut s = make_state(
+            make_creature("c1", "Alpha", vec!["substitute".into()]),
+            make_creature("c2", "Beta", vec![]),
+        );
+        s.players[0].team[0].hp = hp;
+        s.players[0].team[0].max_hp = max_hp;
+        let s = use_substitute(&s);
+        let c = &s.players[0].team[0];
+        assert_eq!(c.statuses.iter().any(|s| s.id == "substitute"), succeeds);
+        assert_eq!(c.hp, if succeeds { hp - max_hp / 4 } else { hp });
+    }
+}
+
+#[test]
+fn substitute_can_be_created_again_after_the_previous_one_breaks() {
+    use engine_rust::core::events::{apply_event, meta_with_move_source, BattleEvent};
+    let s = make_state(
+        make_creature("c1", "Alpha", vec!["substitute".into()]),
+        make_creature("c2", "Beta", vec![]),
+    );
+    let s = use_substitute(&s);
+    let s = apply_event(
+        &s,
+        &BattleEvent::Damage {
+            target_id: "p1".into(),
+            amount: 100,
+            meta: meta_with_move_source(Some("tackle"), Some("p2")),
+        },
+    );
+    assert_eq!(s.players[0].team[0].hp, 75);
+    assert!(!s.players[0].team[0]
+        .statuses
+        .iter()
+        .any(|s| s.id == "substitute"));
+    let s = use_substitute(&s);
+    assert_eq!(s.players[0].team[0].hp, 50);
+    assert_eq!(
+        s.players[0].team[0]
+            .statuses
+            .iter()
+            .filter(|s| s.id == "substitute")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn direct_status_requests_cannot_stack_substitutes_even_with_stack_true() {
+    use engine_rust::core::events::{apply_event, BattleEvent};
+    let mut s = make_state(
+        make_creature("c1", "Alpha", vec![]),
+        make_creature("c2", "Beta", vec![]),
+    );
+    for stack in [false, true, true] {
+        s = apply_event(
+            &s,
+            &BattleEvent::ApplyStatus {
+                target_id: "p1".into(),
+                status_id: "substitute".into(),
+                duration: None,
+                stack,
+                data: HashMap::from([("hp".into(), json!(7))]),
+                meta: Map::new(),
+            },
+        );
+    }
+    assert_eq!(
+        s.players[0].team[0]
+            .statuses
+            .iter()
+            .filter(|s| s.id == "substitute")
+            .count(),
+        1
+    );
+}

@@ -26,6 +26,9 @@ const deck=['nisiki','ikkun','ayuma','morimori','haruta','makocchan'].map(specie
     const page=await context.newPage();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     const origin=process.env.TEST_ORIGIN || 'http://127.0.0.1:5173';
+    await page.goto(origin+'/rpg');
+    await page.waitForURL(origin+'/home');
+    assert.equal(await page.getByRole('link',{name:/RPG/}).count(),0);
     await page.goto(origin+'/deck-builder');
     for(let i=0;i<2;i++) {
       await page.getByRole('button',{name:'道具',exact:true}).nth(i).click();
@@ -37,14 +40,16 @@ const deck=['nisiki','ikkun','ayuma','morimori','haruta','makocchan'].map(specie
     assert.equal(saved.filter(c=>c.item==='kamidama').length,2);
     await page.evaluate(saved=>{
       const local=saved.slice(0,3).map(c=>({...c,moves:['tackle']}));
-      const opponent=[{speciesId:'reosan',ability:'none',moves:['growl'],item:null}];
+      const opponent=['reosan','buchii','eiraku'].map(speciesId=>({speciesId,ability:'none',moves:['growl'],item:null}));
+      sessionStorage.setItem('rpgBattleKind','wild'); // Stale saved keys must not affect ordinary battles.
       sessionStorage.setItem('playerDeck',JSON.stringify(saved));
       sessionStorage.setItem('selectedPlayerDeck',JSON.stringify(local));
       sessionStorage.setItem('selectedOpponentDeck',JSON.stringify(opponent));
     },saved);
     await page.goto(origin+'/battle');
     const toggle=page.getByRole('button',{name:'カミシンカ',exact:true});
-    await toggle.waitFor();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='カミシンカ'&&!b.disabled));
+    await toggle.waitFor();
+    assert.equal(await page.getByText('VS Wild',{exact:true}).count(),0);await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='カミシンカ'&&!b.disabled));
     const originalPortrait=await page.getByRole('img',{name:'にしき',exact:true}).first().getAttribute('src');
     await toggle.click();assert.equal(await page.getByRole('button',{name:/予約中/}).getAttribute('aria-pressed'),'true');
     await page.getByRole('button',{name:/予約中/}).click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
@@ -78,6 +83,6 @@ const deck=['nisiki','ikkun','ayuma','morimori','haruta','makocchan'].map(specie
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/kamishinka-mobile.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
     assert.deepEqual(errors,[]);
-    console.log('UI checks passed: two held items, reservation/cancel, animation input lock, evolved name, used button, switch persistence, mobile layout.');
+    console.log('UI checks passed: removed route/menu, ignored stale session key, two held items, reservation/cancel, animation input lock, evolved name, used button, switch persistence, mobile layout.');
   } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

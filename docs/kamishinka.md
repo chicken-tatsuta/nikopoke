@@ -92,7 +92,7 @@ node frontend/scripts/check-kamishinka-ui.cjs
 
 ## 変更ファイル
 
-既存のCLI・テストの一部は、新しい状態/アクションフィールドの初期値追加のみ。既に作業中だった `RpgPage.tsx` はカミダマの重複許可だけを変更。
+既存のCLI・テストの一部は、新しい状態/アクションフィールドの初期値追加のみ。
 
 - `docs/kamishinka.md`
 - `engine-rust/data/items.json`
@@ -144,7 +144,6 @@ node frontend/scripts/check-kamishinka-ui.cjs
 - `frontend/src/pages/BattlePage.tsx`
 - `frontend/src/pages/DeckBuilderPage.tsx`
 - `frontend/src/pages/PokemonDetailPage.tsx`
-- `frontend/src/pages/RpgPage.tsx`
 - `scripts/check-kamishinka.cjs`
 - `scripts/sync-battle-data.cjs`
 

@@ -37,6 +37,13 @@ pub fn apply_effects(
 ) -> Vec<BattleEvent> {
     apply_move_tag_flags(ctx);
     apply_effect_flags(ctx, steps);
+    // Validate the whole creation sequence before paying its HP cost.
+    if let Some(message) = substitute_creation_failure(state, steps, ctx) {
+        return vec![BattleEvent::Log {
+            message,
+            meta: Map::new(),
+        }];
+    }
     let mut events = Vec::new();
     let base_state = state.clone();
     let mut working_state = base_state.clone();
@@ -77,6 +84,43 @@ pub fn apply_effects(
     }
     apply_meta_flags(&mut events, ctx);
     events
+}
+
+fn substitute_creation_failure(
+    state: &BattleState,
+    steps: &[Effect],
+    ctx: &mut EffectContext<'_>,
+) -> Option<String> {
+    let creation = steps.iter().position(|effect| {
+        effect.effect_type == "apply_status"
+            && effect.data.get("statusId").and_then(Value::as_str) == Some("substitute")
+            && resolve_target(effect.data.get("target"), ctx) == ctx.attacker_player_id
+    })?;
+    let active = get_active_creature(state, &ctx.attacker_player_id)?;
+    if active.statuses.iter().any(|s| s.id == "substitute") {
+        return Some(format!("{}には すでに みがわりが ある！", active.name));
+    }
+    // Reuse the actual cost calculation, including its integer rounding.
+    let mut cost: i32 = 0;
+    for effect in &steps[..creation] {
+        if effect.effect_type != "damage_ratio"
+            || resolve_target(effect.data.get("target"), ctx) != ctx.attacker_player_id
+        {
+            continue;
+        }
+        for event in apply_damage_ratio(state, effect, ctx) {
+            if let BattleEvent::Damage { amount, .. } = event {
+                cost = cost.saturating_add(amount.max(0));
+            }
+        }
+    }
+    if active.hp <= cost {
+        return Some(format!(
+            "{}は HPが 足りず みがわりを 出せなかった！",
+            active.name
+        ));
+    }
+    None
 }
 
 pub fn apply_events(state: &BattleState, events: &[BattleEvent]) -> BattleState {

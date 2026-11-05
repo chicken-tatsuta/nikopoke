@@ -31,13 +31,6 @@ export default function TitlePage() {
                             はじめる
                             <span className="text-xl leading-none">→</span>
                         </Link>
-                        <Link
-                            to="/rpg"
-                            className="inline-flex min-w-52 items-center justify-between gap-8 rounded-md border border-white bg-transparent px-6 py-3 text-sm font-bold tracking-[0.1em] text-white transition-colors hover:bg-white hover:text-[#111111]"
-                        >
-                            RPGで遊ぶ
-                            <span className="text-xl leading-none">→</span>
-                        </Link>
                     </div>
                 </div>
             </main>

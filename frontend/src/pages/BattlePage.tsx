@@ -1231,7 +1231,6 @@ export default function BattlePage() {
     const [aiLevel] = useState<'lv1' | 'lv2'>(() =>
         sessionStorage.getItem('aiLevel') === 'lv2' ? 'lv2' : 'lv1',
     );
-    const [rpgBattleKind] = useState<string | null>(() => sessionStorage.getItem('rpgBattleKind'));
     const [species, setSpecies] = useState<SpeciesData>({});
     const [moves, setMoves] = useState<MoveData>({});
     const [items, setItems] = useState<ItemData>({});
@@ -2000,7 +1999,7 @@ export default function BattlePage() {
                 ? JSON.parse(opponentPreviewDeckJson)
                 : aiDeck;
         
-            if (playerDeck.length < 1 || aiDeck.length < 1) {
+            if (playerDeck.length !== 3 || aiDeck.length !== 3) {
                 navigate('/team-preview');
                 return;
             }
@@ -2491,7 +2490,6 @@ if (!playerSpecies || !aiSpecies) {
 }
 
 const mustSwitch = needsForcedSwitch(battleState, localPlayerId);
-const opponentPreviewSlots = battleMode === 'ai' && rpgBattleKind === 'wild' ? 1 : OPPONENT_TEAM_PREVIEW_SLOTS;
 const interactionLocked = waiting || playback.isPlaying;
 const battleStatusLabel = playback.isPlaying
     ? playback.label
@@ -2555,8 +2553,6 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
   <span className="hidden truncate text-sm text-[var(--text-muted)] sm:inline">
     {battleMode === 'player'
       ? 'VS Player (PeerJS)'
-      : rpgBattleKind === 'wild'
-        ? 'VS Wild'
       : aiLevel === 'lv2'
         ? 'Vega'
         : 'VS AI (Minimax 深さ1)'}
@@ -2585,7 +2581,6 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
                             isPlayer={false}
                             previewDeck={opponentPreviewDeck}
                             revealedSlots={revealedOpponentSlots}
-                            previewSlots={opponentPreviewSlots}
                         />
                         <div className="h-[21rem] min-h-0">
                             <BattleLog
@@ -2639,7 +2634,6 @@ const isTypeAttackFromPlayer = playback.attackingPlayerId === localPlayerId;
                         isPlayer={false}
                         previewDeck={opponentPreviewDeck}
                         revealedSlots={revealedOpponentSlots}
-                        previewSlots={opponentPreviewSlots}
                     />
                     <PokemonStatus
                         key={aiPokemon.id}
@@ -3227,7 +3221,7 @@ const effectivenessLabel = getEffectivenessLabel(effectiveness);
                     ai.team.forEach((mon, idx) => {
                         selectedSlotBySpecies.set(mon.speciesId, idx);
                     });
-                    const displayDeck = Array.from({ length: opponentPreviewSlots }, (_, idx) => opponentPreviewDeck[idx] ?? null);
+                    const displayDeck = Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => opponentPreviewDeck[idx] ?? null);
 
                     return displayDeck.map((deckMon, idx) => {
                         const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
@@ -3348,7 +3342,6 @@ function TeamIndicator({
     isPlayer,
     previewDeck,
     revealedSlots,
-    previewSlots = OPPONENT_TEAM_PREVIEW_SLOTS,
 }: {
     team: CreatureStateWire[];
     activeSlot: number;
@@ -3356,7 +3349,6 @@ function TeamIndicator({
     isPlayer: boolean;
     previewDeck?: DeckPokemon[];
     revealedSlots?: Set<number>;
-    previewSlots?: number;
 }) {
     const selectedSlotBySpecies = new Map<string, number>();
     team.forEach((mon, idx) => {
@@ -3364,7 +3356,7 @@ function TeamIndicator({
     });
     const displaySlots = isPlayer
         ? team.map((mon, idx) => ({ mon, deckMon: null, selectedSlot: idx }))
-        : Array.from({ length: previewSlots }, (_, idx) => {
+        : Array.from({ length: OPPONENT_TEAM_PREVIEW_SLOTS }, (_, idx) => {
             const deckMon = previewDeck?.[idx] ?? null;
             const selectedSlot = deckMon ? selectedSlotBySpecies.get(deckMon.speciesId) : undefined;
             const mon = selectedSlot !== undefined ? team[selectedSlot] : null;

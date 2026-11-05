@@ -424,7 +424,7 @@ pub fn apply_event(state: &BattleState, event: &BattleEvent) -> BattleState {
                             active.consumed_item = None;
                         }
                     }
-                    if !stack && is_unique_status(status_id) {
+                    if status_id == "substitute" || (!stack && is_unique_status(status_id)) {
                         if let Some(_existing) = active.statuses.iter().find(|s| s.id == *status_id)
                         {
                             next.log
